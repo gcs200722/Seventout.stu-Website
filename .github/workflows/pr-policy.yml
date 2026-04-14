@@ -1,0 +1,68 @@
+name: PR Policy
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  branch-flow-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch flow and approvals
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.info('No pull request payload found, skipping.');
+              return;
+            }
+
+            const base = pr.base.ref;
+            const head = pr.head.ref;
+            const errors = [];
+
+            if (base === 'main' && head !== 'staging') {
+              errors.push(`PR to main must come from staging. Current source: ${head}`);
+            }
+
+            if (base === 'staging' && head !== 'dev') {
+              errors.push(`PR to staging must come from dev. Current source: ${head}`);
+            }
+
+            if (base === 'dev' && !head.startsWith('feature/')) {
+              errors.push(`PR to dev must come from feature/* branch. Current source: ${head}`);
+            }
+
+            if (base === 'main') {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                per_page: 100,
+              });
+
+              const approvedUsers = new Set(
+                reviews
+                  .filter((review) => review.state === 'APPROVED')
+                  .map((review) => review.user?.login)
+                  .filter(Boolean)
+              );
+
+              if (approvedUsers.size < 1) {
+                errors.push('PR to main requires at least 1 approval review.');
+              }
+            }
+
+            if (errors.length > 0) {
+              core.setFailed(errors.join('\n'));
+              return;
+            }
+
+            core.info(`Branch policy check passed for ${head} -> ${base}`);

@@ -69,6 +69,18 @@ Default ports:
 - Supported types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
 - Commit hook is enforced via Husky + Commitlint
 
+## Branch policy via CI
+
+- `main`:
+  - PR source must be `staging`
+  - CI must pass
+  - At least 1 approval review
+- `staging`:
+  - PR source must be `dev`
+  - Integration test job runs in CI
+- `dev`:
+  - PR source must be `feature/*`
+
 ## Queue strategy
 
 - Phase 1: use BullMQ adapter (`QueuePort` -> BullMQ)

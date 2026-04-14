@@ -64,6 +64,26 @@ class EnvironmentVariables {
 
   @IsString()
   BULLMQ_DEFAULT_QUEUE = 'default';
+
+  @IsString()
+  JWT_ACCESS_SECRET = 'access-secret';
+
+  @IsString()
+  JWT_REFRESH_SECRET = 'refresh-secret';
+
+  @IsString()
+  @IsOptional()
+  JWT_ACCESS_EXPIRES_IN = '10m';
+
+  @IsString()
+  @IsOptional()
+  JWT_REFRESH_EXPIRES_IN = '7d';
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(4)
+  @IsOptional()
+  PASSWORD_SALT_ROUNDS = 10;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
