@@ -9,6 +9,7 @@
     "build": "echo \"No build needed\"",
     "lint": "echo \"No lint configured\"",
     "test": "echo \"No tests yet\"",
+    "test:cov": "echo \"No coverage tests yet\"",
     "format": "echo \"No format configured\""
   }
 }

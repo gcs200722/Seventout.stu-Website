@@ -8,9 +8,15 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "format": "turbo run format"
+    "test:cov": "turbo run test:cov",
+    "format": "turbo run format",
+    "prepare": "husky",
+    "commitlint": "commitlint --edit"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "husky": "^9.1.7",
     "turbo": "^2.5.8"
   }
 }

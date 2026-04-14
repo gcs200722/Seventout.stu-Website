@@ -62,8 +62,19 @@ Default ports:
 - `corepack pnpm test`
 - `corepack pnpm build`
 
+## Commit message convention
+
+- Required format: `<type>(scope): <message>`
+- Example: `feat(api): add queue abstraction for jobs`
+- Supported types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+- Commit hook is enforced via Husky + Commitlint
+
 ## Queue strategy
 
 - Phase 1: use BullMQ adapter (`QueuePort` -> BullMQ)
 - Phase 2: add SQS adapter implementing same `QueuePort`
 - Domain services should depend on `QueuePort`, not queue vendor SDK
+
+## DevOps docs
+
+- `docs/devOps/vercel-vps-s3.md`: deployment guide for `Vercel + 1 VPS + S3`
