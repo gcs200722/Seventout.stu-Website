@@ -1,0 +1,14 @@
+{
+  "name": "@packages/contracts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "echo \"No build needed\"",
+    "lint": "echo \"No lint configured\"",
+    "test": "echo \"No tests yet\"",
+    "format": "echo \"No format configured\""
+  }
+}
