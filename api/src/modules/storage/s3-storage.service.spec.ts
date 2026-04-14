@@ -2,7 +2,9 @@ const sendMock = jest.fn();
 
 jest.mock('@aws-sdk/client-s3', () => {
   return {
-    PutObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+    PutObjectCommand: jest
+      .fn()
+      .mockImplementation((input: Record<string, unknown>) => ({ input })),
     S3Client: jest.fn().mockImplementation(() => ({
       send: sendMock,
     })),
