@@ -26,11 +26,15 @@ import {
   setStoredAccessToken,
   setStoredTokens,
 } from "@/lib/auth-storage";
+import { parseAccessTokenClaims } from "@/lib/jwt";
 
 type AuthContextValue = {
   user: MeResponse | null;
+  role: string | null;
+  permissions: string[];
   loading: boolean;
   isAuthenticated: boolean;
+  canAccessAdmin: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
@@ -56,17 +60,28 @@ async function refreshSession(): Promise<string | null> {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<MeResponse | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const applyTokenClaims = useCallback((accessToken: string) => {
+    const claims = parseAccessTokenClaims(accessToken);
+    setRole(claims?.role ?? null);
+    setPermissions(Array.isArray(claims?.permissions) ? claims.permissions : []);
+  }, []);
 
   const loadProfile = useCallback(async () => {
     const tokens = getStoredTokens();
     if (!tokens?.access_token) {
       setUser(null);
+      setRole(null);
+      setPermissions([]);
       setLoading(false);
       return;
     }
 
     try {
+      applyTokenClaims(tokens.access_token);
       const me = await getMe(tokens.access_token);
       setUser(me);
       setLoading(false);
@@ -75,21 +90,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newAccessToken = await refreshSession();
       if (!newAccessToken) {
         setUser(null);
+        setRole(null);
+        setPermissions([]);
         setLoading(false);
         return;
       }
 
       try {
+        applyTokenClaims(newAccessToken);
         const me = await getMe(newAccessToken);
         setUser(me);
       } catch {
         clearStoredTokens();
         setUser(null);
+        setRole(null);
+        setPermissions([]);
       } finally {
         setLoading(false);
       }
     }
-  }, []);
+  }, [applyTokenClaims]);
 
   useEffect(() => {
     void loadProfile();
@@ -98,9 +118,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (payload: LoginPayload) => {
     const tokens = await loginRequest(payload);
     setStoredTokens(tokens);
+    applyTokenClaims(tokens.access_token);
     const me = await getMe(tokens.access_token);
     setUser(me);
-  }, []);
+  }, [applyTokenClaims]);
 
   const register = useCallback(async (payload: RegisterPayload) => {
     await registerRequest(payload);
@@ -109,9 +130,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: payload.password,
     });
     setStoredTokens(tokens);
+    applyTokenClaims(tokens.access_token);
     const me = await getMe(tokens.access_token);
     setUser(me);
-  }, []);
+  }, [applyTokenClaims]);
 
   const logout = useCallback(async () => {
     const tokens = getStoredTokens();
@@ -124,18 +146,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     clearStoredTokens();
     setUser(null);
+    setRole(null);
+    setPermissions([]);
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      role,
+      permissions,
       loading,
       isAuthenticated: Boolean(user),
+      canAccessAdmin: role === "ADMIN" || role === "STAFF",
       login,
       register,
       logout,
     }),
-    [user, loading, login, register, logout],
+    [user, role, permissions, loading, login, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

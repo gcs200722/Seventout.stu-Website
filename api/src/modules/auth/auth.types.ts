@@ -1,6 +1,11 @@
+import { UserRole } from '../authorization/authorization.types';
+
 export interface AccessTokenPayload {
   sub: string;
+  user_id: string;
   email: string;
+  role: UserRole;
+  permissions: string[];
 }
 
 export interface RefreshTokenPayload {
@@ -12,4 +17,6 @@ export interface RefreshTokenPayload {
 export interface AuthenticatedUser {
   id: string;
   email: string;
+  role: UserRole;
+  permissions: string[];
 }
