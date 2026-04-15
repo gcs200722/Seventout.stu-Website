@@ -20,6 +20,7 @@ import {
   type MeResponse,
   type RegisterPayload,
 } from "@/lib/auth-api";
+import { updateAdminUser } from "@/lib/admin-api";
 import {
   clearStoredTokens,
   getStoredTokens,
@@ -38,6 +39,11 @@ type AuthContextValue = {
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (payload: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+  }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -150,6 +156,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions([]);
   }, []);
 
+  const updateProfile = useCallback(
+    async (payload: { first_name?: string; last_name?: string; phone?: string }) => {
+      if (!user?.id) {
+        throw new Error("Bạn chưa đăng nhập.");
+      }
+
+      await updateAdminUser(user.id, payload);
+      await loadProfile();
+    },
+    [user?.id, loadProfile],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -161,8 +179,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      updateProfile,
     }),
-    [user, role, permissions, loading, login, register, logout],
+    [user, role, permissions, loading, login, register, logout, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

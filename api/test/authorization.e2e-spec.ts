@@ -135,7 +135,12 @@ describe('Authorization (e2e)', () => {
       success: false,
       error: {
         code: 'FORBIDDEN',
-        message: 'You do not have permission to access this resource',
+        message: 'Your role is not allowed to access this resource',
+        details: {
+          reason: 'ROLE_NOT_ALLOWED',
+          current_role: UserRole.STAFF,
+          required_roles: [UserRole.ADMIN],
+        },
       },
     });
   });

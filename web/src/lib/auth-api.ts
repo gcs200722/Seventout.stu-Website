@@ -1,3 +1,5 @@
+import { getApiErrorMessage } from "@/lib/api-error";
+
 export type LoginPayload = {
   email: string;
   password: string;
@@ -44,10 +46,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
   const json = (await response.json()) as ApiEnvelope<T> | { message?: string };
   if (!response.ok) {
-    const message =
-      "message" in json && typeof json.message === "string"
-        ? json.message
-        : "Authentication request failed";
+    const message = getApiErrorMessage(json, "Authentication request failed");
     throw new Error(message);
   }
 

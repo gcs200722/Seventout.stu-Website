@@ -132,7 +132,7 @@ export function AuthPanel() {
         </button>
       </form>
 
-      {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="mt-2 whitespace-pre-line text-xs text-rose-600">{error}</p> : null}
       {success ? <p className="mt-2 text-xs text-emerald-600">{success}</p> : null}
     </div>
   );

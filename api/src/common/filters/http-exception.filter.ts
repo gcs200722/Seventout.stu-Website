@@ -2,7 +2,6 @@ import {
   ArgumentsHost,
   Catch,
   ExceptionFilter,
-  ForbiddenException,
   HttpException,
   HttpStatus,
   Logger,
@@ -18,31 +17,37 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    if (exception instanceof ForbiddenException) {
-      response.status(HttpStatus.FORBIDDEN).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'You do not have permission to access this resource',
-        },
-      });
-      return;
-    }
-
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const payload = exception.getResponse();
       let message = exception.message;
+      let details: unknown;
 
       if (typeof payload === 'string') {
         message = payload;
       } else if (
         typeof payload === 'object' &&
         payload &&
-        'message' in payload &&
-        typeof payload.message === 'string'
+        'message' in payload
       ) {
-        message = payload.message;
+        if (typeof payload.message === 'string') {
+          message = payload.message;
+        } else if (
+          Array.isArray(payload.message) &&
+          payload.message.length > 0 &&
+          typeof payload.message[0] === 'string'
+        ) {
+          message = payload.message.join(', ');
+        }
+      }
+
+      if (
+        typeof payload === 'object' &&
+        payload &&
+        'details' in payload &&
+        payload.details !== undefined
+      ) {
+        details = payload.details;
       }
 
       response.status(status).json({
@@ -50,6 +55,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error: {
           code: HttpStatus[status] ?? 'HTTP_EXCEPTION',
           message,
+          ...(details !== undefined ? { details } : {}),
         },
       });
       return;
