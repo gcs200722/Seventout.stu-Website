@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
+import { UserRole } from '../authorization/authorization.types';
 import { UserEntity } from '../users/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -50,6 +51,8 @@ export class AuthService {
       email,
       passwordHash,
       phone: registerDto.phone.trim(),
+      role: UserRole.USER,
+      permissions: [],
     });
     const createdUser = await this.usersRepository.save(user);
     return { user_id: createdUser.id };
@@ -180,7 +183,10 @@ export class AuthService {
 
     const accessPayload: AccessTokenPayload = {
       sub: user.id,
+      user_id: user.id,
       email: user.email,
+      role: user.role,
+      permissions: user.permissions?.map((permission) => permission.code) ?? [],
     };
     const refreshPayload: RefreshTokenPayload = {
       sub: user.id,

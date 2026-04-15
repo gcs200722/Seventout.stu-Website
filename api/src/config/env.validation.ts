@@ -84,6 +84,24 @@ class EnvironmentVariables {
   @Min(4)
   @IsOptional()
   PASSWORD_SALT_ROUNDS = 10;
+
+  @IsString()
+  DEFAULT_ADMIN_EMAIL: string;
+
+  @IsString()
+  DEFAULT_ADMIN_PASSWORD: string;
+
+  @IsString()
+  @IsOptional()
+  DEFAULT_ADMIN_FIRST_NAME = 'System';
+
+  @IsString()
+  @IsOptional()
+  DEFAULT_ADMIN_LAST_NAME = 'Admin';
+
+  @IsString()
+  @IsOptional()
+  DEFAULT_ADMIN_PHONE = '0000000000';
 }
 
 export function validateEnv(config: Record<string, unknown>) {

@@ -7,8 +7,11 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { ProductsModule } from './modules/products/products.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -41,6 +44,9 @@ import { StorageModule } from './modules/storage/storage.module';
       }),
     }),
     AuthModule,
+    UsersModule,
+    ProductsModule,
+    OrdersModule,
     QueueModule,
     StorageModule,
   ],

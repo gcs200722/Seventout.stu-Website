@@ -2,10 +2,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinTable,
+  ManyToMany,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { UserRole } from '../authorization/authorization.types';
+import { PermissionEntity } from '../authorization/entities/permission.entity';
 import { RefreshTokenEntity } from '../auth/entities/refresh-token.entity';
 
 @Entity({ name: 'users' })
@@ -28,6 +32,9 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 20 })
   phone: string;
 
+  @Column({ type: 'varchar', length: 20, default: UserRole.USER })
+  role: UserRole;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
@@ -36,4 +43,17 @@ export class UserEntity {
 
   @OneToMany(() => RefreshTokenEntity, (token) => token.user)
   refreshTokens: RefreshTokenEntity[];
+
+  @ManyToMany(() => PermissionEntity, (permission) => permission.users, {
+    eager: true,
+  })
+  @JoinTable({
+    name: 'user_permissions',
+    joinColumn: { name: 'user_id', referencedColumnName: 'id' },
+    inverseJoinColumn: {
+      name: 'permission_code',
+      referencedColumnName: 'code',
+    },
+  })
+  permissions: PermissionEntity[];
 }

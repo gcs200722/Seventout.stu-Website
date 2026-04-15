@@ -15,6 +15,8 @@ describe('validateEnv', () => {
       AWS_REGION: 'ap-southeast-1',
       AWS_S3_BUCKET: 'bucket-name',
       BULLMQ_DEFAULT_QUEUE: 'default',
+      DEFAULT_ADMIN_EMAIL: 'admin@example.com',
+      DEFAULT_ADMIN_PASSWORD: 'strong-password',
     });
 
     expect(config.NODE_ENV).toBe('development');
