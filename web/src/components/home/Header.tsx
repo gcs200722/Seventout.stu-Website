@@ -61,6 +61,12 @@ export function Header() {
                 <div className="hidden text-xs text-stone-700 sm:block">
                   Xin chào, <span className="font-semibold">{user?.first_name}</span>
                 </div>
+                <Link
+                  href="/profile"
+                  className="rounded-full border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-700 transition-colors hover:bg-stone-900 hover:text-white"
+                >
+                  Hồ sơ
+                </Link>
                 <button
                   type="button"
                   onClick={() => void logout()}

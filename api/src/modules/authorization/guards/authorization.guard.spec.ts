@@ -81,6 +81,42 @@ describe('AuthorizationGuard', () => {
     expect(allowed).toBe(true);
   });
 
+  it('blocks staff when users list requires USER_READ and permission missing', () => {
+    reflector.getAllAndOverride
+      .mockReturnValueOnce([UserRole.ADMIN, UserRole.STAFF])
+      .mockReturnValueOnce([PermissionCode.USER_READ])
+      .mockReturnValueOnce(undefined);
+
+    expect(() =>
+      guard.canActivate(
+        buildContext({
+          id: 'staff-id',
+          email: 'staff@example.com',
+          role: UserRole.STAFF,
+          permissions: [],
+        }),
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('allows staff when users list requires USER_READ and permission exists', () => {
+    reflector.getAllAndOverride
+      .mockReturnValueOnce([UserRole.ADMIN, UserRole.STAFF])
+      .mockReturnValueOnce([PermissionCode.USER_READ])
+      .mockReturnValueOnce(undefined);
+
+    const allowed = guard.canActivate(
+      buildContext({
+        id: 'staff-id',
+        email: 'staff@example.com',
+        role: UserRole.STAFF,
+        permissions: [PermissionCode.USER_READ],
+      }),
+    );
+
+    expect(allowed).toBe(true);
+  });
+
   it('blocks user when owner param does not match', () => {
     reflector.getAllAndOverride
       .mockReturnValueOnce([UserRole.ADMIN, UserRole.USER])

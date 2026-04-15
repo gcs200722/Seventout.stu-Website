@@ -40,7 +40,16 @@ export class AuthorizationGuard implements CanActivate {
         context.getClass(),
       ]) ?? [];
     if (requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
-      this.deny(request, user, `role_not_allowed:${user.role}`);
+      this.deny(
+        request,
+        user,
+        'Your role is not allowed to access this resource',
+        {
+          reason: 'ROLE_NOT_ALLOWED',
+          current_role: user.role,
+          required_roles: requiredRoles,
+        },
+      );
     }
 
     const requiredPermissions =
@@ -54,7 +63,17 @@ export class AuthorizationGuard implements CanActivate {
         (permission) => !userPermissions.has(permission),
       );
       if (missingPermission) {
-        this.deny(request, user, `missing_permission:${missingPermission}`);
+        this.deny(
+          request,
+          user,
+          `Missing required permission: ${missingPermission}`,
+          {
+            reason: 'MISSING_PERMISSION',
+            current_role: user.role,
+            required_permissions: requiredPermissions,
+            missing_permission: missingPermission,
+          },
+        );
       }
     }
 
@@ -65,7 +84,12 @@ export class AuthorizationGuard implements CanActivate {
     if (ownerParam && user.role === UserRole.USER) {
       const ownerId = request.params?.[ownerParam];
       if (!ownerId || ownerId !== user.id) {
-        this.deny(request, user, `owner_mismatch:${ownerParam}`);
+        this.deny(request, user, 'You can only access your own resource', {
+          reason: 'OWNER_MISMATCH',
+          owner_param: ownerParam,
+          requested_owner_id: ownerId ?? null,
+          current_user_id: user.id,
+        });
       }
     }
 
@@ -75,13 +99,14 @@ export class AuthorizationGuard implements CanActivate {
   private deny(
     request: Request,
     user: AuthenticatedUser,
-    reason: string,
+    message: string,
+    details: Record<string, unknown>,
   ): never {
+    const reason =
+      typeof details.reason === 'string' ? details.reason : 'UNKNOWN';
     this.logger.warn(
       `403 denied method=${request.method} path=${request.path} userId=${user.id} role=${user.role} reason=${reason}`,
     );
-    throw new ForbiddenException(
-      'You do not have permission to access this resource',
-    );
+    throw new ForbiddenException({ message, details });
   }
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { getAdminOrders } from "@/lib/admin-api";
+import { getAdminOrdersMessage } from "@/lib/admin-api";
 
 export default function AdminOrdersPage() {
   const [message, setMessage] = useState<string>("");
@@ -12,8 +12,8 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     async function loadOrders() {
       try {
-        const response = await getAdminOrders();
-        setMessage(response.message);
+        const response = await getAdminOrdersMessage();
+        setMessage(response);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Không tải được dữ liệu đơn hàng.");
       } finally {

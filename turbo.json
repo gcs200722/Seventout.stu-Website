@@ -21,6 +21,9 @@
       "dependsOn": ["^test:cov"],
       "outputs": ["coverage/**"]
     },
+    "@apps/web#test:cov": {
+      "outputs": []
+    },
     "format": {
       "outputs": []
     }
