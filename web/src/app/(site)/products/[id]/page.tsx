@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ProductImageGallery } from "@/components/products/ProductImageGallery";
 import { formatVnd, getProductByIdPublic } from "@/lib/products-api";
 
 type PageProps = {
@@ -37,22 +38,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </nav>
 
       <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
-        <div className="space-y-3">
-          <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-stone-100">
-            {/* eslint-disable-next-line @next/next/no-img-element -- Presigned URL dynamic host */}
-            <img src={images[0]} alt={product.name} className="h-full w-full object-cover" />
-          </div>
-          {images.length > 1 ? (
-            <div className="grid grid-cols-4 gap-3">
-              {images.slice(1, 5).map((img, idx) => (
-                <div key={`${product.id}-thumb-${idx}`} className="aspect-square overflow-hidden rounded-xl bg-stone-100">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- Presigned URL dynamic host */}
-                  <img src={img} alt={`${product.name} ${idx + 2}`} className="h-full w-full object-cover" />
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <ProductImageGallery images={images} productName={product.name} />
 
         <div className="flex flex-col justify-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">{product.category.name}</p>

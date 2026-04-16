@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "S7 Local - Modern Daily Wear",
+  title: "Sevenout - Modern Daily Wear",
   description:
-    "S7 Local mang den cac bo suu tap thoi trang toi gian, hien dai va de mac cho phong cach local brand.",
+    "Sevenout mang den cac bo suu tap thoi trang toi gian, hien dai va de mac cho phong cach local brand.",
 };
 
 export default function RootLayout({

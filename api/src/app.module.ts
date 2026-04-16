@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ProductsModule } from './modules/products/products.module';
 import { QueueModule } from './modules/queue/queue.module';
@@ -48,6 +49,7 @@ import { UsersModule } from './modules/users/users.module';
     CategoriesModule,
     UsersModule,
     ProductsModule,
+    InventoryModule,
     OrdersModule,
     QueueModule,
     StorageModule,

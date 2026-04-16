@@ -2,9 +2,22 @@ import { refreshToken } from "@/lib/auth-api";
 import { getStoredTokens, setStoredAccessToken } from "@/lib/auth-storage";
 import { getApiErrorMessage } from "@/lib/api-error";
 
-type ApiEnvelope<T> = {
+export type ApiEnvelope<T> = {
   success: boolean;
   data?: T;
+  message?: string;
+};
+
+export type AdminPagination = {
+  page: number;
+  limit: number;
+  total: number;
+};
+
+type ApiPaginatedEnvelope<T> = {
+  success: boolean;
+  data?: T;
+  pagination?: AdminPagination;
   message?: string;
 };
 
@@ -26,7 +39,9 @@ export type PermissionCode =
   | "ORDER_MANAGE"
   | "USER_READ"
   | "CATEGORY_READ"
-  | "CATEGORY_MANAGE";
+  | "CATEGORY_MANAGE"
+  | "INVENTORY_READ"
+  | "INVENTORY_MANAGE";
 
 export type ListUsersQuery = {
   page?: number;
@@ -44,7 +59,7 @@ export type UpdateAdminUserRolePayload = {
   permissions?: PermissionCode[];
 };
 
-type AuthorizedRequest = {
+export type AdminAuthorizedRequest = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: string | FormData;
 };
@@ -52,7 +67,7 @@ type AuthorizedRequest = {
 async function requestWithToken<T>(
   path: string,
   accessToken: string,
-  request: AuthorizedRequest = {},
+  request: AdminAuthorizedRequest = {},
 ): Promise<ApiEnvelope<T>> {
   const isFormData = request.body instanceof FormData;
   const response = await fetch(`${API_URL}${path}`, {
@@ -82,7 +97,35 @@ async function getAccessTokenForRequest() {
   return tokens;
 }
 
-async function withRefresh<T>(path: string, request: AuthorizedRequest = {}): Promise<ApiEnvelope<T>> {
+async function requestWithTokenPaginated<T>(
+  path: string,
+  accessToken: string,
+  request: AdminAuthorizedRequest = {},
+): Promise<{ data: T; pagination: AdminPagination }> {
+  const isFormData = request.body instanceof FormData;
+  const response = await fetch(`${API_URL}${path}`, {
+    method: request.method ?? "GET",
+    headers: {
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: request.body,
+    cache: "no-store",
+  });
+
+  const jsonUnknown = await response.json();
+  if (!response.ok) {
+    const message = getApiErrorMessage(jsonUnknown, "Admin request failed");
+    throw new Error(message);
+  }
+  const json = jsonUnknown as ApiPaginatedEnvelope<T>;
+  if (!json.success || json.data === undefined || json.pagination === undefined) {
+    throw new Error("Unexpected API response format");
+  }
+  return { data: json.data, pagination: json.pagination };
+}
+
+async function withRefresh<T>(path: string, request: AdminAuthorizedRequest = {}): Promise<ApiEnvelope<T>> {
   const tokens = await getAccessTokenForRequest();
 
   try {
@@ -100,6 +143,45 @@ async function withRefresh<T>(path: string, request: AuthorizedRequest = {}): Pr
     setStoredAccessToken(refreshed.access_token);
     return requestWithToken<T>(path, refreshed.access_token, request);
   }
+}
+
+async function withRefreshPaginated<T>(
+  path: string,
+  request: AdminAuthorizedRequest = {},
+): Promise<{ data: T; pagination: AdminPagination }> {
+  const tokens = await getAccessTokenForRequest();
+
+  try {
+    return await requestWithTokenPaginated<T>(path, tokens.access_token, request);
+  } catch (error) {
+    if (!(error instanceof Error) || !/unauthorized|forbidden|jwt/i.test(error.message)) {
+      throw error;
+    }
+
+    if (!tokens.refresh_token) {
+      throw error;
+    }
+
+    const refreshed = await refreshToken(tokens.refresh_token);
+    setStoredAccessToken(refreshed.access_token);
+    return requestWithTokenPaginated<T>(path, refreshed.access_token, request);
+  }
+}
+
+/** Dùng cho module API theo domain (ví dụ `inventory-api.ts`): gọi endpoint trả `{ data, pagination }`. */
+export async function adminFetchPaginated<T>(
+  path: string,
+  request: AdminAuthorizedRequest = {},
+): Promise<{ data: T; pagination: AdminPagination }> {
+  return withRefreshPaginated<T>(path, request);
+}
+
+/** Gọi endpoint admin, trả envelope đầy đủ (data/message). */
+export async function adminFetchEnvelope<T>(
+  path: string,
+  request: AdminAuthorizedRequest = {},
+): Promise<ApiEnvelope<T>> {
+  return withRefresh<T>(path, request);
 }
 
 function toQueryString(params: ListUsersQuery = {}) {

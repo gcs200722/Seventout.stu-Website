@@ -71,6 +71,7 @@ describe('ProductsService', () => {
     } as unknown as jest.Mocked<Repository<ProductEntity>>;
     categoriesRepository = {
       findOne: jest.fn(),
+      find: jest.fn(),
     } as unknown as jest.Mocked<Repository<CategoryEntity>>;
     storageService = {
       putObject: jest.fn(),
@@ -124,6 +125,30 @@ describe('ProductsService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('should_reject_create_when_images_missing', async () => {
+    await expect(
+      service.createProduct({
+        name: 'X',
+        description: 'Y',
+        price: 1,
+        category_id: 'cat-1',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('should_reject_create_when_category_not_found', async () => {
+    categoriesRepository.findOne.mockResolvedValue(null);
+    await expect(
+      service.createProduct({
+        name: 'X',
+        description: 'Y',
+        price: 1,
+        category_id: 'cat-1',
+        images: ['https://cdn.example.com/a.jpg'],
+      }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
   it('should_throw_not_found_when_get_product_missing', async () => {
     productsRepository.findOne.mockResolvedValue(null);
 
@@ -155,6 +180,13 @@ describe('ProductsService', () => {
     expect(productsRepository.softDelete.mock.calls[0]).toEqual(['p-1']);
   });
 
+  it('should_throw_not_found_when_soft_delete_product_missing', async () => {
+    productsRepository.findOne.mockResolvedValue(null);
+    await expect(service.softDeleteProduct('missing')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
   it('should_use_list_cache_within_ttl', async () => {
     const listQb = buildListQueryBuilderMock();
     listQb.getManyAndCount.mockResolvedValue([[], 0]);
@@ -174,6 +206,92 @@ describe('ProductsService', () => {
     await service.listProducts(query);
 
     expect(listQb.getManyAndCount).toHaveBeenCalledTimes(1);
+  });
+
+  it('should_expand_parent_category_filter_to_include_children', async () => {
+    categoriesRepository.findOne.mockResolvedValue({
+      id: 'parent-1',
+      level: 1,
+    } as CategoryEntity);
+    categoriesRepository.find.mockResolvedValue([
+      { id: 'sub-1' },
+      { id: 'sub-2' },
+    ] as CategoryEntity[]);
+
+    const listQb = buildListQueryBuilderMock();
+    listQb.getManyAndCount.mockResolvedValue([[], 0]);
+    productsRepository.createQueryBuilder.mockReturnValue(
+      listQb as unknown as ReturnType<
+        Repository<ProductEntity>['createQueryBuilder']
+      >,
+    );
+
+    await service.listProducts({
+      page: 1,
+      limit: 10,
+      sort: ProductSort.NEWEST,
+      category_id: 'parent-1',
+    } as Parameters<ProductsService['listProducts']>[0]);
+
+    expect(listQb.andWhere).toHaveBeenCalledWith(
+      'product.categoryId IN (:...categoryIds)',
+      { categoryIds: ['parent-1', 'sub-1', 'sub-2'] },
+    );
+  });
+
+  it('should_apply_filters_and_resolve_signed_thumbnail_urls', async () => {
+    const listQb = buildListQueryBuilderMock();
+    listQb.getManyAndCount.mockResolvedValue([
+      [
+        {
+          id: 'p-1',
+          name: 'Hoodie',
+          slug: 'hoodie',
+          price: 100000,
+          thumbnail: 'https://my-bucket.s3.amazonaws.com/products/hoodie/1.jpg',
+          isActive: true,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          category: { id: 'sub-1', name: 'Sub 1' },
+        },
+      ],
+      1,
+    ]);
+    productsRepository.createQueryBuilder.mockReturnValue(
+      listQb as unknown as ReturnType<
+        Repository<ProductEntity>['createQueryBuilder']
+      >,
+    );
+
+    const result = await service.listProducts({
+      page: 1,
+      limit: 10,
+      keyword: 'hoodie',
+      min_price: 1000,
+      max_price: 200000,
+      is_active: true,
+      sort: ProductSort.PRICE_DESC,
+    } as Parameters<ProductsService['listProducts']>[0]);
+
+    expect(listQb.andWhere).toHaveBeenCalledWith(
+      '(LOWER(product.name) LIKE LOWER(:kw) OR LOWER(product.slug) LIKE LOWER(:kw))',
+      { kw: '%hoodie%' },
+    );
+    expect(listQb.andWhere).toHaveBeenCalledWith('product.price >= :minPrice', {
+      minPrice: 1000,
+    });
+    expect(listQb.andWhere).toHaveBeenCalledWith('product.price <= :maxPrice', {
+      maxPrice: 200000,
+    });
+    expect(listQb.andWhere).toHaveBeenCalledWith(
+      'product.isActive = :isActive',
+      { isActive: true },
+    );
+    expect(listQb.orderBy).toHaveBeenCalledWith('product.price', 'DESC');
+    expect(storageService.getSignedDownloadUrl.mock.calls[0]).toEqual([
+      'products/hoodie/1.jpg',
+      900,
+    ]);
+    expect(result.items[0]?.thumbnail).toBe('https://signed.example.com/img');
   });
 
   it('should_run_create_transaction_when_valid_subcategory', async () => {

@@ -116,13 +116,24 @@ export async function listCategoryTreePublic(): Promise<CategoryTreeItem[]> {
 
 /** Tìm category theo slug (quét danh sách phẳng). */
 export async function findCategoryBySlug(slug: string): Promise<CategoryDetail | null> {
+  const normalizedSlug = decodeURIComponent(slug).trim().toLowerCase();
+  const pageSize = 100;
+  const maxPages = 20;
+
   try {
-    const items = await listCategoriesPublic({ page: 1, limit: 200 });
-    const found = items.find((c) => c.slug === slug);
-    if (!found) {
-      return null;
+    for (let page = 1; page <= maxPages; page += 1) {
+      const items = await listCategoriesPublic({ page, limit: pageSize });
+      const found = items.find((c) => c.slug.trim().toLowerCase() === normalizedSlug);
+      if (found) {
+        return getCategoryByIdPublic(found.id);
+      }
+
+      if (items.length < pageSize) {
+        break;
+      }
     }
-    return getCategoryByIdPublic(found.id);
+
+    return null;
   } catch {
     return null;
   }

@@ -109,8 +109,11 @@ export class ProductsService {
       .andWhere('category.deletedAt IS NULL');
 
     if (query.category_id !== undefined) {
-      qb.andWhere('product.categoryId = :categoryId', {
-        categoryId: query.category_id,
+      const categoryIds = await this.resolveCategoryIdsForFilter(
+        query.category_id,
+      );
+      qb.andWhere('product.categoryId IN (:...categoryIds)', {
+        categoryIds,
       });
     }
 
@@ -405,6 +408,26 @@ export class ProductsService {
 
   private invalidateListCache(): void {
     this.listCache.clear();
+  }
+
+  private async resolveCategoryIdsForFilter(
+    categoryId: string,
+  ): Promise<string[]> {
+    const category = await this.categoriesRepository.findOne({
+      where: { id: categoryId },
+      select: { id: true, level: true },
+    });
+
+    if (!category || category.level !== 1) {
+      return [categoryId];
+    }
+
+    const children = await this.categoriesRepository.find({
+      where: { parentId: category.id },
+      select: { id: true },
+    });
+
+    return [category.id, ...children.map((child) => child.id)];
   }
 
   private async ensureUniqueSlug(

@@ -7,7 +7,7 @@ export function Footer() {
     <footer className="mt-10 border-t border-stone-200 bg-white">
       <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
         <div>
-          <h3 className="text-base font-bold text-stone-900">S7 LOCAL</h3>
+          <h3 className="text-base font-bold text-stone-900">Sevenout</h3>
           <p className="mt-3 text-sm text-stone-600">
             Local brand for daily essentials. Minimal design, wearable comfort, and crafted details.
           </p>
@@ -51,7 +51,7 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-stone-200 py-4 text-center text-xs text-stone-500">
-        © {new Date().getFullYear()} S7 LOCAL. All rights reserved.
+        © {new Date().getFullYear()} Sevenout. All rights reserved.
       </div>
     </footer>
   );
