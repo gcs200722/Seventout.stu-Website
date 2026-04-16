@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useCart } from "@/components/cart/CartProvider";
 
 import type { CategoryNavLink } from "@/lib/categories-api";
 
@@ -35,6 +36,7 @@ type HeaderProps = {
 
 export function Header({ categoryLinks = [] }: HeaderProps) {
   const { user, isAuthenticated, loading, logout } = useAuth();
+  const { cartCount } = useCart();
   const [showAuthPanel, setShowAuthPanel] = useState(false);
 
   return (
@@ -73,13 +75,18 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
                 aria-label="Tìm kiếm sản phẩm"
               />
             </label>
-            <button
-              type="button"
+            <Link
+              href="/cart"
               aria-label="Giỏ hàng"
-              className="rounded-full border border-stone-300 p-2 text-stone-700 transition-colors hover:bg-stone-900 hover:text-white"
+              className="relative rounded-full border border-stone-300 p-2 text-stone-700 transition-colors hover:bg-stone-900 hover:text-white"
             >
               <IconCart className="h-5 w-5" />
-            </button>
+              {isAuthenticated && cartCount > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-stone-900 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
+                  {cartCount}
+                </span>
+              ) : null}
+            </Link>
             {loading ? (
               <div className="text-xs text-stone-500">Đang tải...</div>
             ) : isAuthenticated ? (

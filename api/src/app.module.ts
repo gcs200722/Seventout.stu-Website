@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { CartModule } from './modules/cart/cart.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -47,6 +48,7 @@ import { UsersModule } from './modules/users/users.module';
     }),
     AuthModule,
     CategoriesModule,
+    CartModule,
     UsersModule,
     ProductsModule,
     InventoryModule,

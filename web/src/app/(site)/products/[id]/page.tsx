@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { ProductImageGallery } from "@/components/products/ProductImageGallery";
 import { formatVnd, getProductByIdPublic } from "@/lib/products-api";
 
@@ -49,12 +50,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="rounded-full bg-stone-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-stone-700"
-            >
-              Add to cart
-            </button>
+            <AddToCartButton productId={product.id} />
             <Link
               href={`/products?category_id=${product.category.id}`}
               className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource, Repository, type EntityManager } from 'typeorm';
 import { ProductEntity } from '../products/product.entity';
 import { QueuePort } from '../queue/queue.port';
@@ -84,6 +84,66 @@ describe('InventoryService', () => {
     ]);
   });
 
+  it('lists inventory from cache on second call', async () => {
+    const qb = {
+      leftJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([{ product_id: 'p-1' }]),
+      getCount: jest.fn().mockResolvedValue(1),
+    };
+    inventoriesRepository.createQueryBuilder.mockReturnValue(qb as never);
+
+    const query = { page: 1, limit: 10 } as never;
+    const first = await service.listInventory(query);
+    const second = await service.listInventory(query);
+
+    expect(first.total).toBe(1);
+    expect(second.items).toHaveLength(1);
+    expect(qb.getRawMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns product inventory channels', async () => {
+    productsRepository.findOne.mockResolvedValue({
+      id: 'p-1',
+      deletedAt: null,
+    } as ProductEntity);
+    inventoriesRepository.find.mockResolvedValue([
+      {
+        productId: 'p-1',
+        channel: InventoryChannel.INTERNAL,
+        availableStock: 5,
+        reservedStock: 1,
+      } as InventoryEntity,
+    ]);
+
+    const result = await service.getInventoryByProductId('p-1');
+    expect(result).toEqual({
+      product_id: 'p-1',
+      channels: [
+        {
+          channel: InventoryChannel.INTERNAL,
+          available_stock: 5,
+          reserved_stock: 1,
+        },
+      ],
+    });
+  });
+
+  it('throws NotFound when product inventory requested for deleted product', async () => {
+    productsRepository.findOne.mockResolvedValue({
+      id: 'p-1',
+      deletedAt: new Date(),
+    } as ProductEntity);
+    await expect(service.getInventoryByProductId('p-1')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
   it('fails reserve when stock is insufficient', async () => {
     productsRepository.findOne.mockResolvedValue({
       id: 'p-1',
@@ -165,5 +225,120 @@ describe('InventoryService', () => {
     });
 
     expect(dataSource.transaction.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it('throws when adjust OUT makes stock negative', async () => {
+    productsRepository.findOne.mockResolvedValue({
+      id: 'p-1',
+      deletedAt: null,
+    } as ProductEntity);
+
+    (dataSource.transaction as jest.Mock).mockImplementation(
+      async (cb: (manager: EntityManager) => Promise<unknown>) => {
+        const stock = {
+          id: 'inv-1',
+          productId: 'p-1',
+          channel: InventoryChannel.INTERNAL,
+          availableStock: 1,
+          reservedStock: 0,
+        };
+        const qb = {
+          setLock: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue(stock),
+        };
+        const repo = {
+          createQueryBuilder: jest.fn().mockReturnValue(qb),
+          create: jest.fn((x: unknown) => x),
+          save: jest.fn((v: unknown) => Promise.resolve(v)),
+        };
+        const manager = {
+          getRepository: jest.fn().mockReturnValue(repo),
+          create: jest.fn((_: unknown, payload: unknown) => payload),
+          save: jest.fn((v: unknown) => Promise.resolve(v)),
+        };
+        return cb(manager as unknown as EntityManager);
+      },
+    );
+
+    await expect(
+      service.adjustInventory('p-1', {
+        channel: InventoryChannel.INTERNAL,
+        type: InventoryMovementType.OUT,
+        quantity: 5,
+        reason: 'Sell',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('lists inventory movements with query builder', async () => {
+    const qb = {
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest
+        .fn()
+        .mockResolvedValue([[{ id: 'm-1' as never }], 1]),
+    };
+    movementsRepository.createQueryBuilder.mockReturnValue(qb as never);
+
+    const result = await service.listMovements({
+      page: 1,
+      limit: 10,
+      product_id: 'p-1',
+      channel: InventoryChannel.INTERNAL,
+      type: InventoryMovementType.IN,
+      from_date: '2024-01-01',
+      to_date: '2024-01-31',
+    } as never);
+    expect(result.total).toBe(1);
+    expect(qb.andWhere).toHaveBeenCalled();
+  });
+
+  it('commitOutFromOrder delegates to transaction flow', async () => {
+    productsRepository.findOne.mockResolvedValue({
+      id: 'p-1',
+      deletedAt: null,
+    } as ProductEntity);
+
+    (dataSource.transaction as jest.Mock).mockImplementation(
+      async (cb: (manager: EntityManager) => Promise<unknown>) => {
+        const stock = {
+          id: 'inv-1',
+          productId: 'p-1',
+          channel: InventoryChannel.INTERNAL,
+          availableStock: 5,
+          reservedStock: 5,
+        };
+        const qb = {
+          setLock: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue(stock),
+        };
+        const repo = {
+          createQueryBuilder: jest.fn().mockReturnValue(qb),
+          create: jest.fn((x: unknown) => x),
+          save: jest.fn((v: unknown) => Promise.resolve(v)),
+        };
+        const manager = {
+          getRepository: jest.fn().mockReturnValue(repo),
+          create: jest.fn((_: unknown, payload: unknown) => payload),
+          save: jest.fn((v: unknown) => Promise.resolve(v)),
+        };
+        return cb(manager as unknown as EntityManager);
+      },
+    );
+
+    await service.commitOutFromOrder(
+      'p-1',
+      2,
+      'Order completed: commit stock out',
+    );
+    expect(
+      (dataSource.transaction as jest.Mock).mock.calls.length,
+    ).toBeGreaterThan(0);
   });
 });
