@@ -22,7 +22,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-stone-100 text-stone-900">
       <div className="mx-auto flex w-full max-w-7xl gap-4 px-4 py-4 sm:px-6 lg:px-8">
         <aside className="hidden w-64 shrink-0 rounded-2xl border border-stone-200 bg-white p-4 md:block">
-          <h1 className="text-lg font-semibold">S7 Admin</h1>
+          <h1 className="text-lg font-semibold">Sevenout Admin</h1>
           <p className="mt-1 text-xs text-stone-500">Dashboard quản trị nội bộ</p>
 
           <nav className="mt-4 space-y-1.5">

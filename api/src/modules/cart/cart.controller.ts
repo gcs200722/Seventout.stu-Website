@@ -19,7 +19,6 @@ import { RequireRoles } from '../authorization/decorators/require-roles.decorato
 import { AuthorizationGuard } from '../authorization/guards/authorization.guard';
 import { CartService } from './cart.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
-import { CheckoutCartDto } from './dto/checkout-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
 @ApiTags('cart')
@@ -85,23 +84,11 @@ export class CartController {
   }
 
   @Post('validate')
-  @ApiOperation({ summary: 'Validate cart before checkout' })
+  @ApiOperation({ summary: 'Validate current cart' })
   @RequireRoles(UserRole.USER, UserRole.ADMIN)
   @RequirePermissions(PermissionCode.CART_MANAGE)
   async validate(@CurrentUser() user: AuthenticatedUser) {
     const data = await this.cartService.validateCart(user.id);
-    return { success: true, data };
-  }
-
-  @Post('checkout')
-  @ApiOperation({ summary: 'Checkout cart (reserve stock + clear cart)' })
-  @RequireRoles(UserRole.USER, UserRole.ADMIN)
-  @RequirePermissions(PermissionCode.CART_MANAGE)
-  async checkout(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() payload: CheckoutCartDto,
-  ) {
-    const data = await this.cartService.checkout(user.id, payload);
     return { success: true, data };
   }
 }

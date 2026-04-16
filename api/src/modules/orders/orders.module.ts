@@ -1,13 +1,56 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthorizationModule } from '../authorization/authorization.module';
+import { CartItemEntity } from '../cart/entities/cart-item.entity';
+import { CartEntity } from '../cart/entities/cart.entity';
 import { InventoryModule } from '../inventory/inventory.module';
+import { ProductEntity } from '../products/product.entity';
+import { UserEntity } from '../users/user.entity';
+import { OrderCartAdapter } from './adapters/order-cart.adapter';
+import { OrderInventoryAdapter } from './adapters/order-inventory.adapter';
 import { OrdersController } from './orders.controller';
+import { OrderEventOutboxEntity } from './entities/order-event-outbox.entity';
+import { OrderItemEntity } from './entities/order-item.entity';
+import { OrderEntity } from './entities/order.entity';
+import { OrderEventDispatcherService } from './events/order-event-dispatcher.service';
+import {
+  NoopOrderFulfillmentAdapter,
+  ORDER_FULFILLMENT_PORT,
+} from './ports/order-fulfillment.port';
+import { ORDER_CART_PORT } from './ports/order-cart.port';
+import { ORDER_INVENTORY_PORT } from './ports/order-inventory.port';
+import {
+  NoopOrderPaymentAdapter,
+  ORDER_PAYMENT_PORT,
+} from './ports/order-payment.port';
 import { OrdersService } from './orders.service';
 
 @Module({
-  imports: [AuthorizationModule, InventoryModule],
+  imports: [
+    TypeOrmModule.forFeature([
+      OrderEntity,
+      OrderItemEntity,
+      OrderEventOutboxEntity,
+      CartEntity,
+      CartItemEntity,
+      ProductEntity,
+      UserEntity,
+    ]),
+    AuthorizationModule,
+    InventoryModule,
+  ],
   controllers: [OrdersController],
-  providers: [OrdersService],
+  providers: [
+    OrdersService,
+    OrderEventDispatcherService,
+    { provide: ORDER_CART_PORT, useClass: OrderCartAdapter },
+    { provide: ORDER_INVENTORY_PORT, useClass: OrderInventoryAdapter },
+    { provide: ORDER_PAYMENT_PORT, useClass: NoopOrderPaymentAdapter },
+    {
+      provide: ORDER_FULFILLMENT_PORT,
+      useClass: NoopOrderFulfillmentAdapter,
+    },
+  ],
   exports: [OrdersService],
 })
 export class OrdersModule {}

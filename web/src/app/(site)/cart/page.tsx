@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCart } from "@/components/cart/CartProvider";
 import {
-  checkoutMyCart,
   clearMyCart,
   getMyCart,
   removeCartItem,
@@ -14,9 +14,11 @@ import {
   validateMyCart,
   type CartSnapshot,
 } from "@/lib/cart-api";
+import { createMyOrder } from "@/lib/orders-api";
 import { formatVnd } from "@/lib/products-api";
 
 export default function CartPage() {
+  const router = useRouter();
   const { isAuthenticated, loading } = useAuth();
   const { refreshCartCount } = useCart();
   const [cart, setCart] = useState<CartSnapshot | null>(null);
@@ -24,6 +26,11 @@ export default function CartPage() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [addressLine, setAddressLine] = useState("");
+  const [ward, setWard] = useState("");
+  const [city, setCity] = useState("");
+  const [country, setCountry] = useState("Vietnam");
+  const [note, setNote] = useState("");
 
   const reloadCart = useCallback(async () => {
     if (!isAuthenticated) {
@@ -118,11 +125,32 @@ export default function CartPage() {
     setPendingId("checkout");
     setError(null);
     setSuccess(null);
+    if (!cart) {
+      setPendingId(null);
+      return;
+    }
+    if (!addressLine.trim() || !ward.trim() || !city.trim() || !country.trim()) {
+      setError("Vui lòng nhập đầy đủ địa chỉ giao hàng.");
+      setPendingId(null);
+      return;
+    }
     try {
       const idempotencyKey = `web-${Date.now()}`;
-      const result = await checkoutMyCart(idempotencyKey);
-      await reloadCart();
-      setSuccess(`Checkout thành công (${result.reserved_items} items reserved).`);
+      const result = await createMyOrder(
+        {
+          cart_id: cart.cart_id,
+          shipping_address: {
+            address_line: addressLine.trim(),
+            ward: ward.trim(),
+            city: city.trim(),
+            country: country.trim(),
+          },
+          note: note.trim() || undefined,
+        },
+        idempotencyKey,
+      );
+      setSuccess("Tạo đơn hàng thành công. Đang chuyển tới chi tiết đơn...");
+      router.push(`/orders/${result.order_id}`);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Checkout thất bại.");
     } finally {
@@ -203,6 +231,55 @@ export default function CartPage() {
             <div className="rounded-xl border border-stone-200 bg-white p-4">
               <p className="text-sm text-stone-700">Tổng sản phẩm: {cart.total_items}</p>
               <p className="mt-1 text-lg font-semibold text-stone-900">Tổng tiền: {formatVnd(cart.total_amount)}</p>
+              <div className="mt-4 space-y-3">
+                <label className="block text-xs font-medium text-stone-700">
+                  Địa chỉ (address_line)
+                  <input
+                    value={addressLine}
+                    onChange={(event) => setAddressLine(event.target.value)}
+                    placeholder="123 ABC Street"
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="block text-xs font-medium text-stone-700">
+                    Ward
+                    <input
+                      value={ward}
+                      onChange={(event) => setWard(event.target.value)}
+                      placeholder="Ward 5"
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-700">
+                    City
+                    <input
+                      value={city}
+                      onChange={(event) => setCity(event.target.value)}
+                      placeholder="Ho Chi Minh"
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-700">
+                    Country
+                    <input
+                      value={country}
+                      onChange={(event) => setCountry(event.target.value)}
+                      placeholder="Vietnam"
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
+                    />
+                  </label>
+                </div>
+                <label className="block text-xs font-medium text-stone-700">
+                  Ghi chú (tuỳ chọn)
+                  <input
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="Ví dụ: Giao giờ hành chính"
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
+                  />
+                </label>
+              </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -226,7 +303,7 @@ export default function CartPage() {
                   onClick={() => void handleCheckout()}
                   className="rounded-full bg-stone-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Checkout (stub)
+                  Tạo đơn hàng
                 </button>
               </div>
             </div>

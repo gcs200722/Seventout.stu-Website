@@ -1,8 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { DataSource, Repository, type EntityManager } from 'typeorm';
+import { Repository } from 'typeorm';
 import { InventoryChannel } from '../inventory/inventory.types';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
-import { OrdersService } from '../orders/orders.service';
 import { ProductEntity } from '../products/product.entity';
 import { CartCachePort } from './cart-cache.port';
 import { CartService } from './cart.service';
@@ -15,8 +14,6 @@ describe('CartService', () => {
   let cartItemsRepository: jest.Mocked<Repository<CartItemEntity>>;
   let productsRepository: jest.Mocked<Repository<ProductEntity>>;
   let inventoriesRepository: jest.Mocked<Repository<InventoryEntity>>;
-  let ordersService: jest.Mocked<OrdersService>;
-  let dataSource: jest.Mocked<DataSource>;
   let cartCache: jest.Mocked<CartCachePort>;
 
   beforeEach(() => {
@@ -40,13 +37,6 @@ describe('CartService', () => {
       findOne: jest.fn(),
       find: jest.fn(),
     } as never;
-    ordersService = {
-      reserveStock: jest.fn(),
-      releaseStock: jest.fn(),
-    } as never;
-    dataSource = {
-      transaction: jest.fn(),
-    } as never;
     cartCache = {
       get: jest.fn(),
       set: jest.fn(),
@@ -58,8 +48,6 @@ describe('CartService', () => {
       cartItemsRepository,
       productsRepository,
       inventoriesRepository,
-      ordersService,
-      dataSource,
       cartCache,
     );
   });
@@ -317,122 +305,5 @@ describe('CartService', () => {
     const result = await service.validateCart('u-1');
     expect(result.valid).toBe(false);
     expect(result.issues[0]?.code).toBe('PRODUCT_UNAVAILABLE');
-  });
-
-  it('fails checkout when cart validation is invalid', async () => {
-    cartsRepository.findOne.mockResolvedValue({
-      id: 'c-1',
-      userId: 'u-1',
-      status: CartStatus.ACTIVE,
-    } as CartEntity);
-    cartItemsRepository.find.mockResolvedValue([
-      {
-        id: 'i-1',
-        cartId: 'c-1',
-        productId: 'p-1',
-        quantity: 3,
-        price: 100,
-      } as CartItemEntity,
-    ]);
-    productsRepository.find.mockResolvedValue([
-      {
-        id: 'p-1',
-        price: 100,
-        isActive: true,
-        deletedAt: null,
-      } as ProductEntity,
-    ]);
-    inventoriesRepository.find.mockResolvedValue([
-      { productId: 'p-1', availableStock: 1 } as InventoryEntity,
-    ]);
-
-    await expect(service.checkout('u-1', {})).rejects.toThrow(
-      BadRequestException,
-    );
-  });
-
-  it('fails checkout when cart has no items', async () => {
-    cartsRepository.findOne.mockResolvedValue({
-      id: 'c-1',
-      userId: 'u-1',
-      status: CartStatus.ACTIVE,
-    } as CartEntity);
-    cartItemsRepository.find.mockResolvedValue([]);
-
-    await expect(service.checkout('u-1', {})).rejects.toThrow(
-      BadRequestException,
-    );
-  });
-
-  it('releases reserved stock when checkout fails mid-way', async () => {
-    const cart = {
-      id: 'c-1',
-      userId: 'u-1',
-      status: CartStatus.ACTIVE,
-    } as CartEntity;
-    cartsRepository.findOne.mockResolvedValue(cart);
-    cartItemsRepository.find
-      .mockResolvedValueOnce([
-        { id: 'i-1', cartId: 'c-1', productId: 'p-1', quantity: 1, price: 100 },
-        { id: 'i-2', cartId: 'c-1', productId: 'p-2', quantity: 1, price: 100 },
-      ] as CartItemEntity[])
-      .mockResolvedValueOnce([
-        { id: 'i-1', cartId: 'c-1', productId: 'p-1', quantity: 1, price: 100 },
-        { id: 'i-2', cartId: 'c-1', productId: 'p-2', quantity: 1, price: 100 },
-      ] as CartItemEntity[]);
-    productsRepository.find.mockResolvedValue([
-      { id: 'p-1', price: 100, isActive: true, deletedAt: null },
-      { id: 'p-2', price: 100, isActive: true, deletedAt: null },
-    ] as ProductEntity[]);
-    inventoriesRepository.find.mockResolvedValue([
-      { productId: 'p-1', availableStock: 10 },
-      { productId: 'p-2', availableStock: 10 },
-    ] as InventoryEntity[]);
-    ordersService.reserveStock
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new BadRequestException('reserve failed'));
-
-    await expect(service.checkout('u-1', {})).rejects.toThrow(
-      BadRequestException,
-    );
-    expect((ordersService.releaseStock as jest.Mock).mock.calls[0]).toEqual([
-      'p-1',
-      1,
-    ]);
-  });
-
-  it('clears cart and creates new active cart on successful checkout', async () => {
-    const cart = {
-      id: 'c-1',
-      userId: 'u-1',
-      status: CartStatus.ACTIVE,
-    } as CartEntity;
-    cartsRepository.findOne.mockResolvedValue(cart);
-    cartItemsRepository.find
-      .mockResolvedValueOnce([
-        { id: 'i-1', cartId: 'c-1', productId: 'p-1', quantity: 1, price: 100 },
-      ] as CartItemEntity[])
-      .mockResolvedValueOnce([
-        { id: 'i-1', cartId: 'c-1', productId: 'p-1', quantity: 1, price: 100 },
-      ] as CartItemEntity[]);
-    productsRepository.find.mockResolvedValue([
-      { id: 'p-1', price: 100, isActive: true, deletedAt: null },
-    ] as ProductEntity[]);
-    inventoriesRepository.find.mockResolvedValue([
-      { productId: 'p-1', availableStock: 5 },
-    ] as InventoryEntity[]);
-    (dataSource.transaction as jest.Mock).mockImplementation(
-      async (cb: (manager: EntityManager) => Promise<unknown>) => {
-        const manager = {
-          delete: jest.fn(),
-          save: jest.fn(),
-        };
-        return cb(manager as unknown as EntityManager);
-      },
-    );
-
-    await service.checkout('u-1', { idempotency_key: 'k-1' });
-    expect((dataSource.transaction as jest.Mock).mock.calls.length).toBe(1);
-    expect((cartCache.invalidate as jest.Mock).mock.calls[0]).toEqual(['u-1']);
   });
 });

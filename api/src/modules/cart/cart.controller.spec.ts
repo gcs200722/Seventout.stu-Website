@@ -16,7 +16,6 @@ describe('CartController', () => {
     removeItem: jest.fn(),
     clearCart: jest.fn(),
     validateCart: jest.fn(),
-    checkout: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -92,18 +91,6 @@ describe('CartController', () => {
     expect(result).toEqual({
       success: true,
       data: { valid: true, issues: [] },
-    });
-  });
-
-  it('POST checkout returns data envelope', async () => {
-    cartService.checkout.mockResolvedValue({ reserved_items: 2 });
-    const result = await controller.checkout(
-      { id: 'u-1' } as never,
-      { idempotency_key: 'k-1' } as never,
-    );
-    expect(result).toEqual({
-      success: true,
-      data: { reserved_items: 2 },
     });
   });
 });
