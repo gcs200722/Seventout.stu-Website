@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
-import { OrdersModule } from '../orders/orders.module';
 import { ProductEntity } from '../products/product.entity';
 import { CART_CACHE_PORT, InMemoryCartCacheAdapter } from './cart-cache.port';
 import { CartController } from './cart.controller';
@@ -19,7 +18,6 @@ import { CartEntity } from './entities/cart.entity';
       InventoryEntity,
     ]),
     AuthorizationModule,
-    OrdersModule,
   ],
   controllers: [CartController],
   providers: [

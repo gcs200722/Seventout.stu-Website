@@ -235,11 +235,6 @@ export async function updateAdminUserRole(id: string, payload: UpdateAdminUserRo
   return response.message ?? "Role updated successfully";
 }
 
-export async function getAdminOrdersMessage() {
-  const response = await withRefresh<unknown>("/orders");
-  return response.message ?? "Order endpoint authorized";
-}
-
 export type AdminProduct = {
   id: string;
   name: string;

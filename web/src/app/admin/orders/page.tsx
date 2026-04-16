@@ -1,19 +1,75 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { getAdminOrdersMessage } from "@/lib/admin-api";
+import {
+  getAdminOrderDetail,
+  listAdminOrders,
+  type ManageableOrderStatus,
+  updateAdminOrderStatus,
+} from "@/lib/admin-orders-api";
+import type { OrderStatus, PaymentStatus } from "@/lib/orders-api";
+import { formatVnd } from "@/lib/products-api";
+
+const PAGE_LIMIT = 10;
 
 export default function AdminOrdersPage() {
-  const [message, setMessage] = useState<string>("");
+  const [orders, setOrders] = useState<
+    Array<{
+      id: string;
+      customerName: string;
+      shippingAddress: string;
+      createdAt: string;
+      status: OrderStatus;
+      paymentStatus: PaymentStatus;
+      totalAmount: number;
+    }>
+  >([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [orderDetail, setOrderDetail] = useState<Awaited<ReturnType<typeof getAdminOrderDetail>> | null>(null);
+  const [nextStatus, setNextStatus] = useState<ManageableOrderStatus>("CONFIRMED");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<"" | OrderStatus>("");
+  const [paymentFilter, setPaymentFilter] = useState<"" | PaymentStatus>("");
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_LIMIT)), [total]);
 
   useEffect(() => {
     async function loadOrders() {
       try {
-        const response = await getAdminOrdersMessage();
-        setMessage(response);
+        setLoading(true);
+        setError(null);
+        const response = await listAdminOrders({
+          page,
+          limit: PAGE_LIMIT,
+          status: statusFilter || undefined,
+          payment_status: paymentFilter || undefined,
+        });
+        setOrders(
+          response.data.map((item) => ({
+            id: item.id,
+            customerName: item.shippingAddress.full_name || "Unknown",
+            shippingAddress: [
+              item.shippingAddress.address_line,
+              item.shippingAddress.ward,
+              item.shippingAddress.city,
+              item.shippingAddress.country,
+            ]
+              .filter(Boolean)
+              .join(", "),
+            createdAt: item.createdAt,
+            status: item.status,
+            paymentStatus: item.paymentStatus,
+            totalAmount: item.totalAmount,
+          })),
+        );
+        setTotal(response.pagination.total);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Không tải được dữ liệu đơn hàng.");
       } finally {
@@ -22,14 +78,78 @@ export default function AdminOrdersPage() {
     }
 
     void loadOrders();
-  }, []);
+  }, [page, paymentFilter, statusFilter]);
+
+  async function handleSelectOrder(orderId: string) {
+    try {
+      setDetailLoading(true);
+      setError(null);
+      setOrderDetail(null);
+      const detail = await getAdminOrderDetail(orderId);
+      setSelectedOrderId(orderId);
+      setOrderDetail(detail);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không tải được chi tiết đơn hàng.");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function handleUpdateStatus() {
+    if (!selectedOrderId) {
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccess(null);
+      await updateAdminOrderStatus(selectedOrderId, nextStatus);
+      const detail = await getAdminOrderDetail(selectedOrderId);
+      setOrderDetail(detail);
+      const refreshed = await listAdminOrders({
+        page,
+        limit: PAGE_LIMIT,
+        status: statusFilter || undefined,
+        payment_status: paymentFilter || undefined,
+      });
+      setOrders(
+        refreshed.data.map((item) => ({
+          id: item.id,
+          customerName: item.shippingAddress.full_name || "Unknown",
+          shippingAddress: [
+            item.shippingAddress.address_line,
+            item.shippingAddress.ward,
+            item.shippingAddress.city,
+            item.shippingAddress.country,
+          ]
+            .filter(Boolean)
+            .join(", "),
+          createdAt: item.createdAt,
+          status: item.status,
+          paymentStatus: item.paymentStatus,
+          totalAmount: item.totalAmount,
+        })),
+      );
+      setTotal(refreshed.pagination.total);
+      setSuccess("Đã cập nhật trạng thái đơn hàng.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không thể cập nhật trạng thái.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function handleCloseDetailModal() {
+    setSelectedOrderId("");
+    setOrderDetail(null);
+  }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-5">
       <header>
         <h1 className="text-2xl font-semibold">Quản lý đơn hàng</h1>
         <p className="mt-1 text-sm text-stone-600">
-          Endpoint hiện tại là placeholder có kiểm tra quyền `ORDER_MANAGE`.
+          Quản lý đơn hàng với filter, phân trang, xem chi tiết và cập nhật trạng thái.
         </p>
       </header>
 
@@ -41,10 +161,191 @@ export default function AdminOrdersPage() {
         </div>
       ) : null}
 
+      {success ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+          {success}
+        </div>
+      ) : null}
+
       {!loading && !error ? (
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-600">Phản hồi API</h2>
-          <p className="mt-2 text-sm text-stone-800">{message || "Order endpoint authorized"}</p>
+        <div className="space-y-4 rounded-xl border border-stone-200 bg-white p-4">
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                setPage(1);
+                setStatusFilter(event.target.value as "" | OrderStatus);
+              }}
+              className="rounded-md border border-stone-300 px-3 py-2 text-xs"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="PENDING">PENDING</option>
+              <option value="CONFIRMED">CONFIRMED</option>
+              <option value="PROCESSING">PROCESSING</option>
+              <option value="SHIPPED">SHIPPED</option>
+              <option value="COMPLETED">COMPLETED</option>
+              <option value="CANCELED">CANCELED</option>
+            </select>
+            <select
+              value={paymentFilter}
+              onChange={(event) => {
+                setPage(1);
+                setPaymentFilter(event.target.value as "" | PaymentStatus);
+              }}
+              className="rounded-md border border-stone-300 px-3 py-2 text-xs"
+            >
+              <option value="">Tất cả thanh toán</option>
+              <option value="UNPAID">UNPAID</option>
+              <option value="PAID">PAID</option>
+              <option value="FAILED">FAILED</option>
+              <option value="REFUNDED">REFUNDED</option>
+            </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-stone-200 text-sm">
+              <thead className="bg-stone-50 text-left text-xs uppercase tracking-wide text-stone-600">
+                <tr>
+                  <th className="px-4 py-3">Mã đơn</th>
+                  <th className="px-4 py-3">Người đặt</th>
+                  <th className="px-4 py-3">Ngày đặt hàng</th>
+                  <th className="px-4 py-3">Địa chỉ</th>
+                  <th className="px-4 py-3">Trạng thái</th>
+                  <th className="px-4 py-3">Thanh toán</th>
+                  <th className="px-4 py-3">Tổng tiền</th>
+                  <th className="px-4 py-3 text-right">Hành động</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100 bg-white">
+                {orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-6 text-center text-stone-500">
+                      Chưa có dữ liệu đơn hàng.
+                    </td>
+                  </tr>
+                ) : (
+                  orders.map((order) => (
+                    <tr key={order.id}>
+                      <td className="px-4 py-3 font-medium text-stone-900">{order.id}</td>
+                      <td className="px-4 py-3 text-sm text-stone-700">{order.customerName}</td>
+                      <td className="px-4 py-3 text-xs text-stone-600">
+                        {new Date(order.createdAt).toLocaleString("vi-VN")}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-stone-600">{order.shippingAddress}</td>
+                      <td className="px-4 py-3">{order.status}</td>
+                      <td className="px-4 py-3">{order.paymentStatus}</td>
+                      <td className="px-4 py-3">{formatVnd(order.totalAmount)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void handleSelectOrder(order.id)}
+                          className="rounded-md border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-100"
+                        >
+                          Chi tiết
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-stone-200 pt-4 text-xs text-stone-600">
+            <span>
+              Trang {page}/{totalPages} - Tổng {total} đơn
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                className="rounded-md border border-stone-300 px-3 py-1.5 disabled:opacity-40"
+              >
+                Trước
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((prev) => prev + 1)}
+                className="rounded-md border border-stone-300 px-3 py-1.5 disabled:opacity-40"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedOrderId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+          <button
+            type="button"
+            aria-label="Đóng popup chi tiết đơn hàng"
+            className="absolute inset-0"
+            onClick={handleCloseDetailModal}
+          />
+          <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-stone-200 bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-stone-900">Chi tiết đơn hàng</h2>
+              <button
+                type="button"
+                onClick={handleCloseDetailModal}
+                className="rounded-md border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-100"
+              >
+                Đóng
+              </button>
+            </div>
+
+            {detailLoading ? <p className="text-sm text-stone-500">Đang tải chi tiết...</p> : null}
+            {!detailLoading && orderDetail ? (
+              <div className="space-y-3">
+                <p className="text-xs text-stone-600">Order ID: {orderDetail.id}</p>
+                <p className="text-xs text-stone-600">
+                  Trạng thái: {orderDetail.status} | Thanh toán: {orderDetail.payment_status}
+                </p>
+                <p className="text-sm font-semibold text-stone-900">
+                  Tổng tiền: {formatVnd(orderDetail.total_amount)}
+                </p>
+
+                <label className="block text-xs font-medium text-stone-700">
+                  Cập nhật trạng thái
+                  <select
+                    value={nextStatus}
+                    onChange={(event) => setNextStatus(event.target.value as ManageableOrderStatus)}
+                    className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                  >
+                    <option value="CONFIRMED">CONFIRMED</option>
+                    <option value="PROCESSING">PROCESSING</option>
+                    <option value="SHIPPED">SHIPPED</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => void handleUpdateStatus()}
+                  className="w-full rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
+                >
+                  {actionLoading ? "Đang cập nhật..." : "Cập nhật trạng thái"}
+                </button>
+
+                <div className="max-h-64 space-y-2 overflow-y-auto border-t border-stone-200 pt-3">
+                  {orderDetail.items.map((item) => (
+                    <div
+                      key={`${item.product_id}-${item.product_name}`}
+                      className="rounded-lg border border-stone-200 bg-white p-2"
+                    >
+                      <p className="text-xs font-semibold text-stone-900">{item.product_name}</p>
+                      <p className="text-xs text-stone-600">
+                        {formatVnd(item.price)} x {item.quantity} = {formatVnd(item.subtotal)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </section>

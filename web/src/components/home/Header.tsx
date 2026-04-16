@@ -100,6 +100,12 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
                 >
                   Hồ sơ
                 </Link>
+                <Link
+                  href="/orders"
+                  className="rounded-full border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-700 transition-colors hover:bg-stone-900 hover:text-white"
+                >
+                  Đơn hàng
+                </Link>
                 <button
                   type="button"
                   onClick={() => void logout()}

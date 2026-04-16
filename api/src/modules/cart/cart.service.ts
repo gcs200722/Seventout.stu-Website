@@ -5,16 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { InventoryChannel } from '../inventory/inventory.types';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
-import { OrdersService } from '../orders/orders.service';
 import { ProductEntity } from '../products/product.entity';
 import { CART_CACHE_PORT } from './cart-cache.port';
 import type { CartCachePort, CartSnapshot } from './cart-cache.port';
 import { CartIssue, CartIssueCode } from './cart.types';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
-import { CheckoutCartDto } from './dto/checkout-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { CartItemEntity } from './entities/cart-item.entity';
 import { CartEntity, CartStatus } from './entities/cart.entity';
@@ -45,8 +43,6 @@ export class CartService {
     private readonly productsRepository: Repository<ProductEntity>,
     @InjectRepository(InventoryEntity)
     private readonly inventoriesRepository: Repository<InventoryEntity>,
-    private readonly ordersService: OrdersService,
-    private readonly dataSource: DataSource,
     @Inject(CART_CACHE_PORT) private readonly cartCache: CartCachePort,
   ) {}
 
@@ -155,61 +151,6 @@ export class CartService {
   async validateCart(userId: string): Promise<ValidateCartResult> {
     const cart = await this.ensureActiveCart(userId);
     return this.validateCartById(cart.id);
-  }
-
-  async checkout(
-    userId: string,
-    _payload: CheckoutCartDto,
-  ): Promise<{
-    reserved_items: number;
-    idempotency_key?: string;
-  }> {
-    const cart = await this.ensureActiveCart(userId);
-    const validation = await this.validateCartById(cart.id);
-    if (!validation.valid) {
-      throw new BadRequestException({
-        message: 'Some items are out of stock',
-        details: { code: 'CART_INVALID', issues: validation.issues },
-      });
-    }
-
-    const items = await this.cartItemsRepository.find({
-      where: { cartId: cart.id },
-    });
-    if (!items.length) {
-      throw new BadRequestException({
-        message: 'Cart is empty',
-        details: { code: 'CART_EMPTY' },
-      });
-    }
-
-    const reserved: CartItemEntity[] = [];
-    try {
-      for (const item of items) {
-        await this.ordersService.reserveStock(item.productId, item.quantity);
-        reserved.push(item);
-      }
-    } catch (error) {
-      for (const item of reserved.reverse()) {
-        await this.ordersService.releaseStock(item.productId, item.quantity);
-      }
-      throw error;
-    }
-
-    await this.dataSource.transaction(async (manager) => {
-      await manager.delete(CartItemEntity, { cartId: cart.id });
-      cart.status = CartStatus.CHECKED_OUT;
-      await manager.save(cart);
-      await manager.save(
-        this.cartsRepository.create({ userId, status: CartStatus.ACTIVE }),
-      );
-    });
-    await this.cartCache.invalidate(userId);
-
-    return {
-      reserved_items: reserved.length,
-      idempotency_key: _payload.idempotency_key,
-    };
   }
 
   private async ensureActiveCart(userId: string): Promise<CartEntity> {

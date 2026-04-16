@@ -132,22 +132,3 @@ export async function validateMyCart(): Promise<CartValidationResult> {
   }
   return envelope.data;
 }
-
-export async function checkoutMyCart(idempotencyKey?: string): Promise<{
-  reserved_items: number;
-  idempotency_key?: string;
-}> {
-  const envelope = await withRefresh<{
-    reserved_items: number;
-    idempotency_key?: string;
-  }>("/cart/checkout", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotency_key: idempotencyKey,
-    }),
-  });
-  if (!envelope.data) {
-    throw new Error("Unexpected API response format");
-  }
-  return envelope.data;
-}
