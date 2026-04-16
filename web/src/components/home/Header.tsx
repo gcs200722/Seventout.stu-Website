@@ -42,7 +42,7 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
       <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link href="/" className="text-lg font-bold tracking-tight text-stone-900">
-            S7 LOCAL
+          Sevenout
           </Link>
 
           <nav className="hidden items-center gap-6 md:flex" aria-label="Điều hướng chính">

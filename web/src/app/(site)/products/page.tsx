@@ -77,12 +77,12 @@ export default async function ProductsPage({ searchParams }: PageProps) {
             name="keyword"
             defaultValue={keyword}
             placeholder="Tìm theo tên sản phẩm"
-            className="rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+            className="rounded-xl border border-stone-300 px-3 py-2 text-sm text-black placeholder:text-black outline-none focus:border-stone-800"
           />
           <select
             name="category_id"
             defaultValue={categoryId ?? ""}
-            className="rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+            className="rounded-xl border border-stone-300 px-3 py-2 text-sm text-black outline-none focus:border-stone-800"
           >
             <option value="">Tất cả danh mục</option>
             {subcategories.map((category) => (
@@ -97,7 +97,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
             name="min_price"
             defaultValue={minPrice}
             placeholder="Giá từ"
-            className="rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+            className="rounded-xl border border-stone-300 px-3 py-2 text-sm text-black placeholder:text-black outline-none focus:border-stone-800"
           />
           <input
             type="number"
@@ -105,12 +105,12 @@ export default async function ProductsPage({ searchParams }: PageProps) {
             name="max_price"
             defaultValue={maxPrice}
             placeholder="Giá đến"
-            className="rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+            className="rounded-xl border border-stone-300 px-3 py-2 text-sm text-black placeholder:text-black outline-none focus:border-stone-800"
           />
           <select
             name="sort"
             defaultValue={sort}
-            className="rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+            className="rounded-xl border border-stone-300 px-3 py-2 text-sm text-black outline-none focus:border-stone-800"
           >
             <option value="newest">Mới nhất</option>
             <option value="price_asc">Giá tăng dần</option>

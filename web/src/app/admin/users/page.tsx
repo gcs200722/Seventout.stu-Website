@@ -21,6 +21,8 @@ const PERMISSION_OPTIONS: PermissionCode[] = [
   "USER_READ",
   "CATEGORY_READ",
   "CATEGORY_MANAGE",
+  "INVENTORY_READ",
+  "INVENTORY_MANAGE",
 ];
 
 export default function AdminUsersPage() {
