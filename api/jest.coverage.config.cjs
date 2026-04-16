@@ -77,6 +77,43 @@ module.exports = {
     },
     {
       ...baseProject,
+      displayName: 'cart-module',
+      testMatch: ['<rootDir>/modules/cart/**/*.spec.ts'],
+      collectCoverageFrom: [
+        '<rootDir>/modules/cart/**/*.service.ts',
+        '<rootDir>/modules/cart/**/*.controller.ts',
+      ],
+      coverageDirectory: '../coverage/cart-module',
+      coverageThreshold: {
+        global: {
+          statements: 65,
+          branches: 50,
+          functions: 65,
+          lines: 65,
+        },
+      },
+    },
+    {
+      ...baseProject,
+      displayName: 'inventory-module',
+      testMatch: ['<rootDir>/modules/inventory/**/*.spec.ts'],
+      collectCoverageFrom: [
+        '<rootDir>/modules/inventory/**/*.service.ts',
+        '<rootDir>/modules/inventory/**/*.controller.ts',
+        '<rootDir>/modules/inventory/**/*.webhook.service.ts',
+      ],
+      coverageDirectory: '../coverage/inventory-module',
+      coverageThreshold: {
+        global: {
+          statements: 60,
+          branches: 45,
+          functions: 60,
+          lines: 60,
+        },
+      },
+    },
+    {
+      ...baseProject,
       displayName: 'other-modules',
       testMatch: [
         '<rootDir>/modules/storage/**/*.spec.ts',
