@@ -23,6 +23,7 @@ describe('validateEnv', () => {
     expect(config.PORT).toBe(4000);
     expect(config.DB_PORT).toBe(5433);
     expect(config.REDIS_PORT).toBe(6379);
+    expect(config.AWS_S3_PRESIGNED_EXPIRES_SECONDS).toBe(900);
   });
 
   it('throws when a required field is invalid', () => {

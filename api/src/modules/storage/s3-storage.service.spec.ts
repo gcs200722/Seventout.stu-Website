@@ -1,7 +1,11 @@
 const sendMock = jest.fn();
+const getSignedUrlMock = jest.fn();
 
 jest.mock('@aws-sdk/client-s3', () => {
   return {
+    GetObjectCommand: jest
+      .fn()
+      .mockImplementation((input: Record<string, unknown>) => ({ input })),
     PutObjectCommand: jest
       .fn()
       .mockImplementation((input: Record<string, unknown>) => ({ input })),
@@ -10,14 +14,22 @@ jest.mock('@aws-sdk/client-s3', () => {
     })),
   };
 });
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: getSignedUrlMock,
+}));
 
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { S3StorageService } from './s3-storage.service';
 
 describe('S3StorageService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sendMock.mockResolvedValue({});
+    getSignedUrlMock.mockResolvedValue('https://signed.example.com/object');
   });
 
   it('builds client without credentials when access key is missing', async () => {
@@ -33,7 +45,7 @@ describe('S3StorageService', () => {
     };
 
     const service = new S3StorageService(configService as never);
-    await service.putObject('test.txt', 'hello');
+    await service.putObject('test.txt', 'hello', { contentType: 'text/plain' });
 
     expect(S3Client).toHaveBeenCalledWith({
       region: 'ap-southeast-1',
@@ -43,8 +55,17 @@ describe('S3StorageService', () => {
       Bucket: 'bucket-a',
       Key: 'test.txt',
       Body: 'hello',
+      ContentType: 'text/plain',
     });
     expect(sendMock).toHaveBeenCalledTimes(1);
+    await expect(
+      service.getSignedDownloadUrl('products/a b.jpg', 300),
+    ).resolves.toBe('https://signed.example.com/object');
+    expect(GetObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'bucket-a',
+      Key: 'products/a b.jpg',
+    });
+    expect(getSignedUrlMock).toHaveBeenCalled();
   });
 
   it('builds client with credentials when access key exists', async () => {

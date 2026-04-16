@@ -20,7 +20,7 @@ const PERMISSION_OPTIONS: PermissionCode[] = [
   "ORDER_MANAGE",
   "USER_READ",
   "CATEGORY_READ",
-  "CATEGORY_MANAGER",
+  "CATEGORY_MANAGE",
 ];
 
 export default function AdminUsersPage() {
@@ -144,7 +144,7 @@ export default function AdminUsersPage() {
   }
 
   async function handleDeleteUser(userId: string) {
-    const confirmed = window.confirm("Bạn chắc chắn muốn xóa mềm người dùng này?");
+    const confirmed = window.confirm("Bạn chắc chắn muốn xóa người dùng này?");
     if (!confirmed) {
       return;
     }
@@ -163,7 +163,7 @@ export default function AdminUsersPage() {
       } else {
         await reloadCurrentPage();
       }
-      setSuccessMessage("Đã xóa mềm người dùng.");
+      setSuccessMessage("Đã xóa người dùng.");
     } catch (requestError) {
       setDetailError(requestError instanceof Error ? requestError.message : "Không thể xóa người dùng.");
     } finally {
@@ -176,7 +176,7 @@ export default function AdminUsersPage() {
       <header>
         <h1 className="text-2xl font-semibold">Quản lý người dùng</h1>
         <p className="mt-1 text-sm text-stone-600">
-          Danh sách dùng `GET /users?page=&limit=`; chi tiết, cập nhật hồ sơ, đổi role và xóa mềm tuân thủ users
+          Danh sách dùng `GET /users?page=&limit=`; chi tiết, cập nhật hồ sơ, đổi role và xóa người dùng tuân thủ users
           endpoint spec.
         </p>
       </header>
@@ -241,7 +241,7 @@ export default function AdminUsersPage() {
                             }}
                             disabled={actionLoading}
                           >
-                            Xóa mềm
+                            Xóa
                           </button>
                         </div>
                       </td>

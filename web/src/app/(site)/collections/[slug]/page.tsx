@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ProductGridCard } from "@/components/products/ProductGridCard";
 import { findCategoryBySlug } from "@/lib/categories-api";
+import { listProductsPublic } from "@/lib/products-api";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -13,6 +15,20 @@ export default async function CollectionDetailPage({ params }: PageProps) {
 
   if (!category) {
     notFound();
+  }
+
+  let products: Awaited<ReturnType<typeof listProductsPublic>>["items"] = [];
+  try {
+    const result = await listProductsPublic({
+      page: 1,
+      limit: 8,
+      category_id: category.id,
+      sort: "newest",
+      is_active: true,
+    });
+    products = result.items;
+  } catch {
+    products = [];
   }
 
   const image = category.image_url?.trim()
@@ -45,14 +61,6 @@ export default async function CollectionDetailPage({ params }: PageProps) {
             <p className="mt-4 text-sm text-stone-500">Chưa có mô tả cho danh mục này.</p>
           )}
 
-          <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-medium">Sản phẩm theo danh mục</p>
-            <p className="mt-1 text-amber-800/90">
-              Danh sách sản phẩm sẽ hiển thị khi module sản phẩm trên API sẵn sàng. Hiện bạn có thể tiếp tục
-              khám phá các bộ sưu tập khác.
-            </p>
-          </div>
-
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/collections"
@@ -61,14 +69,43 @@ export default async function CollectionDetailPage({ params }: PageProps) {
               Tất cả bộ sưu tập
             </Link>
             <Link
-              href="/#best-selling"
+              href={`/products?category_id=${category.id}`}
               className="inline-flex rounded-full bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700"
             >
-              Xem gợi ý trên trang chủ
+              Xem toàn bộ sản phẩm
             </Link>
           </div>
         </div>
       </div>
+
+      <section className="mt-10">
+        <div className="mb-5 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-stone-900">Sản phẩm trong danh mục</h2>
+            <p className="mt-1 text-sm text-stone-600">Danh sách được đồng bộ trực tiếp từ Product module.</p>
+          </div>
+          {products.length > 0 ? (
+            <Link
+              href={`/products?category_id=${category.id}`}
+              className="rounded-full border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
+            >
+              Xem tất cả
+            </Link>
+          ) : null}
+        </div>
+
+        {products.length === 0 ? (
+          <div className="rounded-xl border border-stone-200 bg-white p-6 text-sm text-stone-600">
+            Chưa có sản phẩm trong danh mục này.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {products.map((item) => (
+              <ProductGridCard key={item.id} product={item} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

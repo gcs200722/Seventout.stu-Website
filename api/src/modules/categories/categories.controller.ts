@@ -61,7 +61,7 @@ export class CategoriesController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Create category' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
-  @RequirePermissions(PermissionCode.CATEGORY_MANAGER)
+  @RequirePermissions(PermissionCode.CATEGORY_MANAGE)
   async createCategory(@Body() payload: CreateCategoryDto) {
     await this.categoriesService.createCategory(payload);
     return {
@@ -75,7 +75,7 @@ export class CategoriesController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Update category' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
-  @RequirePermissions(PermissionCode.CATEGORY_MANAGER)
+  @RequirePermissions(PermissionCode.CATEGORY_MANAGE)
   async updateCategory(
     @Param('id') id: string,
     @Body() payload: UpdateCategoryDto,
@@ -92,7 +92,7 @@ export class CategoriesController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Partially update category' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
-  @RequirePermissions(PermissionCode.CATEGORY_MANAGER)
+  @RequirePermissions(PermissionCode.CATEGORY_MANAGE)
   async patchCategory(
     @Param('id') id: string,
     @Body() payload: UpdateCategoryDto,
@@ -109,7 +109,7 @@ export class CategoriesController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Soft delete category' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
-  @RequirePermissions(PermissionCode.CATEGORY_MANAGER)
+  @RequirePermissions(PermissionCode.CATEGORY_MANAGE)
   async deleteCategory(@Param('id') id: string) {
     await this.categoriesService.softDeleteCategory(id);
     return {

@@ -24,6 +24,19 @@ export type CategoryDetail = CategoryListItem & {
   description: string;
 };
 
+export type CategoryTreeItem = {
+  id: string;
+  name: string;
+  slug: string;
+  image_url: string;
+  children: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    image_url: string;
+  }>;
+};
+
 const PLACEHOLDER_IMAGE =
   "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80";
 
@@ -86,6 +99,15 @@ export async function listCategoriesPublic(params: {
 export async function getCategoryByIdPublic(id: string): Promise<CategoryDetail> {
   const response = await fetch(`${API_URL}/categories/${id}`, defaultFetchInit);
   const envelope = await readEnvelope<CategoryDetail>(response);
+  if (!envelope.data) {
+    throw new Error("Unexpected API response format");
+  }
+  return envelope.data;
+}
+
+export async function listCategoryTreePublic(): Promise<CategoryTreeItem[]> {
+  const response = await fetch(`${API_URL}/categories/tree`, defaultFetchInit);
+  const envelope = await readEnvelope<CategoryTreeItem[]>(response);
   if (!envelope.data) {
     throw new Error("Unexpected API response format");
   }

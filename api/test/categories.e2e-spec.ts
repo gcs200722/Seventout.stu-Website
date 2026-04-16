@@ -212,13 +212,13 @@ describe('CategoriesController (e2e)', () => {
       });
   });
 
-  it('POST /categories should create category for staff with CATEGORY_MANAGER', async () => {
+  it('POST /categories should create category for staff with CATEGORY_MANAGE', async () => {
     categoriesService.createCategory.mockResolvedValue(undefined);
 
     await request(app.getHttpServer())
       .post('/categories')
       .set('x-role', UserRole.STAFF)
-      .set('x-permissions', PermissionCode.CATEGORY_MANAGER)
+      .set('x-permissions', PermissionCode.CATEGORY_MANAGE)
       .send({
         name: 'Hoodie',
         description: 'Ao hoodie local brand',
@@ -263,7 +263,7 @@ describe('CategoriesController (e2e)', () => {
     });
   });
 
-  it('DELETE /categories/:id should return 403 for staff without CATEGORY_MANAGER', async () => {
+  it('DELETE /categories/:id should return 403 for staff without CATEGORY_MANAGE', async () => {
     await request(app.getHttpServer())
       .delete('/categories/cat-1')
       .set('x-role', UserRole.STAFF)
