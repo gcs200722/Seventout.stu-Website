@@ -8,6 +8,8 @@ export enum PermissionCode {
   PRODUCT_MANAGE = 'PRODUCT_MANAGE',
   ORDER_MANAGE = 'ORDER_MANAGE',
   USER_READ = 'USER_READ',
+  CATEGORY_READ = 'CATEGORY_READ',
+  CATEGORY_MANAGER = 'CATEGORY_MANAGER',
 }
 
 export const AUTHZ_ROLES_KEY = 'authz_roles';

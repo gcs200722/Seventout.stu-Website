@@ -6,14 +6,34 @@ import Link from "next/link";
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { useAuth } from "@/components/auth/AuthProvider";
 
-const navItems = [
-  { label: "Cửa hàng", href: "#" },
-  { label: "Nam", href: "#" },
-  { label: "Nữ", href: "#" },
-  { label: "Phụ kiện", href: "#" },
-];
+import type { CategoryNavLink } from "@/lib/categories-api";
 
-export function Header() {
+function IconCart({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M6 6h15l-1.5 9h-12z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 6 5 3H2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="9" cy="20" r="1" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="20" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconUser({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" strokeLinecap="round" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+type HeaderProps = {
+  /** Danh mục gốc từ API (server layout truyền xuống) */
+  categoryLinks?: CategoryNavLink[];
+};
+
+export function Header({ categoryLinks = [] }: HeaderProps) {
   const { user, isAuthenticated, loading, logout } = useAuth();
   const [showAuthPanel, setShowAuthPanel] = useState(false);
 
@@ -25,10 +45,16 @@ export function Header() {
             S7 LOCAL
           </Link>
 
-          <nav className="hidden items-center gap-6 md:flex">
-            {navItems.map((item) => (
+          <nav className="hidden items-center gap-6 md:flex" aria-label="Điều hướng chính">
+            <Link
+              href="/collections"
+              className="text-sm font-medium text-stone-700 transition-colors hover:text-stone-950"
+            >
+              Cửa hàng
+            </Link>
+            {categoryLinks.map((item) => (
               <Link
-                key={item.label}
+                key={item.href}
                 href={item.href}
                 className="text-sm font-medium text-stone-700 transition-colors hover:text-stone-950"
               >
@@ -52,7 +78,7 @@ export function Header() {
               aria-label="Giỏ hàng"
               className="rounded-full border border-stone-300 p-2 text-stone-700 transition-colors hover:bg-stone-900 hover:text-white"
             >
-              🛒
+              <IconCart className="h-5 w-5" />
             </button>
             {loading ? (
               <div className="text-xs text-stone-500">Đang tải...</div>
@@ -83,7 +109,7 @@ export function Header() {
                   onClick={() => setShowAuthPanel(true)}
                   className="rounded-full border border-stone-300 p-2 text-stone-700 transition-colors hover:bg-stone-900 hover:text-white"
                 >
-                  👤
+                  <IconUser className="h-5 w-5" />
                 </button>
                 <button
                   type="button"

@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 const navItems = [
   { href: "/admin", label: "Tổng quan" },
   { href: "/admin/users", label: "Người dùng" },
+  { href: "/admin/categories", label: "Danh mục" },
   { href: "/admin/orders", label: "Đơn hàng" },
   { href: "/admin/products", label: "Sản phẩm" },
 ];

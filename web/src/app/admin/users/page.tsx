@@ -15,7 +15,13 @@ import {
 
 const PAGE_LIMIT = 10;
 const ROLE_OPTIONS: UserRole[] = ["ADMIN", "STAFF", "USER"];
-const PERMISSION_OPTIONS: PermissionCode[] = ["PRODUCT_MANAGE", "ORDER_MANAGE", "USER_READ"];
+const PERMISSION_OPTIONS: PermissionCode[] = [
+  "PRODUCT_MANAGE",
+  "ORDER_MANAGE",
+  "USER_READ",
+  "CATEGORY_READ",
+  "CATEGORY_MANAGER",
+];
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);

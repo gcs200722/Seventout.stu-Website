@@ -20,7 +20,7 @@ import {
   type MeResponse,
   type RegisterPayload,
 } from "@/lib/auth-api";
-import { updateAdminUser } from "@/lib/admin-api";
+import { patchMyProfile } from "@/lib/users-api";
 import {
   clearStoredTokens,
   getStoredTokens,
@@ -162,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Bạn chưa đăng nhập.");
       }
 
-      await updateAdminUser(user.id, payload);
+      await patchMyProfile(user.id, payload);
       await loadProfile();
     },
     [user?.id, loadProfile],
