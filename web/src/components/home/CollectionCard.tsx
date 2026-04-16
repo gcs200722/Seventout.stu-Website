@@ -21,6 +21,7 @@ export function CollectionCard({ collection }: CollectionCardProps) {
           src={collection.image}
           alt={collection.title}
           fill
+          unoptimized
           loading="lazy"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
           className="object-cover transition duration-500 group-hover:scale-105"

@@ -21,7 +21,12 @@ export type AdminUser = {
 };
 
 export type UserRole = "ADMIN" | "STAFF" | "USER";
-export type PermissionCode = "PRODUCT_MANAGE" | "ORDER_MANAGE" | "USER_READ";
+export type PermissionCode =
+  | "PRODUCT_MANAGE"
+  | "ORDER_MANAGE"
+  | "USER_READ"
+  | "CATEGORY_READ"
+  | "CATEGORY_MANAGER";
 
 export type ListUsersQuery = {
   page?: number;
@@ -126,7 +131,7 @@ export async function getAdminUserById(id: string) {
 
 export async function updateAdminUser(id: string, payload: UpdateAdminUserPayload) {
   const response = await withRefresh<unknown>(`/users/${id}`, {
-    method: "PUT",
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
   return response.message ?? "User updated successfully";
@@ -150,4 +155,51 @@ export async function updateAdminUserRole(id: string, payload: UpdateAdminUserRo
 export async function getAdminOrdersMessage() {
   const response = await withRefresh<unknown>("/orders");
   return response.message ?? "Order endpoint authorized";
+}
+
+export type AdminCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  parent_id: string | null;
+  level: 1 | 2;
+  image_url: string;
+  is_active: boolean;
+};
+
+export type CreateCategoryPayload = {
+  name: string;
+  description?: string;
+  parent_id?: string | null;
+  image_url?: string;
+};
+
+export type UpdateCategoryPayload = {
+  name?: string;
+  description?: string;
+  image_url?: string;
+  is_active?: boolean;
+};
+
+export async function createAdminCategory(payload: CreateCategoryPayload) {
+  const response = await withRefresh<unknown>("/categories", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return response.message ?? "Category created successfully";
+}
+
+export async function patchAdminCategory(id: string, payload: UpdateCategoryPayload) {
+  const response = await withRefresh<unknown>(`/categories/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return response.message ?? "Category updated successfully";
+}
+
+export async function deleteAdminCategory(id: string) {
+  const response = await withRefresh<unknown>(`/categories/${id}`, {
+    method: "DELETE",
+  });
+  return response.message ?? "Category deleted successfully";
 }

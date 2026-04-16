@@ -1,50 +1,18 @@
-import type { Collection } from "@/components/home/CollectionCard";
 import type { Product } from "@/components/home/ProductCard";
 
+/** Hero + promotion: nội dung marketing tạm cho đến khi có CMS/API. */
 export const heroContent = {
   title: "Nang cap tu do voi tinh than local brand",
   subtitle:
     "Khám phá BST streetwear tối giản, form dễ mặc và phối đồ linh hoạt cho mọi hoạt động hằng ngày.",
   ctaLabel: "Shop Now",
+  /** CTA hero: cửa hàng theo danh mục API */
+  ctaHref: "/collections",
   image:
     "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=80",
 };
 
-export const collections: Collection[] = [
-  {
-    id: "col-1",
-    title: "Urban Essentials",
-    cta: "Shop Collection",
-    slug: "#",
-    image:
-      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    id: "col-2",
-    title: "Mono Tone Series",
-    cta: "Explore More",
-    slug: "#",
-    image:
-      "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    id: "col-3",
-    title: "Weekend Casual",
-    cta: "View Looks",
-    slug: "#",
-    image:
-      "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    id: "col-4",
-    title: "Accessories Drop",
-    cta: "See Items",
-    slug: "#",
-    image:
-      "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=80",
-  },
-];
-
+/** Dữ liệu sản phẩm demo — thay bằng API khi backend có listing. */
 export const bestSellingProducts: Product[] = [
   {
     id: "bs-1",
@@ -161,4 +129,5 @@ export const promotion = {
   description:
     "Áp dụng cho selected items trong 72 giờ. Số lượng giới hạn, ưu đãi kết thúc khi hết hàng.",
   ctaLabel: "Shop Deals",
+  ctaHref: "/collections",
 };

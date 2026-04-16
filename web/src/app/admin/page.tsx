@@ -7,6 +7,11 @@ const cards = [
     href: "/admin/users",
   },
   {
+    title: "Danh mục",
+    description: "Tạo và cập nhật danh mục sản phẩm (CATEGORY_MANAGER).",
+    href: "/admin/categories",
+  },
+  {
     title: "Đơn hàng",
     description: "Kiểm tra trạng thái endpoint phân quyền ORDER_MANAGE.",
     href: "/admin/orders",
@@ -28,7 +33,7 @@ export default function AdminDashboardPage() {
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
           <Link
             key={card.href}

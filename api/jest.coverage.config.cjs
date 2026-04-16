@@ -41,6 +41,24 @@ module.exports = {
     },
     {
       ...baseProject,
+      displayName: 'categories-module',
+      testMatch: ['<rootDir>/modules/categories/**/*.spec.ts'],
+      collectCoverageFrom: [
+        '<rootDir>/modules/categories/**/*.service.ts',
+        '<rootDir>/modules/categories/**/*.controller.ts',
+      ],
+      coverageDirectory: '../coverage/categories-module',
+      coverageThreshold: {
+        global: {
+          statements: 70,
+          branches: 55,
+          functions: 70,
+          lines: 70,
+        },
+      },
+    },
+    {
+      ...baseProject,
       displayName: 'other-modules',
       testMatch: [
         '<rootDir>/modules/storage/**/*.spec.ts',

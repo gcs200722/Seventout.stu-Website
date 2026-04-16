@@ -5,10 +5,12 @@ type HeroBannerProps = {
   title: string;
   subtitle: string;
   ctaLabel: string;
+  /** Mặc định: anchor tới sản phẩm nổi bật trên cùng trang */
+  ctaHref?: string;
   image: string;
 };
 
-export function HeroBanner({ title, subtitle, ctaLabel, image }: HeroBannerProps) {
+export function HeroBanner({ title, subtitle, ctaLabel, ctaHref = "#best-selling", image }: HeroBannerProps) {
   return (
     <section className="mx-auto mt-6 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
       <div className="animate-fade-in grid overflow-hidden rounded-3xl bg-stone-100 md:grid-cols-2">
@@ -22,7 +24,7 @@ export function HeroBanner({ title, subtitle, ctaLabel, image }: HeroBannerProps
           <p className="max-w-lg text-sm text-stone-600 sm:text-base">{subtitle}</p>
           <div>
             <Link
-              href="#best-selling"
+              href={ctaHref}
               className="inline-flex items-center rounded-full bg-stone-900 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-stone-700"
             >
               {ctaLabel}

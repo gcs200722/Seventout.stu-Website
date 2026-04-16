@@ -194,6 +194,25 @@ describe('UsersController (e2e)', () => {
       });
   });
 
+  it('PATCH /users/:id should partially update owner profile', async () => {
+    usersService.updateUser.mockResolvedValue(undefined);
+
+    await request(app.getHttpServer())
+      .patch('/users/user-1')
+      .set('x-role', UserRole.USER)
+      .set('x-user-id', 'user-1')
+      .send({ phone: '0326373527' })
+      .expect(200)
+      .expect({
+        success: true,
+        message: 'User updated successfully',
+      });
+
+    expect(usersService.updateUser).toHaveBeenCalledWith('user-1', {
+      phone: '0326373527',
+    });
+  });
+
   it('DELETE /users/:id should soft delete user for admin', async () => {
     usersService.softDeleteUser.mockResolvedValue(undefined);
 

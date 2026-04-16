@@ -52,11 +52,37 @@ export class UsersController {
     };
   }
 
+  @Patch(':id/role')
+  @ApiOperation({ summary: 'Update user role by id' })
+  @RequireRoles(UserRole.ADMIN)
+  async updateUserRole(
+    @Param('id') id: string,
+    @Body() payload: UpdateUserRoleDto,
+  ) {
+    await this.usersService.updateUserRole(id, payload);
+    return {
+      success: true,
+      message: 'Role updated successfully',
+    };
+  }
+
   @Put(':id')
   @ApiOperation({ summary: 'Update user by id' })
   @RequireRoles(UserRole.ADMIN, UserRole.USER)
   @RequireOwnerParam('id')
   async updateUser(@Param('id') id: string, @Body() payload: UpdateUserDto) {
+    await this.usersService.updateUser(id, payload);
+    return {
+      success: true,
+      message: 'User updated successfully',
+    };
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Partially update user profile by id' })
+  @RequireRoles(UserRole.ADMIN, UserRole.USER)
+  @RequireOwnerParam('id')
+  async patchUser(@Param('id') id: string, @Body() payload: UpdateUserDto) {
     await this.usersService.updateUser(id, payload);
     return {
       success: true,
@@ -72,20 +98,6 @@ export class UsersController {
     return {
       success: true,
       message: 'User deleted successfully',
-    };
-  }
-
-  @Patch(':id/role')
-  @ApiOperation({ summary: 'Update user role by id' })
-  @RequireRoles(UserRole.ADMIN)
-  async updateUserRole(
-    @Param('id') id: string,
-    @Body() payload: UpdateUserRoleDto,
-  ) {
-    await this.usersService.updateUserRole(id, payload);
-    return {
-      success: true,
-      message: 'Role updated successfully',
     };
   }
 }
