@@ -59,6 +59,24 @@ module.exports = {
     },
     {
       ...baseProject,
+      displayName: 'products-module',
+      testMatch: ['<rootDir>/modules/products/**/*.spec.ts'],
+      collectCoverageFrom: [
+        '<rootDir>/modules/products/**/*.service.ts',
+        '<rootDir>/modules/products/**/*.controller.ts',
+      ],
+      coverageDirectory: '../coverage/products-module',
+      coverageThreshold: {
+        global: {
+          statements: 65,
+          branches: 50,
+          functions: 65,
+          lines: 65,
+        },
+      },
+    },
+    {
+      ...baseProject,
       displayName: 'other-modules',
       testMatch: [
         '<rootDir>/modules/storage/**/*.spec.ts',

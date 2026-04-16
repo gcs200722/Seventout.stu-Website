@@ -47,7 +47,7 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
 
           <nav className="hidden items-center gap-6 md:flex" aria-label="Điều hướng chính">
             <Link
-              href="/collections"
+              href="/products"
               className="text-sm font-medium text-stone-700 transition-colors hover:text-stone-950"
             >
               Cửa hàng

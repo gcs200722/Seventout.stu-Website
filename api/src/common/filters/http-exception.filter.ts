@@ -50,12 +50,26 @@ export class HttpExceptionFilter implements ExceptionFilter {
         details = payload.details;
       }
 
+      let errorCode = HttpStatus[status] ?? 'HTTP_EXCEPTION';
+      let detailsOut: unknown = details;
+      if (
+        typeof details === 'object' &&
+        details !== null &&
+        'code' in details &&
+        typeof (details as { code: unknown }).code === 'string'
+      ) {
+        errorCode = (details as { code: string }).code;
+        const rest = { ...(details as Record<string, unknown>) };
+        delete rest.code;
+        detailsOut = Object.keys(rest).length > 0 ? rest : undefined;
+      }
+
       response.status(status).json({
         success: false,
         error: {
-          code: HttpStatus[status] ?? 'HTTP_EXCEPTION',
+          code: errorCode,
           message,
-          ...(details !== undefined ? { details } : {}),
+          ...(detailsOut !== undefined ? { details: detailsOut } : {}),
         },
       });
       return;

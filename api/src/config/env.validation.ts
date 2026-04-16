@@ -62,6 +62,12 @@ class EnvironmentVariables {
   @IsOptional()
   AWS_SECRET_ACCESS_KEY?: string;
 
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(60)
+  @IsOptional()
+  AWS_S3_PRESIGNED_EXPIRES_SECONDS = 900;
+
   @IsString()
   BULLMQ_DEFAULT_QUEUE = 'default';
 

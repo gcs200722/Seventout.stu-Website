@@ -8,7 +8,7 @@ export class AddCategoryPermissions1713075000000 implements MigrationInterface {
       INSERT INTO permissions (code, description)
       VALUES
         ('CATEGORY_READ', 'Read categories'),
-        ('CATEGORY_MANAGER', 'Manage categories')
+        ('CATEGORY_MANAGE', 'Manage categories')
       ON CONFLICT (code) DO NOTHING;
     `);
   }
@@ -16,11 +16,11 @@ export class AddCategoryPermissions1713075000000 implements MigrationInterface {
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       DELETE FROM user_permissions
-      WHERE permission_code IN ('CATEGORY_READ', 'CATEGORY_MANAGER');
+      WHERE permission_code IN ('CATEGORY_READ', 'CATEGORY_MANAGE');
     `);
     await queryRunner.query(`
       DELETE FROM permissions
-      WHERE code IN ('CATEGORY_READ', 'CATEGORY_MANAGER');
+      WHERE code IN ('CATEGORY_READ', 'CATEGORY_MANAGE');
     `);
   }
 }

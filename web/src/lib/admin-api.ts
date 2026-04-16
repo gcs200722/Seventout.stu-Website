@@ -26,7 +26,7 @@ export type PermissionCode =
   | "ORDER_MANAGE"
   | "USER_READ"
   | "CATEGORY_READ"
-  | "CATEGORY_MANAGER";
+  | "CATEGORY_MANAGE";
 
 export type ListUsersQuery = {
   page?: number;
@@ -46,7 +46,7 @@ export type UpdateAdminUserRolePayload = {
 
 type AuthorizedRequest = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  body?: string;
+  body?: string | FormData;
 };
 
 async function requestWithToken<T>(
@@ -54,10 +54,11 @@ async function requestWithToken<T>(
   accessToken: string,
   request: AuthorizedRequest = {},
 ): Promise<ApiEnvelope<T>> {
+  const isFormData = request.body instanceof FormData;
   const response = await fetch(`${API_URL}${path}`, {
     method: request.method ?? "GET",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${accessToken}`,
     },
     body: request.body,
@@ -155,6 +156,138 @@ export async function updateAdminUserRole(id: string, payload: UpdateAdminUserRo
 export async function getAdminOrdersMessage() {
   const response = await withRefresh<unknown>("/orders");
   return response.message ?? "Order endpoint authorized";
+}
+
+export type AdminProduct = {
+  id: string;
+  name: string;
+  slug: string;
+  price: number;
+  thumbnail: string;
+  category: {
+    id: string;
+    name: string;
+  };
+  is_active: boolean;
+  created_at: string;
+};
+
+export type AdminProductDetail = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  category: {
+    id: string;
+    name: string;
+    parent: { id: string; name: string } | null;
+  };
+  images: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ListAdminProductsQuery = {
+  page?: number;
+  limit?: number;
+  keyword?: string;
+  category_id?: string;
+  sort?: "newest" | "price_asc" | "price_desc";
+  is_active?: boolean;
+};
+
+export async function getAdminProducts(params: ListAdminProductsQuery = {}) {
+  const query = new URLSearchParams();
+  if (params.page !== undefined) query.set("page", String(params.page));
+  if (params.limit !== undefined) query.set("limit", String(params.limit));
+  if (params.keyword) query.set("keyword", params.keyword);
+  if (params.category_id) query.set("category_id", params.category_id);
+  if (params.sort) query.set("sort", params.sort);
+  if (params.is_active !== undefined) query.set("is_active", String(params.is_active));
+  const qs = query.toString();
+
+  const response = await withRefresh<AdminProduct[]>(`/products${qs.length > 0 ? `?${qs}` : ""}`);
+  if (!response.data) {
+    throw new Error("Unexpected API response format");
+  }
+  return response.data;
+}
+
+export type CreateAdminProductPayload = {
+  name: string;
+  description: string;
+  price: number;
+  category_id: string;
+  images?: string[];
+  image_files?: File[];
+};
+
+export type UpdateAdminProductPayload = {
+  name?: string;
+  description?: string;
+  price?: number;
+  is_active?: boolean;
+  main_image_index?: number;
+  images?: string[];
+  image_files?: File[];
+};
+
+export async function getAdminProductById(id: string) {
+  const response = await withRefresh<AdminProductDetail>(`/products/${id}`);
+  if (!response.data) {
+    throw new Error("Unexpected API response format");
+  }
+  return response.data;
+}
+
+export async function createAdminProduct(payload: CreateAdminProductPayload) {
+  const body = new FormData();
+  body.append("name", payload.name);
+  body.append("description", payload.description);
+  body.append("price", String(payload.price));
+  body.append("category_id", payload.category_id);
+  for (const image of payload.images ?? []) {
+    body.append("images", image);
+  }
+  for (const file of payload.image_files ?? []) {
+    body.append("image_files", file);
+  }
+
+  const response = await withRefresh<unknown>("/products", {
+    method: "POST",
+    body,
+  });
+  return response.message ?? "Product created successfully";
+}
+
+export async function patchAdminProduct(id: string, payload: UpdateAdminProductPayload) {
+  const body = new FormData();
+  if (payload.name !== undefined) body.append("name", payload.name);
+  if (payload.description !== undefined) body.append("description", payload.description);
+  if (payload.price !== undefined) body.append("price", String(payload.price));
+  if (payload.is_active !== undefined) body.append("is_active", String(payload.is_active));
+  if (payload.main_image_index !== undefined) body.append("main_image_index", String(payload.main_image_index));
+  for (const image of payload.images ?? []) {
+    body.append("images", image);
+  }
+  for (const file of payload.image_files ?? []) {
+    body.append("image_files", file);
+  }
+
+  const response = await withRefresh<unknown>(`/products/${id}`, {
+    method: "PATCH",
+    body,
+  });
+  return response.message ?? "Product updated successfully";
+}
+
+export async function deleteAdminProduct(id: string) {
+  const response = await withRefresh<unknown>(`/products/${id}`, {
+    method: "DELETE",
+  });
+  return response.message ?? "Product deleted successfully";
 }
 
 export type AdminCategory = {

@@ -5,11 +5,12 @@ export enum UserRole {
 }
 
 export enum PermissionCode {
+  /** Create/update/delete catalog products (external docs may call this PRODUCT_MANAGER). */
   PRODUCT_MANAGE = 'PRODUCT_MANAGE',
   ORDER_MANAGE = 'ORDER_MANAGE',
   USER_READ = 'USER_READ',
   CATEGORY_READ = 'CATEGORY_READ',
-  CATEGORY_MANAGER = 'CATEGORY_MANAGER',
+  CATEGORY_MANAGE = 'CATEGORY_MANAGE',
 }
 
 export const AUTHZ_ROLES_KEY = 'authz_roles';
