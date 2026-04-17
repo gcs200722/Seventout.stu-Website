@@ -4,9 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
+import { AddressEntity } from '../address/entities/address.entity';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
-import { UserEntity } from '../users/user.entity';
 import { PaymentEntity } from '../payments/entities/payment.entity';
 import { OrderEventOutboxEntity } from './entities/order-event-outbox.entity';
 import { OrderItemEntity } from './entities/order-item.entity';
@@ -24,7 +24,7 @@ describe('OrdersService', () => {
   let outboxRepository: jest.Mocked<Repository<OrderEventOutboxEntity>>;
   let cartPort: jest.Mocked<OrderCartPort>;
   let inventoryPort: jest.Mocked<OrderInventoryPort>;
-  let usersRepository: jest.Mocked<Repository<UserEntity>>;
+  let addressesRepository: jest.Mocked<Repository<AddressEntity>>;
   let paymentsRepository: jest.Mocked<Repository<PaymentEntity>>;
   let dataSource: jest.Mocked<DataSource>;
   let eventDispatcher: jest.Mocked<OrderEventDispatcherService>;
@@ -62,7 +62,7 @@ describe('OrdersService', () => {
       releaseStock: jest.fn(),
       commitStockOut: jest.fn(),
     };
-    usersRepository = {
+    addressesRepository = {
       findOne: jest.fn(),
     } as never;
     paymentsRepository = {
@@ -75,7 +75,7 @@ describe('OrdersService', () => {
       ordersRepository,
       orderItemsRepository,
       outboxRepository,
-      usersRepository,
+      addressesRepository,
       paymentsRepository,
       cartPort,
       inventoryPort,
@@ -99,12 +99,17 @@ describe('OrdersService', () => {
         },
       ],
     });
-    usersRepository.findOne.mockResolvedValue({
-      id: 'u-1',
-      firstName: 'Nguyen',
-      lastName: 'Van A',
+    addressesRepository.findOne.mockResolvedValue({
+      id: 'a-1',
+      userId: 'u-1',
+      fullName: 'Nguyen Van A',
       phone: '0909123456',
-    } as UserEntity);
+      addressLine: '123 ABC Street',
+      ward: 'Ward 5',
+      district: 'District 1',
+      city: 'Ho Chi Minh',
+      country: 'Vietnam',
+    } as AddressEntity);
     (dataSource.transaction as jest.Mock).mockImplementation(
       (cb: (manager: Record<string, unknown>) => Promise<unknown>) =>
         Promise.resolve(
@@ -141,12 +146,7 @@ describe('OrdersService', () => {
       user,
       {
         cart_id: 'c-1',
-        shipping_address: {
-          address_line: '123 ABC Street',
-          ward: 'Ward 5',
-          city: 'Ho Chi Minh',
-          country: 'Vietnam',
-        },
+        address_id: 'a-1',
         note: 'ok',
       },
       'idmp-1',
@@ -170,17 +170,33 @@ describe('OrdersService', () => {
       user,
       {
         cart_id: 'c-1',
-        shipping_address: {
-          address_line: '123 ABC Street',
-          ward: 'Ward 5',
-          city: 'Ho Chi Minh',
-          country: 'Vietnam',
-        },
+        address_id: 'a-1',
       },
       'idmp-1',
     );
     expect(result.order_id).toBe('o-1');
     expect((cartPort.getCheckoutCart as jest.Mock).mock.calls.length).toBe(0);
+  });
+
+  it('throws not found when address does not exist', async () => {
+    ordersRepository.findOne.mockResolvedValue(null);
+    cartPort.getCheckoutCart.mockResolvedValue({
+      cart_id: 'c-1',
+      total_amount: 1000,
+      items: [],
+    });
+    addressesRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.createOrder(
+        user,
+        {
+          cart_id: 'c-1',
+          address_id: 'missing-address',
+        },
+        'idmp-1',
+      ),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('rejects cancel on invalid status', async () => {

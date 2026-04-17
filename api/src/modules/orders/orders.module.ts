@@ -7,7 +7,7 @@ import { CartEntity } from '../cart/entities/cart.entity';
 import { InventoryModule } from '../inventory/inventory.module';
 import { PaymentEntity } from '../payments/entities/payment.entity';
 import { ProductEntity } from '../products/product.entity';
-import { UserEntity } from '../users/user.entity';
+import { AddressEntity } from '../address/entities/address.entity';
 import { OrderCartAdapter } from './adapters/order-cart.adapter';
 import { OrderInventoryAdapter } from './adapters/order-inventory.adapter';
 import { OrdersController } from './orders.controller';
@@ -36,7 +36,7 @@ import { OrdersService } from './orders.service';
       CartEntity,
       CartItemEntity,
       ProductEntity,
-      UserEntity,
+      AddressEntity,
       PaymentEntity,
     ]),
     AuthorizationModule,

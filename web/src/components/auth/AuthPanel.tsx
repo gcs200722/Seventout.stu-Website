@@ -85,14 +85,14 @@ export function AuthPanel() {
               onChange={(e) => setForm((prev) => ({ ...prev, first_name: e.target.value }))}
               placeholder="Tên"
               required
-              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
             />
             <input
               value={form.last_name}
               onChange={(e) => setForm((prev) => ({ ...prev, last_name: e.target.value }))}
               placeholder="Họ"
               required
-              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
             />
             <input
               value={form.phone}
@@ -100,7 +100,7 @@ export function AuthPanel() {
               placeholder="Số điện thoại"
               pattern="[0-9]{9,15}"
               required
-              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
             />
           </>
         ) : null}
@@ -111,7 +111,7 @@ export function AuthPanel() {
           type="email"
           placeholder="Email"
           required
-          className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+          className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
         />
         <input
           value={form.password}
@@ -120,7 +120,7 @@ export function AuthPanel() {
           minLength={8}
           placeholder="Mật khẩu"
           required
-          className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-800"
+          className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
         />
 
         <button

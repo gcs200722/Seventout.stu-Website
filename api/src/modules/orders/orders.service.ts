@@ -7,11 +7,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
+import { AddressEntity } from '../address/entities/address.entity';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
 import { PaymentEntity } from '../payments/entities/payment.entity';
 import { PaymentMethod } from '../payments/payments.types';
-import { UserEntity } from '../users/user.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -40,8 +40,8 @@ export class OrdersService {
     private readonly orderItemsRepository: Repository<OrderItemEntity>,
     @InjectRepository(OrderEventOutboxEntity)
     private readonly outboxRepository: Repository<OrderEventOutboxEntity>,
-    @InjectRepository(UserEntity)
-    private readonly usersRepository: Repository<UserEntity>,
+    @InjectRepository(AddressEntity)
+    private readonly addressesRepository: Repository<AddressEntity>,
     @InjectRepository(PaymentEntity)
     private readonly paymentsRepository: Repository<PaymentEntity>,
     @Inject(ORDER_CART_PORT) private readonly cartPort: OrderCartPort,
@@ -82,22 +82,23 @@ export class OrdersService {
       user.id,
       payload.cart_id,
     );
-    const orderingUser = await this.usersRepository.findOne({
-      where: { id: user.id },
+    const address = await this.addressesRepository.findOne({
+      where: { id: payload.address_id, userId: user.id },
     });
-    if (!orderingUser) {
+    if (!address) {
       throw new NotFoundException({
-        message: 'User not found',
-        details: { code: 'USER_NOT_FOUND' },
+        message: 'Address not found',
+        details: { code: 'ADDRESS_NOT_FOUND' },
       });
     }
     const shippingAddressSnapshot: ShippingAddressSnapshot = {
-      full_name: `${orderingUser.firstName} ${orderingUser.lastName}`.trim(),
-      phone: orderingUser.phone,
-      address_line: payload.shipping_address.address_line,
-      ward: payload.shipping_address.ward,
-      city: payload.shipping_address.city,
-      country: payload.shipping_address.country,
+      full_name: address.fullName,
+      phone: address.phone,
+      address_line: address.addressLine,
+      ward: address.ward,
+      district: address.district,
+      city: address.city,
+      country: address.country,
     };
     const createdOrder = await this.dataSource.transaction(async (manager) => {
       const orderRepo = manager.getRepository(OrderEntity);
@@ -107,6 +108,7 @@ export class OrdersService {
       const order = await orderRepo.save(
         orderRepo.create({
           userId: user.id,
+          addressId: address.id,
           status: OrderStatus.PENDING,
           paymentStatus: PaymentStatus.UNPAID,
           fulfillmentStatus: FulfillmentStatus.UNFULFILLED,

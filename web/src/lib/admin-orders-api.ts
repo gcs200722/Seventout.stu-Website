@@ -17,6 +17,7 @@ export type AdminOrderListItem = {
     phone: string;
     address_line: string;
     ward: string;
+    district?: string;
     city: string;
     country: string;
   };
@@ -37,6 +38,7 @@ export type AdminOrderDetail = {
     phone: string;
     address_line: string;
     ward: string;
+    district?: string;
     city: string;
     country: string;
   };
