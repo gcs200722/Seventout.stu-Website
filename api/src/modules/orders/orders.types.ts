@@ -33,6 +33,7 @@ export type ShippingAddressSnapshot = {
   phone: string;
   address_line: string;
   ward: string;
+  district: string;
   city: string;
   country: string;
 };

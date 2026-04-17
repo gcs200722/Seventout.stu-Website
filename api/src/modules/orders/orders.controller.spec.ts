@@ -36,7 +36,7 @@ describe('OrdersController', () => {
     ordersService.createOrder.mockResolvedValue({ order_id: 'o-1' });
     const result = await controller.createOrder(
       { id: 'u-1' } as never,
-      { cart_id: 'c-1', shipping_address: '123' } as never,
+      { cart_id: 'c-1', address_id: 'a-1' } as never,
       'idmp',
     );
     expect(result).toEqual({ success: true, data: { order_id: 'o-1' } });

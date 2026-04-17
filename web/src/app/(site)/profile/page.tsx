@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import { AddressManager } from "@/components/profile/AddressManager";
 
 export default function ProfilePage() {
   const { user, isAuthenticated, loading, updateProfile } = useAuth();
@@ -111,6 +112,12 @@ export default function ProfilePage() {
         {error ? <p className="mt-3 whitespace-pre-line text-xs text-rose-600">{error}</p> : null}
         {success ? <p className="mt-3 text-xs text-emerald-600">{success}</p> : null}
       </section>
+
+      {!loading && isAuthenticated ? (
+        <div className="mx-auto mt-6 w-full max-w-5xl">
+          <AddressManager userId={user?.id} />
+        </div>
+      ) : null}
     </div>
   );
 }

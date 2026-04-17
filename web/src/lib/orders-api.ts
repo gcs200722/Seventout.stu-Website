@@ -43,6 +43,7 @@ export type OrderListItem = {
     phone: string;
     address_line: string;
     ward: string;
+    district?: string;
     city: string;
     country: string;
   };
@@ -62,6 +63,7 @@ export type OrderDetail = {
     phone: string;
     address_line: string;
     ward: string;
+    district?: string;
     city: string;
     country: string;
   };
@@ -77,12 +79,7 @@ export type OrderDetail = {
 
 export type CreateOrderPayload = {
   cart_id: string;
-  shipping_address: {
-    address_line: string;
-    ward: string;
-    city: string;
-    country: string;
-  };
+  address_id: string;
   note?: string;
 };
 

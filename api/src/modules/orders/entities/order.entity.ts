@@ -17,6 +17,9 @@ export class OrderEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
+  @Column({ name: 'address_id', type: 'uuid', nullable: true })
+  addressId: string | null;
+
   @Column({ type: 'varchar', length: 20, default: OrderStatus.PENDING })
   status: OrderStatus;
 

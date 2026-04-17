@@ -14,6 +14,7 @@ import {
   validateMyCart,
   type CartSnapshot,
 } from "@/lib/cart-api";
+import { listMyAddresses, type AddressItem } from "@/lib/addresses-api";
 import { createMyOrder } from "@/lib/orders-api";
 import { createMyPayment } from "@/lib/payments-api";
 import type { PaymentMethod } from "@/lib/payments-api";
@@ -21,17 +22,15 @@ import { formatVnd } from "@/lib/products-api";
 
 export default function CartPage() {
   const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
   const { refreshCartCount } = useCart();
   const [cart, setCart] = useState<CartSnapshot | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [addressLine, setAddressLine] = useState("");
-  const [ward, setWard] = useState("");
-  const [city, setCity] = useState("");
-  const [country, setCountry] = useState("Vietnam");
+  const [addresses, setAddresses] = useState<AddressItem[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
 
@@ -72,13 +71,17 @@ export default function CartPage() {
     try {
       const snapshot = await getMyCart();
       setCart(snapshot);
+      const addressItems = await listMyAddresses(user?.id);
+      setAddresses(addressItems);
+      const defaultAddress = addressItems.find((item) => item.is_default);
+      setSelectedAddressId((current) => current || defaultAddress?.id || addressItems[0]?.id || "");
       await refreshCartCount();
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Không tải được giỏ hàng.");
     } finally {
       setPageLoading(false);
     }
-  }, [isAuthenticated, refreshCartCount]);
+  }, [isAuthenticated, refreshCartCount, user?.id]);
 
   useEffect(() => {
     void reloadCart();
@@ -158,8 +161,8 @@ export default function CartPage() {
       setPendingId(null);
       return;
     }
-    if (!addressLine.trim() || !ward.trim() || !city.trim() || !country.trim()) {
-      setError("Vui lòng nhập đầy đủ địa chỉ giao hàng.");
+    if (!selectedAddressId) {
+      setError("Vui lòng chọn địa chỉ giao hàng trước khi checkout.");
       setPendingId(null);
       return;
     }
@@ -168,12 +171,7 @@ export default function CartPage() {
       const orderResult = await createMyOrder(
         {
           cart_id: cart.cart_id,
-          shipping_address: {
-            address_line: addressLine.trim(),
-            ward: ward.trim(),
-            city: city.trim(),
-            country: country.trim(),
-          },
+          address_id: selectedAddressId,
           note: note.trim() || undefined,
         },
         idempotencyKey,
@@ -275,44 +273,62 @@ export default function CartPage() {
               <p className="text-sm text-stone-700">Tổng sản phẩm: {cart.total_items}</p>
               <p className="mt-1 text-lg font-semibold text-stone-900">Tổng tiền: {formatVnd(cart.total_amount)}</p>
               <div className="mt-4 space-y-3">
-                <label className="block text-xs font-medium text-stone-700">
-                  Địa chỉ (address_line)
-                  <input
-                    value={addressLine}
-                    onChange={(event) => setAddressLine(event.target.value)}
-                    placeholder="123 ABC Street"
-                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
-                  />
-                </label>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="block text-xs font-medium text-stone-700">
-                    Ward
-                    <input
-                      value={ward}
-                      onChange={(event) => setWard(event.target.value)}
-                      placeholder="Ward 5"
-                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
-                    />
-                  </label>
-                  <label className="block text-xs font-medium text-stone-700">
-                    City
-                    <input
-                      value={city}
-                      onChange={(event) => setCity(event.target.value)}
-                      placeholder="Ho Chi Minh"
-                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
-                    />
-                  </label>
-                  <label className="block text-xs font-medium text-stone-700">
-                    Country
-                    <input
-                      value={country}
-                      onChange={(event) => setCountry(event.target.value)}
-                      placeholder="Vietnam"
-                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
-                    />
-                  </label>
-                </div>
+                <fieldset className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                  <legend className="px-1 text-xs font-semibold text-stone-800">Địa chỉ giao hàng</legend>
+                  {addresses.length === 0 ? (
+                    <div className="space-y-2 text-xs text-stone-600">
+                      <p>Bạn chưa có địa chỉ nào để checkout.</p>
+                      <Link
+                        href="/profile"
+                        className="inline-flex rounded-full border border-stone-300 px-3 py-1.5 font-semibold text-stone-700 hover:bg-stone-100"
+                      >
+                        Đi đến quản lý địa chỉ
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      {addresses.map((address) => (
+                        <label
+                          key={address.id}
+                          className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 ${
+                            selectedAddressId === address.id
+                              ? "border-stone-900 bg-white"
+                              : "border-stone-200 bg-white hover:border-stone-400"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="shipping_address_id"
+                            value={address.id}
+                            checked={selectedAddressId === address.id}
+                            disabled={pendingId !== null}
+                            onChange={() => setSelectedAddressId(address.id)}
+                            className="mt-0.5 h-4 w-4 accent-stone-900"
+                          />
+                          <span className="text-xs text-stone-700">
+                            <span className="block font-semibold text-stone-900">
+                              {address.full_name} ({address.phone}){" "}
+                              {address.is_default ? (
+                                <span className="rounded-full border border-stone-300 px-2 py-0.5 text-[10px] font-semibold">
+                                  Mặc định
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="block">
+                              {address.address_line}, {address.ward}, {address.city}, {address.country}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                      <Link
+                        href="/profile"
+                        className="inline-flex rounded-full border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100"
+                      >
+                        Quản lý địa chỉ
+                      </Link>
+                    </div>
+                  )}
+                </fieldset>
                 <label className="block text-xs font-medium text-stone-700">
                   Ghi chú (tuỳ chọn)
                   <input
@@ -375,7 +391,7 @@ export default function CartPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={!canCheckout || pendingId !== null}
+                  disabled={!canCheckout || pendingId !== null || !selectedAddressId}
                   onClick={() => void handleCheckout()}
                   className="rounded-full bg-stone-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
