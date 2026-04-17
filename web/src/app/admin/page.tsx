@@ -17,6 +17,11 @@ const cards = [
     href: "/admin/orders",
   },
   {
+    title: "Đơn hoàn",
+    description: "Xử lý quy trình return, kiểm tra hàng và nhập kho/loại bỏ.",
+    href: "/admin/returns",
+  },
+  {
     title: "Sản phẩm",
     description: "Khu vực placeholder cho module quản lý sản phẩm.",
     href: "/admin/products",

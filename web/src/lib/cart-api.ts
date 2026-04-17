@@ -1,6 +1,6 @@
 import { refreshToken } from "@/lib/auth-api";
 import { getApiErrorMessage } from "@/lib/api-error";
-import { getStoredTokens, setStoredAccessToken } from "@/lib/auth-storage";
+import { getStoredTokens, setStoredTokens } from "@/lib/auth-storage";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -79,7 +79,7 @@ async function withRefresh<T>(path: string, request: AuthorizedRequest = {}) {
       throw error;
     }
     const refreshed = await refreshToken(tokens.refresh_token);
-    setStoredAccessToken(refreshed.access_token);
+    setStoredTokens(refreshed);
     return requestWithToken<T>(path, refreshed.access_token, request);
   }
 }

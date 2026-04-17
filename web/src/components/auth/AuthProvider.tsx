@@ -24,7 +24,6 @@ import { patchMyProfile } from "@/lib/users-api";
 import {
   clearStoredTokens,
   getStoredTokens,
-  setStoredAccessToken,
   setStoredTokens,
 } from "@/lib/auth-storage";
 import { parseAccessTokenClaims } from "@/lib/jwt";
@@ -56,7 +55,7 @@ async function refreshSession(): Promise<string | null> {
 
   try {
     const refreshed = await refreshTokenRequest(tokens.refresh_token);
-    setStoredAccessToken(refreshed.access_token);
+    setStoredTokens(refreshed);
     return refreshed.access_token;
   } catch {
     clearStoredTokens();

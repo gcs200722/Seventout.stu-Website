@@ -81,7 +81,7 @@ export function getMe(accessToken: string) {
 }
 
 export function refreshToken(refresh_token: string) {
-  return apiRequest<{ access_token: string }>("/auth/refresh-token", {
+  return apiRequest<{ access_token: string; refresh_token: string }>("/auth/refresh-token", {
     method: "POST",
     body: JSON.stringify({ refresh_token }),
   });

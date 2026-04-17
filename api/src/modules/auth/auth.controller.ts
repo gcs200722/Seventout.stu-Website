@@ -128,6 +128,7 @@ export class AuthController {
       success: true,
       data: {
         access_token: 'new_access_token',
+        refresh_token: 'new_refresh_token',
       },
     },
   })
@@ -139,6 +140,7 @@ export class AuthController {
       success: true,
       data: {
         access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
       },
     };
   }
