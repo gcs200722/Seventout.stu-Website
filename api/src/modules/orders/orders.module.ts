@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthorizationModule } from '../authorization/authorization.module';
+import { CartModule } from '../cart/cart.module';
 import { CartItemEntity } from '../cart/entities/cart-item.entity';
 import { CartEntity } from '../cart/entities/cart.entity';
 import { InventoryModule } from '../inventory/inventory.module';
+import { PaymentEntity } from '../payments/entities/payment.entity';
 import { ProductEntity } from '../products/product.entity';
 import { UserEntity } from '../users/user.entity';
 import { OrderCartAdapter } from './adapters/order-cart.adapter';
@@ -35,8 +37,10 @@ import { OrdersService } from './orders.service';
       CartItemEntity,
       ProductEntity,
       UserEntity,
+      PaymentEntity,
     ]),
     AuthorizationModule,
+    CartModule,
     InventoryModule,
   ],
   controllers: [OrdersController],

@@ -27,5 +27,6 @@ import { CartEntity } from './entities/cart.entity';
       useClass: InMemoryCartCacheAdapter,
     },
   ],
+  exports: [CART_CACHE_PORT],
 })
 export class CartModule {}

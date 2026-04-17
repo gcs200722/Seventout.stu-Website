@@ -36,6 +36,7 @@ export type OrderListItem = {
   userId: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentMethod?: "COD" | "VNPAY" | "STRIPE" | null;
   totalAmount: number;
   shippingAddress: {
     full_name: string;
@@ -54,6 +55,7 @@ export type OrderDetail = {
   id: string;
   status: OrderStatus;
   payment_status: PaymentStatus;
+  payment_method?: "COD" | "VNPAY" | "STRIPE" | null;
   total_amount: number;
   shipping_address: {
     full_name: string;

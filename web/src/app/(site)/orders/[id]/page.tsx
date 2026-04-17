@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { cancelMyOrder, getMyOrderDetail } from "@/lib/orders-api";
 import { formatVnd } from "@/lib/products-api";
@@ -13,6 +13,7 @@ function canCancelOrder(status: string) {
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const orderId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [loading, setLoading] = useState(true);
@@ -38,6 +39,18 @@ export default function OrderDetailPage() {
       void loadOrder();
     }
   }, [orderId]);
+
+  useEffect(() => {
+    const paymentStatus = searchParams.get("payment_status");
+    if (!paymentStatus) {
+      return;
+    }
+    if (paymentStatus === "PENDING") {
+      setSuccess("Thanh toán COD đã được khởi tạo, vui lòng chờ xác nhận.");
+      return;
+    }
+    setSuccess(`Thanh toán hiện tại: ${paymentStatus}`);
+  }, [searchParams]);
 
   async function handleCancelOrder() {
     if (!order || !canCancelOrder(order.status)) {
