@@ -4,11 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import RefundStatusBadge from "@/components/orders/RefundStatusBadge";
+import ReturnStatusBadge from "@/components/orders/ReturnStatusBadge";
+import { listRefunds } from "@/lib/refunds-api";
+import { listReturns, type ReturnStatus } from "@/lib/returns-api";
 import {
   listMyOrders,
   type OrderStatus,
   type PaymentStatus,
 } from "@/lib/orders-api";
+import type { RefundStatus } from "@/lib/refunds-api";
 import { formatVnd } from "@/lib/products-api";
 
 const PAGE_LIMIT = 10;
@@ -30,6 +35,8 @@ export default function MyOrdersPage() {
   const [paymentFilter, setPaymentFilter] = useState<"" | PaymentStatus>("");
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [returnByOrderId, setReturnByOrderId] = useState<Record<string, ReturnStatus>>({});
+  const [refundByOrderId, setRefundByOrderId] = useState<Record<string, RefundStatus>>({});
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_LIMIT)), [total]);
 
@@ -58,6 +65,16 @@ export default function MyOrdersPage() {
         })),
       );
       setTotal(response.pagination.total);
+      const [returnsResponse, refundsResponse] = await Promise.all([
+        listReturns({ page: 1, limit: 100 }).catch(() => ({ items: [], pagination: { page: 1, limit: 100, total: 0 } })),
+        listRefunds({ page: 1, limit: 100 }).catch(() => ({ items: [], pagination: { page: 1, limit: 100, total: 0 } })),
+      ]);
+      setReturnByOrderId(
+        Object.fromEntries(returnsResponse.items.map((item) => [item.orderId, item.status])),
+      );
+      setRefundByOrderId(
+        Object.fromEntries(refundsResponse.items.map((item) => [item.orderId, item.status])),
+      );
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không tải được đơn hàng.");
     } finally {
@@ -135,6 +152,14 @@ export default function MyOrdersPage() {
                       <p className="mt-1 text-xs text-stone-600">
                         Trạng thái: {order.status} | Thanh toán: {order.paymentStatus}
                       </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {returnByOrderId[order.id] ? (
+                          <ReturnStatusBadge status={returnByOrderId[order.id]} />
+                        ) : null}
+                        {refundByOrderId[order.id] ? (
+                          <RefundStatusBadge status={refundByOrderId[order.id]} />
+                        ) : null}
+                      </div>
                       <p className="mt-1 text-xs text-stone-600">
                         Tạo lúc: {new Date(order.createdAt).toLocaleString("vi-VN")}
                       </p>

@@ -10,6 +10,7 @@ const navItems = [
   { href: "/admin/users", label: "Người dùng" },
   { href: "/admin/categories", label: "Danh mục" },
   { href: "/admin/orders", label: "Đơn hàng" },
+  { href: "/admin/returns", label: "Đơn hoàn" },
   { href: "/admin/products", label: "Sản phẩm" },
   { href: "/admin/inventory", label: "Tồn kho" },
 ];

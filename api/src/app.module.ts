@@ -16,6 +16,8 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ProductsModule } from './modules/products/products.module';
 import { QueueModule } from './modules/queue/queue.module';
+import { RefundsModule } from './modules/refunds/refunds.module';
+import { ReturnsModule } from './modules/returns/returns.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -59,6 +61,8 @@ import { UsersModule } from './modules/users/users.module';
     FulfillmentModule,
     OrdersModule,
     PaymentsModule,
+    ReturnsModule,
+    RefundsModule,
     QueueModule,
     StorageModule,
   ],

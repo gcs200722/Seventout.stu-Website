@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import FulfillmentSummaryCard from "@/components/orders/FulfillmentSummaryCard";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
@@ -9,8 +10,6 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import {
   getAdminOrderDetail,
   listAdminOrders,
-  type ManageableOrderStatus,
-  updateAdminOrderStatus,
 } from "@/lib/admin-orders-api";
 import {
   handleFailedDeliveryAction,
@@ -24,13 +23,6 @@ import type { OrderStatus, PaymentStatus } from "@/lib/orders-api";
 import { formatVnd } from "@/lib/products-api";
 
 const PAGE_LIMIT = 10;
-const MANAGEABLE_ORDER_STATUSES: ManageableOrderStatus[] = [
-  "CONFIRMED",
-  "PROCESSING",
-  "SHIPPED",
-  "COMPLETED",
-];
-
 const MANAGEABLE_FULFILLMENT_STATUSES: FulfillmentStatus[] = [
   "CONFIRMED",
   "PACKING",
@@ -51,19 +43,6 @@ function formatPaymentMethod(method: "COD" | "VNPAY" | "STRIPE" | null) {
   if (method === "COD") return "COD";
   if (method === "VNPAY") return "VNPay";
   return "Stripe";
-}
-
-function toManageableOrderStatus(status: OrderStatus): ManageableOrderStatus {
-  if (status === "PENDING" || status === "CONFIRMED") {
-    return "CONFIRMED";
-  }
-  if (status === "PROCESSING") {
-    return "PROCESSING";
-  }
-  if (status === "SHIPPED") {
-    return "SHIPPED";
-  }
-  return "COMPLETED";
 }
 
 function toManageableFulfillmentStatus(status: FulfillmentStatus): FulfillmentStatus {
@@ -90,7 +69,6 @@ export default function AdminOrdersPage() {
   >([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [orderDetail, setOrderDetail] = useState<Awaited<ReturnType<typeof getAdminOrderDetail>> | null>(null);
-  const [nextStatus, setNextStatus] = useState<ManageableOrderStatus>("CONFIRMED");
   const [fulfillment, setFulfillment] = useState<FulfillmentDetail | null>(null);
   const [fulfillmentLoading, setFulfillmentLoading] = useState(false);
   const [fulfillmentError, setFulfillmentError] = useState<string | null>(null);
@@ -177,7 +155,6 @@ export default function AdminOrdersPage() {
       ]);
       setSelectedOrderId(orderId);
       setOrderDetail(detail);
-      setNextStatus(toManageableOrderStatus(detail.status));
       setFulfillment(fulfillmentDetail);
       if (fulfillmentDetail) {
         setNextFulfillmentStatus(toManageableFulfillmentStatus(fulfillmentDetail.status));
@@ -195,52 +172,6 @@ export default function AdminOrdersPage() {
     }
   }
 
-  async function handleUpdateStatus() {
-    if (!selectedOrderId) {
-      return;
-    }
-    try {
-      setActionLoading(true);
-      setError(null);
-      setSuccess(null);
-      await updateAdminOrderStatus(selectedOrderId, nextStatus);
-      const detail = await getAdminOrderDetail(selectedOrderId);
-      setOrderDetail(detail);
-      const refreshed = await listAdminOrders({
-        page,
-        limit: PAGE_LIMIT,
-        status: statusFilter || undefined,
-        payment_status: paymentFilter || undefined,
-      });
-      setOrders(
-        refreshed.data.map((item) => ({
-          id: item.id,
-          customerName: item.shippingAddress.full_name || "Unknown",
-          shippingAddress: [
-            item.shippingAddress.address_line,
-            item.shippingAddress.ward,
-            item.shippingAddress.city,
-            item.shippingAddress.country,
-          ]
-            .filter(Boolean)
-            .join(", "),
-          note: item.note?.trim() || "",
-          createdAt: item.createdAt,
-          status: item.status,
-          paymentStatus: item.paymentStatus,
-          paymentMethod: item.paymentMethod ?? null,
-          totalAmount: item.totalAmount,
-        })),
-      );
-      setTotal(refreshed.pagination.total);
-      setSuccess("Đã cập nhật trạng thái đơn hàng.");
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Không thể cập nhật trạng thái.");
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
   function handleCloseDetailModal() {
     setSelectedOrderId("");
     setOrderDetail(null);
@@ -248,10 +179,6 @@ export default function AdminOrdersPage() {
     setFulfillmentError(null);
   }
 
-  const isStatusUpdateLocked = orderDetail?.status === "CANCELED";
-  const isOrderStatusControlledByFulfillment = Boolean(fulfillment);
-  const isOrderStatusDropdownLocked =
-    isStatusUpdateLocked || isOrderStatusControlledByFulfillment;
   const isFulfillmentUpdateLocked = !fulfillment || !canUpdateFulfillment;
   const canEditTrackingCode =
     nextFulfillmentStatus === "SHIPPED" && !isFulfillmentUpdateLocked;
@@ -277,7 +204,6 @@ export default function AdminOrdersPage() {
         }),
       ]);
       setOrderDetail(detail);
-      setNextStatus(toManageableOrderStatus(detail.status));
       setFulfillment(fulfillmentDetail);
       if (fulfillmentDetail) {
         setNextFulfillmentStatus(toManageableFulfillmentStatus(fulfillmentDetail.status));
@@ -365,6 +291,14 @@ export default function AdminOrdersPage() {
         <p className="mt-1 text-sm text-stone-600">
           Quản lý đơn hàng với filter, phân trang, xem chi tiết và cập nhật trạng thái.
         </p>
+        <div className="mt-3">
+          <Link
+            href="/admin/returns"
+            className="inline-flex rounded-full border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100"
+          >
+            Sang trang quản lý đơn hoàn
+          </Link>
+        </div>
       </header>
 
       {loading ? <p className="text-sm text-stone-500">Đang tải dữ liệu...</p> : null}
@@ -570,40 +504,6 @@ export default function AdminOrdersPage() {
                   </p>
                 ) : null}
 
-                <label className="block text-xs font-medium text-stone-700">
-                  Cập nhật trạng thái
-                  <select
-                    value={nextStatus}
-                    onChange={(event) => setNextStatus(event.target.value as ManageableOrderStatus)}
-                    disabled={isOrderStatusDropdownLocked}
-                    className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-                  >
-                    {MANAGEABLE_ORDER_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {isStatusUpdateLocked ? (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    Đơn hàng đã bị khách hủy, thao tác cập nhật trạng thái đã bị khóa.
-                  </p>
-                ) : null}
-                {isOrderStatusControlledByFulfillment ? (
-                  <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700">
-                    Trạng thái order đang đồng bộ tự động theo fulfillment để tránh xung đột.
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={actionLoading || isOrderStatusDropdownLocked}
-                  onClick={() => void handleUpdateStatus()}
-                  className="w-full rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
-                >
-                  {actionLoading ? "Đang cập nhật..." : "Cập nhật trạng thái"}
-                </button>
-
                 <div className="space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-3">
                   <p className="text-xs font-semibold text-stone-900">Cập nhật trạng thái fulfillment</p>
                   <label className="block text-xs font-medium text-stone-700">
@@ -712,6 +612,14 @@ export default function AdminOrdersPage() {
                     </button>
                   </div>
                 ) : null}
+
+                <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-700">
+                  Phan quan ly return/refund da duoc tach sang trang rieng.
+                  <Link href="/admin/returns" className="ml-1 font-semibold underline">
+                    Mo trang quan ly don hoan
+                  </Link>
+                  .
+                </div>
 
                 <div className="max-h-64 space-y-2 overflow-y-auto border-t border-stone-200 pt-3">
                   {orderDetail.items.map((item) => (

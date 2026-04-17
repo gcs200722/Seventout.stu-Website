@@ -1,5 +1,5 @@
 import { refreshToken } from "@/lib/auth-api";
-import { getStoredTokens, setStoredAccessToken } from "@/lib/auth-storage";
+import { getStoredTokens, setStoredTokens } from "@/lib/auth-storage";
 import { getApiErrorMessage } from "@/lib/api-error";
 
 export type ApiEnvelope<T> = {
@@ -140,7 +140,7 @@ async function withRefresh<T>(path: string, request: AdminAuthorizedRequest = {}
     }
 
     const refreshed = await refreshToken(tokens.refresh_token);
-    setStoredAccessToken(refreshed.access_token);
+    setStoredTokens(refreshed);
     return requestWithToken<T>(path, refreshed.access_token, request);
   }
 }
@@ -163,7 +163,7 @@ async function withRefreshPaginated<T>(
     }
 
     const refreshed = await refreshToken(tokens.refresh_token);
-    setStoredAccessToken(refreshed.access_token);
+    setStoredTokens(refreshed);
     return requestWithTokenPaginated<T>(path, refreshed.access_token, request);
   }
 }

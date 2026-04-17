@@ -5,7 +5,11 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import FulfillmentSummaryCard from "@/components/orders/FulfillmentSummaryCard";
+import RefundSummaryCard from "@/components/orders/RefundSummaryCard";
+import ReturnRequestCard from "@/components/orders/ReturnRequestCard";
 import { getFulfillmentByOrderId, type FulfillmentDetail } from "@/lib/fulfillment-api";
+import { listRefunds } from "@/lib/refunds-api";
+import { createReturn, listReturns } from "@/lib/returns-api";
 import { cancelMyOrder, getMyOrderDetail } from "@/lib/orders-api";
 import { formatVnd } from "@/lib/products-api";
 
@@ -26,6 +30,10 @@ export default function OrderDetailPage() {
   const [fulfillment, setFulfillment] = useState<FulfillmentDetail | null>(null);
   const [fulfillmentLoading, setFulfillmentLoading] = useState(false);
   const [fulfillmentError, setFulfillmentError] = useState<string | null>(null);
+  const [returnItem, setReturnItem] = useState<Awaited<ReturnType<typeof listReturns>>["items"][number] | null>(null);
+  const [refundItem, setRefundItem] = useState<Awaited<ReturnType<typeof listRefunds>>["items"][number] | null>(null);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnNote, setReturnNote] = useState("");
 
   useEffect(() => {
     async function loadOrder() {
@@ -57,6 +65,7 @@ export default function OrderDetailPage() {
     }
     if (orderId) {
       void loadOrder();
+      void loadReturnAndRefund(orderId);
     }
   }, [orderId]);
 
@@ -89,6 +98,19 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function loadReturnAndRefund(currentOrderId: string) {
+    const [returnsResponse, refundsResponse] = await Promise.all([
+      listReturns({ page: 1, limit: 5 }).catch(() => ({ items: [], pagination: { page: 1, limit: 5, total: 0 } })),
+      listRefunds({ page: 1, limit: 1, order_id: currentOrderId }).catch(() => ({
+        items: [],
+        pagination: { page: 1, limit: 1, total: 0 },
+      })),
+    ]);
+    const matchedReturn = returnsResponse.items.find((item) => item.orderId === currentOrderId) ?? null;
+    setReturnItem(matchedReturn);
+    setRefundItem(refundsResponse.items[0] ?? null);
+  }
+
   useEffect(() => {
     const paymentStatus = searchParams.get("payment_status");
     if (!paymentStatus) {
@@ -118,6 +140,28 @@ export default function OrderDetailPage() {
       await reloadOrderAndFulfillment(order.id);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể hủy đơn hàng.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleCreateReturn() {
+    if (!order || returnReason.trim().length === 0) return;
+    setActionLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await createReturn({
+        order_id: order.id,
+        reason: returnReason.trim(),
+        note: returnNote.trim() || undefined,
+      });
+      setReturnReason("");
+      setReturnNote("");
+      setSuccess("Đã tạo yêu cầu trả hàng.");
+      await loadReturnAndRefund(order.id);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không thể tạo yêu cầu trả hàng.");
     } finally {
       setActionLoading(false);
     }
@@ -195,6 +239,37 @@ export default function OrderDetailPage() {
             </div>
 
             <FulfillmentSummaryCard fulfillment={fulfillment} loading={fulfillmentLoading} />
+            <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-4">
+              <h2 className="text-base font-semibold text-stone-900">Return & Refund</h2>
+              <ReturnRequestCard item={returnItem} />
+              <RefundSummaryCard item={refundItem} />
+              {order.status === "COMPLETED" && !returnItem ? (
+                <div className="space-y-2 rounded-xl border border-stone-200 text-stone-900 bg-stone-50 p-3">
+                  <p className="text-xs font-semibold text-stone-900">Tạo yêu cầu trả hàng</p>
+                  <input
+                    value={returnReason}
+                    onChange={(event) => setReturnReason(event.target.value)}
+                    placeholder="Lý do trả hàng"
+                    className="w-full rounded-md border border-stone-300 text-stone-900 px-3 py-2 text-sm"
+                  />
+                  <textarea
+                    value={returnNote}
+                    onChange={(event) => setReturnNote(event.target.value)}
+                    rows={2}
+                    placeholder="Ghi chú"
+                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateReturn()}
+                    disabled={actionLoading || returnReason.trim().length === 0}
+                    className="w-full rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
+                  >
+                    {actionLoading ? "Đang gửi..." : "Tạo yêu cầu trả hàng"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
 
             <div className="space-y-3">
               <h2 className="text-base font-semibold text-stone-900">Sản phẩm trong đơn</h2>
