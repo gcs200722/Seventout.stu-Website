@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
+import FulfillmentSummaryCard from "@/components/orders/FulfillmentSummaryCard";
+import { getFulfillmentByOrderId, type FulfillmentDetail } from "@/lib/fulfillment-api";
 import { cancelMyOrder, getMyOrderDetail } from "@/lib/orders-api";
 import { formatVnd } from "@/lib/products-api";
 
@@ -21,24 +23,71 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [order, setOrder] = useState<Awaited<ReturnType<typeof getMyOrderDetail>> | null>(null);
+  const [fulfillment, setFulfillment] = useState<FulfillmentDetail | null>(null);
+  const [fulfillmentLoading, setFulfillmentLoading] = useState(false);
+  const [fulfillmentError, setFulfillmentError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadOrder() {
       setLoading(true);
       setError(null);
+      setFulfillmentLoading(true);
+      setFulfillmentError(null);
       try {
-        const detail = await getMyOrderDetail(orderId);
+        const [detail, fulfillmentDetail] = await Promise.all([
+          getMyOrderDetail(orderId),
+          getFulfillmentByOrderId(orderId).catch((requestError) => {
+            if (
+              requestError instanceof Error &&
+              /fulfillment not found|not found|404/i.test(requestError.message)
+            ) {
+              return null;
+            }
+            throw requestError;
+          }),
+        ]);
         setOrder(detail);
+        setFulfillment(fulfillmentDetail);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Không tải được chi tiết đơn hàng.");
       } finally {
         setLoading(false);
+        setFulfillmentLoading(false);
       }
     }
     if (orderId) {
       void loadOrder();
     }
   }, [orderId]);
+
+  async function reloadOrderAndFulfillment(currentOrderId: string) {
+    setFulfillmentLoading(true);
+    setFulfillmentError(null);
+    try {
+      const [refreshedOrder, refreshedFulfillment] = await Promise.all([
+        getMyOrderDetail(currentOrderId),
+        getFulfillmentByOrderId(currentOrderId).catch((requestError) => {
+          if (
+            requestError instanceof Error &&
+            /fulfillment not found|not found|404/i.test(requestError.message)
+          ) {
+            return null;
+          }
+          throw requestError;
+        }),
+      ]);
+      setOrder(refreshedOrder);
+      setFulfillment(refreshedFulfillment);
+    } catch (requestError) {
+      setFulfillmentError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Không tải được trạng thái vận chuyển.",
+      );
+    } finally {
+      setFulfillmentLoading(false);
+    }
+  }
 
   useEffect(() => {
     const paymentStatus = searchParams.get("payment_status");
@@ -66,8 +115,7 @@ export default function OrderDetailPage() {
     try {
       const message = await cancelMyOrder(order.id);
       setSuccess(message);
-      const refreshed = await getMyOrderDetail(order.id);
-      setOrder(refreshed);
+      await reloadOrderAndFulfillment(order.id);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể hủy đơn hàng.");
     } finally {
@@ -98,6 +146,11 @@ export default function OrderDetailPage() {
         {success ? (
           <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
             {success}
+          </p>
+        ) : null}
+        {fulfillmentError ? (
+          <p className="mt-4 whitespace-pre-line rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            {fulfillmentError}
           </p>
         ) : null}
 
@@ -140,6 +193,8 @@ export default function OrderDetailPage() {
                 </button>
               ) : null}
             </div>
+
+            <FulfillmentSummaryCard fulfillment={fulfillment} loading={fulfillmentLoading} />
 
             <div className="space-y-3">
               <h2 className="text-base font-semibold text-stone-900">Sản phẩm trong đơn</h2>

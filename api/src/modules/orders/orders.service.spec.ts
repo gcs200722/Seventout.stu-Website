@@ -13,6 +13,7 @@ import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEntity } from './entities/order.entity';
 import { OrderEventDispatcherService } from './events/order-event-dispatcher.service';
 import { OrderCartPort } from './ports/order-cart.port';
+import { OrderFulfillmentPort } from './ports/order-fulfillment.port';
 import { OrderInventoryPort } from './ports/order-inventory.port';
 import { OrdersService } from './orders.service';
 import { OrderEventType, OrderStatus, PaymentStatus } from './orders.types';
@@ -24,6 +25,7 @@ describe('OrdersService', () => {
   let outboxRepository: jest.Mocked<Repository<OrderEventOutboxEntity>>;
   let cartPort: jest.Mocked<OrderCartPort>;
   let inventoryPort: jest.Mocked<OrderInventoryPort>;
+  let fulfillmentPort: jest.Mocked<OrderFulfillmentPort>;
   let addressesRepository: jest.Mocked<Repository<AddressEntity>>;
   let paymentsRepository: jest.Mocked<Repository<PaymentEntity>>;
   let dataSource: jest.Mocked<DataSource>;
@@ -62,6 +64,12 @@ describe('OrdersService', () => {
       releaseStock: jest.fn(),
       commitStockOut: jest.fn(),
     };
+    fulfillmentPort = {
+      onOrderCreated: jest.fn(),
+      onOrderPaymentSucceeded: jest.fn(),
+      onOrderCanceled: jest.fn(),
+      onOrderCompleted: jest.fn(),
+    };
     addressesRepository = {
       findOne: jest.fn(),
     } as never;
@@ -79,6 +87,7 @@ describe('OrdersService', () => {
       paymentsRepository,
       cartPort,
       inventoryPort,
+      fulfillmentPort,
       dataSource,
       eventDispatcher,
     );
@@ -258,5 +267,26 @@ describe('OrdersService', () => {
     await service.processOutbox();
     expect((eventDispatcher.dispatch as jest.Mock).mock.calls.length).toBe(1);
     expect((outboxRepository.save as jest.Mock).mock.calls.length).toBe(1);
+  });
+
+  it('triggers fulfillment hook when payment becomes paid', async () => {
+    ordersRepository.findOne.mockResolvedValue({
+      id: 'o-1',
+      paymentStatus: PaymentStatus.UNPAID,
+    } as OrderEntity);
+    ordersRepository.save.mockResolvedValue({
+      id: 'o-1',
+      paymentStatus: PaymentStatus.PAID,
+    } as OrderEntity);
+
+    const result = await service.markOrderPaymentStatus(
+      'o-1',
+      PaymentStatus.PAID,
+    );
+
+    expect(result.payment_status).toBe(PaymentStatus.PAID);
+    expect(
+      (fulfillmentPort.onOrderPaymentSucceeded as jest.Mock).mock.calls[0],
+    ).toEqual(['o-1']);
   });
 });

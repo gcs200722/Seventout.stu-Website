@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ProductGridCard } from "@/components/products/ProductGridCard";
 import { findCategoryBySlug } from "@/lib/categories-api";
-import { listProductsPublic } from "@/lib/products-api";
+import { listProductStocksPublic, listProductsPublic } from "@/lib/products-api";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -30,6 +30,15 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   } catch {
     products = [];
   }
+  const productStocks = await listProductStocksPublic(products.map((item) => item.id)).catch(() => []);
+  const stockByProductId = productStocks.reduce<Record<string, number>>((acc, item) => {
+    acc[item.product_id] = item.available_stock;
+    return acc;
+  }, {});
+  const productsWithFreshStock = products.map((item) => ({
+    ...item,
+    available_stock: stockByProductId[item.id] ?? item.available_stock,
+  }));
 
   const image = category.image_url?.trim()
     ? category.image_url
@@ -100,7 +109,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {products.map((item) => (
+            {productsWithFreshStock.map((item) => (
               <ProductGridCard key={item.id} product={item} />
             ))}
           </div>

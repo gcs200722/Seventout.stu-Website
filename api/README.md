@@ -57,6 +57,20 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Fulfillment module (phase 1)
+
+- Endpoints:
+  - `POST /fulfillments` (STAFF/ADMIN)
+  - `GET /fulfillments/:orderId` (USER own order, STAFF, ADMIN)
+  - `PATCH /fulfillments/:id/status` (STAFF/ADMIN)
+- Status flow:
+  - `PENDING -> CONFIRMED -> PACKING -> SHIPPED -> DELIVERED`
+  - Optional terminal states: `CANCELLED`, `FAILED_DELIVERY`
+- Business guards:
+  - Exactly one fulfillment per order (`order_id` unique).
+  - `SHIPPED` requires `tracking_code`.
+  - `DELIVERED` only allowed from `SHIPPED`; sets `delivered_at`.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

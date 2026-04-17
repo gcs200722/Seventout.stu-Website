@@ -13,6 +13,11 @@ type ApiEnvelope<T> = {
   };
 };
 
+export type ProductStock = {
+  product_id: string;
+  available_stock: number;
+};
+
 export type ProductListItem = {
   id: string;
   name: string;
@@ -23,6 +28,7 @@ export type ProductListItem = {
     id: string;
     name: string;
   };
+  available_stock: number;
   is_active: boolean;
   created_at: string;
 };
@@ -38,6 +44,7 @@ export type ProductDetail = {
     name: string;
     parent: { id: string; name: string } | null;
   };
+  available_stock: number;
   images: string[];
   is_active: boolean;
   created_at: string;
@@ -59,6 +66,11 @@ export type ProductListQuery = {
 
 const defaultFetchInit: RequestInit = {
   next: { revalidate: 60 },
+  headers: { "Content-Type": "application/json" },
+};
+
+const noStoreFetchInit: RequestInit = {
+  cache: "no-store",
   headers: { "Content-Type": "application/json" },
 };
 
@@ -112,6 +124,35 @@ export async function getProductByIdPublic(id: string): Promise<ProductDetail> {
   const json = (await response.json()) as ApiEnvelope<ProductDetail>;
   if (!response.ok) {
     throw new Error(getApiErrorMessage(json, "Không tải được chi tiết sản phẩm."));
+  }
+  if (!json.success || !json.data) {
+    throw new Error("Unexpected API response format");
+  }
+  return json.data;
+}
+
+export async function getProductStockPublic(id: string): Promise<ProductStock> {
+  const response = await fetch(`${API_URL}/products/${id}/stock`, noStoreFetchInit);
+  const json = (await response.json()) as ApiEnvelope<ProductStock>;
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(json, "Không tải được tồn kho sản phẩm."));
+  }
+  if (!json.success || !json.data) {
+    throw new Error("Unexpected API response format");
+  }
+  return json.data;
+}
+
+export async function listProductStocksPublic(ids: string[]): Promise<ProductStock[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  const uniqueIds = [...new Set(ids)];
+  const query = new URLSearchParams({ ids: uniqueIds.join(",") });
+  const response = await fetch(`${API_URL}/products/stocks?${query.toString()}`, noStoreFetchInit);
+  const json = (await response.json()) as ApiEnvelope<ProductStock[]>;
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(json, "Không tải được tồn kho sản phẩm."));
   }
   if (!json.success || !json.data) {
     throw new Error("Unexpected API response format");

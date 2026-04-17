@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { CategoryEntity } from '../categories/category.entity';
+import { InventoryEntity } from '../inventory/entities/inventory.entity';
+import { InventoryChannel } from '../inventory/inventory.types';
 import { ProductImageEntity } from './product-image.entity';
 import { ProductEntity } from './product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -32,6 +34,7 @@ export interface ProductListItemResponse {
   price: number;
   thumbnail: string;
   category: { id: string; name: string };
+  available_stock: number;
   is_active: boolean;
   created_at: string;
 }
@@ -47,10 +50,16 @@ export interface ProductDetailResponse {
     name: string;
     parent: { id: string; name: string } | null;
   };
+  available_stock: number;
   images: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProductStockResponse {
+  product_id: string;
+  available_stock: number;
 }
 
 @Injectable()
@@ -70,6 +79,8 @@ export class ProductsService {
     private readonly productsRepository: Repository<ProductEntity>,
     @InjectRepository(CategoryEntity)
     private readonly categoriesRepository: Repository<CategoryEntity>,
+    @InjectRepository(InventoryEntity)
+    private readonly inventoriesRepository: Repository<InventoryEntity>,
     @Inject(STORAGE_PORT)
     private readonly storageService: StoragePort,
     private readonly configService: ConfigService,
@@ -161,6 +172,9 @@ export class ProductsService {
     qb.skip((query.page - 1) * query.limit).take(query.limit);
 
     const [rows, total] = await qb.getManyAndCount();
+    const stockByProductId = await this.getInternalStockMap(
+      rows.map((item) => item.id),
+    );
 
     const items = await Promise.all(
       rows.map(async (product) => ({
@@ -173,6 +187,7 @@ export class ProductsService {
           id: product.category.id,
           name: product.category.name,
         },
+        available_stock: stockByProductId[product.id] ?? 0,
         is_active: product.isActive,
         created_at: product.createdAt.toISOString(),
       })),
@@ -202,6 +217,12 @@ export class ProductsService {
     const sortedImages = [...(product.images ?? [])].sort(
       (a, b) => a.sortOrder - b.sortOrder,
     );
+    const internalStock = await this.inventoriesRepository.findOne({
+      where: {
+        productId: product.id,
+        channel: InventoryChannel.INTERNAL,
+      },
+    });
 
     return {
       id: product.id,
@@ -219,6 +240,7 @@ export class ProductsService {
             }
           : null,
       },
+      available_stock: internalStock?.availableStock ?? 0,
       images: await Promise.all(
         sortedImages.map((img) => this.resolveImageUrl(img.imageUrl)),
       ),
@@ -226,6 +248,24 @@ export class ProductsService {
       created_at: product.createdAt.toISOString(),
       updated_at: product.updatedAt.toISOString(),
     };
+  }
+
+  async getProductStockById(productId: string): Promise<ProductStockResponse> {
+    const stockByProductId = await this.getInternalStockMap([productId]);
+    return {
+      product_id: productId,
+      available_stock: stockByProductId[productId] ?? 0,
+    };
+  }
+
+  async getProductStocks(
+    productIds: string[],
+  ): Promise<ProductStockResponse[]> {
+    const stockByProductId = await this.getInternalStockMap(productIds);
+    return productIds.map((productId) => ({
+      product_id: productId,
+      available_stock: stockByProductId[productId] ?? 0,
+    }));
   }
 
   async createProduct(
@@ -562,5 +602,23 @@ export class ProductsService {
 
   private normalizeStoredImageValue(value: string): string {
     return this.extractS3ObjectKey(value) ?? value;
+  }
+
+  private async getInternalStockMap(
+    productIds: string[],
+  ): Promise<Record<string, number>> {
+    if (productIds.length === 0) {
+      return {};
+    }
+    const rows = await this.inventoriesRepository.find({
+      where: productIds.map((productId) => ({
+        productId,
+        channel: InventoryChannel.INTERNAL,
+      })),
+    });
+    return rows.reduce<Record<string, number>>((acc, row) => {
+      acc[row.productId] = row.availableStock;
+      return acc;
+    }, {});
   }
 }

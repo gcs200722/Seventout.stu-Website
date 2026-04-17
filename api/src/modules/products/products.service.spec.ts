@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource, Repository } from 'typeorm';
 import { CategoryEntity } from '../categories/category.entity';
+import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { StoragePort } from '../storage/storage.port';
 import { ProductEntity } from './product.entity';
 import { ProductsService } from './products.service';
@@ -58,6 +59,7 @@ describe('ProductsService', () => {
   let service: ProductsService;
   let productsRepository: jest.Mocked<Repository<ProductEntity>>;
   let categoriesRepository: jest.Mocked<Repository<CategoryEntity>>;
+  let inventoriesRepository: jest.Mocked<Repository<InventoryEntity>>;
   let storageService: jest.Mocked<StoragePort>;
   let configService: jest.Mocked<ConfigService>;
   let dataSource: jest.Mocked<DataSource>;
@@ -73,6 +75,10 @@ describe('ProductsService', () => {
       findOne: jest.fn(),
       find: jest.fn(),
     } as unknown as jest.Mocked<Repository<CategoryEntity>>;
+    inventoriesRepository = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<Repository<InventoryEntity>>;
     storageService = {
       putObject: jest.fn(),
       getSignedDownloadUrl: jest
@@ -89,6 +95,7 @@ describe('ProductsService', () => {
     service = new ProductsService(
       productsRepository,
       categoriesRepository,
+      inventoriesRepository,
       storageService,
       configService,
       dataSource,

@@ -90,7 +90,7 @@ export default function MyOrdersPage() {
                 setPage(1);
                 setStatusFilter(e.target.value as "" | OrderStatus);
               }}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-xs"
+              className="rounded-lg border border-stone-500 text-stone-900 px-3 py-2 text-xs"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="PENDING">PENDING</option>
@@ -106,7 +106,7 @@ export default function MyOrdersPage() {
                 setPage(1);
                 setPaymentFilter(e.target.value as "" | PaymentStatus);
               }}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-xs"
+              className="rounded-lg border border-stone-500 text-stone-900 px-3 py-2 text-xs"
             >
               <option value="">Tất cả thanh toán</option>
               <option value="UNPAID">UNPAID</option>
