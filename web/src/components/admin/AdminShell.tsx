@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getUnreadNotificationCount } from "@/lib/notifications-api";
+
+const NOTIFICATION_POLL_INTERVAL_MS = 15000;
 
 const navItems = [
   { href: "/admin", label: "Tổng quan" },
@@ -11,13 +15,41 @@ const navItems = [
   { href: "/admin/categories", label: "Danh mục" },
   { href: "/admin/orders", label: "Đơn hàng" },
   { href: "/admin/returns", label: "Đơn hoàn" },
+  { href: "/admin/notifications", label: "Thông báo" },
   { href: "/admin/products", label: "Sản phẩm" },
   { href: "/admin/inventory", label: "Tồn kho" },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, role, logout } = useAuth();
+  const { user, role, permissions, logout } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const canReadNotifications =
+    role === "ADMIN" || role === "STAFF" || permissions.includes("NOTIFICATION_READ");
+
+  useEffect(() => {
+    if (!canReadNotifications) {
+      return;
+    }
+    let mounted = true;
+    const refresh = () => {
+      void getUnreadNotificationCount()
+        .then((count) => {
+          if (mounted) setUnreadCount(count);
+        })
+        .catch(() => {
+          if (mounted) setUnreadCount(0);
+        });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, NOTIFICATION_POLL_INTERVAL_MS);
+    window.addEventListener("focus", refresh);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [canReadNotifications]);
 
   return (
     <div className="min-h-screen bg-stone-100 text-stone-900">
@@ -33,11 +65,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`block rounded-lg px-3 py-2 text-sm ${
+                  className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
                     active ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100"
                   }`}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  {item.href === "/admin/notifications" && unreadCount > 0 ? (
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-stone-900">
+                      {unreadCount}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}
@@ -49,6 +86,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <div>
               <p className="text-sm font-medium">{user?.first_name ?? "Admin"}</p>
               <p className="text-xs text-stone-500">{role ?? "Unknown role"}</p>
+              {canReadNotifications ? (
+                <p className="text-xs text-stone-500">Thông báo chưa đọc: {unreadCount}</p>
+              ) : null}
             </div>
             <button
               type="button"
@@ -66,11 +106,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${
+                  className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${
                     active ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700"
                   }`}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  {item.href === "/admin/notifications" && unreadCount > 0 ? (
+                    <span className="rounded-full bg-stone-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      {unreadCount}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}

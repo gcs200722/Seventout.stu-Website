@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { CartModule } from '../cart/cart.module';
 import { FulfillmentModule } from '../fulfillment/fulfillment.module';
+import { NotificationModule } from '../notification/notification.module';
 import { CartItemEntity } from '../cart/entities/cart-item.entity';
 import { CartEntity } from '../cart/entities/cart.entity';
 import { InventoryModule } from '../inventory/inventory.module';
@@ -12,6 +13,7 @@ import { AddressEntity } from '../address/entities/address.entity';
 import { OrderCartAdapter } from './adapters/order-cart.adapter';
 import { OrderFulfillmentAdapter } from './adapters/order-fulfillment.adapter';
 import { OrderInventoryAdapter } from './adapters/order-inventory.adapter';
+import { OrderNotificationAdapter } from './adapters/order-notification.adapter';
 import { OrdersController } from './orders.controller';
 import { OrderEventOutboxEntity } from './entities/order-event-outbox.entity';
 import { OrderItemEntity } from './entities/order-item.entity';
@@ -24,6 +26,7 @@ import {
   NoopOrderPaymentAdapter,
   ORDER_PAYMENT_PORT,
 } from './ports/order-payment.port';
+import { ORDER_NOTIFICATION_PORT } from './ports/order-notification.port';
 import { OrdersService } from './orders.service';
 
 @Module({
@@ -42,6 +45,7 @@ import { OrdersService } from './orders.service';
     CartModule,
     FulfillmentModule,
     InventoryModule,
+    NotificationModule,
   ],
   controllers: [OrdersController],
   providers: [
@@ -50,6 +54,10 @@ import { OrdersService } from './orders.service';
     { provide: ORDER_CART_PORT, useClass: OrderCartAdapter },
     { provide: ORDER_INVENTORY_PORT, useClass: OrderInventoryAdapter },
     { provide: ORDER_PAYMENT_PORT, useClass: NoopOrderPaymentAdapter },
+    {
+      provide: ORDER_NOTIFICATION_PORT,
+      useClass: OrderNotificationAdapter,
+    },
     {
       provide: ORDER_FULFILLMENT_PORT,
       useClass: OrderFulfillmentAdapter,

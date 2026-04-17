@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthorizationModule } from '../authorization/authorization.module';
+import { NotificationModule } from '../notification/notification.module';
 import { OrdersModule } from '../orders/orders.module';
 import { OrderEntity } from '../orders/entities/order.entity';
 import { PaymentEntity } from './entities/payment.entity';
@@ -11,6 +12,7 @@ import { PaymentsService } from './payments.service';
   imports: [
     TypeOrmModule.forFeature([PaymentEntity, OrderEntity]),
     AuthorizationModule,
+    NotificationModule,
     OrdersModule,
   ],
   controllers: [PaymentsController],

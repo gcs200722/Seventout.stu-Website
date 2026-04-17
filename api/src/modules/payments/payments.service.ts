@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
+import { NotificationService } from '../notification/notification.service';
 import { OrderEntity } from '../orders/entities/order.entity';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentStatus as OrderPaymentStatus } from '../orders/orders.types';
@@ -25,6 +26,7 @@ export class PaymentsService {
     @InjectRepository(OrderEntity)
     private readonly ordersRepository: Repository<OrderEntity>,
     private readonly ordersService: OrdersService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createPayment(
@@ -188,10 +190,20 @@ export class PaymentsService {
         payment.orderId,
         OrderPaymentStatus.PAID,
       );
+      await this.notificationService.notifyPaymentResult(
+        payment.orderId,
+        'SUCCESS',
+        `payment:${payment.id}:success`,
+      );
     } else if (payload.status === PaymentStatus.FAILED) {
       await this.ordersService.markOrderPaymentStatus(
         payment.orderId,
         OrderPaymentStatus.FAILED,
+      );
+      await this.notificationService.notifyPaymentResult(
+        payment.orderId,
+        'FAILED',
+        `payment:${payment.id}:failed`,
       );
     }
 

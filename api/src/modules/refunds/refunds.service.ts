@@ -158,7 +158,7 @@ export class RefundsService {
       qb.andWhere('order.user_id = :userId', { userId: user.id });
     }
 
-    qb.orderBy('refund.created_at', 'DESC')
+    qb.orderBy('refund.createdAt', 'DESC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
 
