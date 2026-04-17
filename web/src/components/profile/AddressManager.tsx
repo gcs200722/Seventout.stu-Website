@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   createMyAddress,
@@ -42,7 +42,7 @@ export function AddressManager({ userId }: AddressManagerProps) {
     [addresses, editingAddressId],
   );
 
-  async function reloadAddresses() {
+  const reloadAddresses = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -53,12 +53,11 @@ export function AddressManager({ userId }: AddressManagerProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [userId]);
 
   useEffect(() => {
     void reloadAddresses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [reloadAddresses]);
 
   useEffect(() => {
     if (!editingAddress) {

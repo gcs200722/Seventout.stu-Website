@@ -6,6 +6,7 @@ import {
 import { DataSource, Repository } from 'typeorm';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
+import { NotificationService } from '../notification/notification.service';
 import { OrderEventOutboxEntity } from '../orders/entities/order-event-outbox.entity';
 import { OrderItemEntity } from '../orders/entities/order-item.entity';
 import { OrderEntity } from '../orders/entities/order.entity';
@@ -31,6 +32,7 @@ describe('FulfillmentService', () => {
   let orderItemsRepository: jest.Mocked<Repository<OrderItemEntity>>;
   let outboxRepository: jest.Mocked<Repository<OrderEventOutboxEntity>>;
   let dataSource: jest.Mocked<DataSource>;
+  let notificationService: jest.Mocked<NotificationService>;
 
   const user: AuthenticatedUser = {
     id: 'u-1',
@@ -82,6 +84,9 @@ describe('FulfillmentService', () => {
             }),
         ),
     } as never;
+    notificationService = {
+      notifyFulfillmentStatus: jest.fn(),
+    } as never;
 
     service = new FulfillmentService(
       fulfillmentRepository,
@@ -90,6 +95,7 @@ describe('FulfillmentService', () => {
       orderItemsRepository,
       outboxRepository,
       dataSource,
+      notificationService,
     );
   });
 

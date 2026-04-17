@@ -5,12 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
 import { NotificationService } from '../notification/notification.service';
 import { OrderEntity } from '../orders/entities/order.entity';
-import { OrdersService } from '../orders/orders.service';
 import { PaymentStatus as OrderPaymentStatus } from '../orders/orders.types';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -25,7 +24,7 @@ export class PaymentsService {
     private readonly paymentsRepository: Repository<PaymentEntity>,
     @InjectRepository(OrderEntity)
     private readonly ordersRepository: Repository<OrderEntity>,
-    private readonly ordersService: OrdersService,
+    private readonly dataSource: DataSource,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -181,29 +180,42 @@ export class PaymentsService {
       });
     }
 
-    payment.status = payload.status;
-    payment.transactionId = payment.transactionId ?? `mock-${payment.id}`;
-    await this.paymentsRepository.save(payment);
+    const paymentResultEvent =
+      payload.status === PaymentStatus.SUCCESS
+        ? 'SUCCESS'
+        : payload.status === PaymentStatus.FAILED
+          ? 'FAILED'
+          : null;
 
-    if (payload.status === PaymentStatus.SUCCESS) {
-      await this.ordersService.markOrderPaymentStatus(
-        payment.orderId,
-        OrderPaymentStatus.PAID,
-      );
+    await this.dataSource.transaction(async (manager) => {
+      payment.status = payload.status;
+      payment.transactionId = payment.transactionId ?? `mock-${payment.id}`;
+      await manager.getRepository(PaymentEntity).save(payment);
+
+      if (!paymentResultEvent) {
+        return;
+      }
+      const order = await manager
+        .getRepository(OrderEntity)
+        .findOne({ where: { id: payment.orderId } });
+      if (!order) {
+        throw new NotFoundException({
+          message: 'Order not found',
+          details: { code: 'ORDER_NOT_FOUND' },
+        });
+      }
+      order.paymentStatus =
+        paymentResultEvent === 'SUCCESS'
+          ? OrderPaymentStatus.PAID
+          : OrderPaymentStatus.FAILED;
+      await manager.getRepository(OrderEntity).save(order);
+    });
+
+    if (paymentResultEvent) {
       await this.notificationService.notifyPaymentResult(
         payment.orderId,
-        'SUCCESS',
-        `payment:${payment.id}:success`,
-      );
-    } else if (payload.status === PaymentStatus.FAILED) {
-      await this.ordersService.markOrderPaymentStatus(
-        payment.orderId,
-        OrderPaymentStatus.FAILED,
-      );
-      await this.notificationService.notifyPaymentResult(
-        payment.orderId,
-        'FAILED',
-        `payment:${payment.id}:failed`,
+        paymentResultEvent,
+        `payment:${payment.id}:${paymentResultEvent.toLowerCase()}`,
       );
     }
 

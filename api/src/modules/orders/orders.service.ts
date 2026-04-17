@@ -10,8 +10,6 @@ import { DataSource, IsNull, Repository } from 'typeorm';
 import { AddressEntity } from '../address/entities/address.entity';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
-import { PaymentEntity } from '../payments/entities/payment.entity';
-import { PaymentMethod } from '../payments/payments.types';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -19,6 +17,8 @@ import { OrderEventOutboxEntity } from './entities/order-event-outbox.entity';
 import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEntity } from './entities/order.entity';
 import { OrderEventDispatcherService } from './events/order-event-dispatcher.service';
+import { OrderQueryService } from './order-query.service';
+import { OrderStatusPolicy } from './order-status.policy';
 import { ORDER_CART_PORT } from './ports/order-cart.port';
 import type { OrderCartPort } from './ports/order-cart.port';
 import { ORDER_INVENTORY_PORT } from './ports/order-inventory.port';
@@ -44,8 +44,6 @@ export class OrdersService {
     private readonly outboxRepository: Repository<OrderEventOutboxEntity>,
     @InjectRepository(AddressEntity)
     private readonly addressesRepository: Repository<AddressEntity>,
-    @InjectRepository(PaymentEntity)
-    private readonly paymentsRepository: Repository<PaymentEntity>,
     @Inject(ORDER_CART_PORT) private readonly cartPort: OrderCartPort,
     @Inject(ORDER_INVENTORY_PORT)
     private readonly inventoryPort: OrderInventoryPort,
@@ -53,6 +51,8 @@ export class OrdersService {
     private readonly fulfillmentPort: OrderFulfillmentPort,
     private readonly dataSource: DataSource,
     private readonly eventDispatcher: OrderEventDispatcherService,
+    private readonly statusPolicy: OrderStatusPolicy,
+    private readonly orderQueryService: OrderQueryService,
   ) {}
 
   async createOrder(
@@ -70,7 +70,7 @@ export class OrdersService {
       idempotencyKey || `${user.id}:${payload.cart_id}`
     ).trim();
     const duplicatedOrder = await this.ordersRepository.findOne({
-      where: { note: this.buildIdempotencyNote(payload.note, normalizedKey) },
+      where: { userId: user.id, idempotencyKey: normalizedKey },
     });
     if (duplicatedOrder) {
       return {
@@ -119,6 +119,7 @@ export class OrdersService {
           totalAmount: cartSnapshot.total_amount,
           shippingAddress: shippingAddressSnapshot,
           note: this.buildIdempotencyNote(payload.note, normalizedKey),
+          idempotencyKey: normalizedKey,
         }),
       );
 
@@ -151,7 +152,6 @@ export class OrdersService {
     });
 
     await this.cartPort.clearCartAfterCheckout(user.id, payload.cart_id);
-    await this.processOutbox();
 
     return {
       order_id: createdOrder.id,
@@ -184,15 +184,16 @@ export class OrdersService {
       .take(query.limit);
 
     const [items, total] = await qb.getManyAndCount();
-    const paymentMethods = await this.getLatestPaymentMethods(
+    const paymentMethods = await this.orderQueryService.getLatestPaymentMethods(
       items.map((item) => item.id),
     );
     return {
-      items: items.map((item) => ({
-        ...item,
-        note: this.sanitizeOrderNote(item.note),
-        paymentMethod: paymentMethods[item.id] ?? null,
-      })),
+      items: items.map((item) =>
+        this.orderQueryService.mapOrderListItem(
+          item,
+          paymentMethods[item.id] ?? null,
+        ),
+      ),
       total,
     };
   }
@@ -218,14 +219,16 @@ export class OrdersService {
       where: { orderId },
       order: { createdAt: 'ASC' },
     });
-    const paymentMethods = await this.getLatestPaymentMethods([orderId]);
+    const paymentMethods = await this.orderQueryService.getLatestPaymentMethods(
+      [orderId],
+    );
     return {
       id: order.id,
       status: order.status,
       payment_status: order.paymentStatus,
       payment_method: paymentMethods[orderId] ?? null,
       total_amount: order.totalAmount,
-      note: this.sanitizeOrderNote(order.note),
+      note: this.orderQueryService.sanitizeOrderNote(order.note),
       shipping_address: order.shippingAddress,
       items: items.map((item) => ({
         product_id: item.productId,
@@ -266,7 +269,6 @@ export class OrdersService {
         }),
       );
     });
-    await this.processOutbox();
   }
 
   async updateStatus(
@@ -282,7 +284,7 @@ export class OrdersService {
         details: { code: 'ORDER_NOT_FOUND' },
       });
     }
-    this.ensureValidTransition(order.status, payload.status);
+    this.statusPolicy.ensureValidTransition(order.status, payload.status);
     order.status = payload.status;
     if (payload.status === OrderStatus.COMPLETED) {
       order.completedAt = new Date();
@@ -306,7 +308,6 @@ export class OrdersService {
           },
         }),
       );
-      await this.processOutbox();
     }
     return { status: order.status };
   }
@@ -325,7 +326,10 @@ export class OrdersService {
       });
     }
 
-    this.ensureValidPaymentTransition(order.paymentStatus, paymentStatus);
+    this.statusPolicy.ensureValidPaymentTransition(
+      order.paymentStatus,
+      paymentStatus,
+    );
     order.paymentStatus = paymentStatus;
     await this.ordersRepository.save(order);
     if (paymentStatus === PaymentStatus.PAID) {
@@ -382,53 +386,6 @@ export class OrdersService {
     );
   }
 
-  private ensureValidTransition(
-    currentStatus: OrderStatus,
-    nextStatus: OrderStatus,
-  ): void {
-    const flow: Record<OrderStatus, OrderStatus[]> = {
-      [OrderStatus.PENDING]: [OrderStatus.CONFIRMED],
-      [OrderStatus.CONFIRMED]: [OrderStatus.PROCESSING],
-      [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED],
-      [OrderStatus.SHIPPED]: [OrderStatus.COMPLETED],
-      [OrderStatus.COMPLETED]: [],
-      [OrderStatus.CANCELED]: [],
-    };
-    if (!flow[currentStatus]?.includes(nextStatus)) {
-      throw new BadRequestException({
-        message: 'Order status transition is invalid',
-        details: {
-          code: 'ORDER_STATUS_INVALID',
-          current_status: currentStatus,
-          next_status: nextStatus,
-        },
-      });
-    }
-  }
-
-  private ensureValidPaymentTransition(
-    currentStatus: PaymentStatus,
-    nextStatus: PaymentStatus,
-  ): void {
-    const flow: Record<PaymentStatus, PaymentStatus[]> = {
-      [PaymentStatus.UNPAID]: [PaymentStatus.PAID, PaymentStatus.FAILED],
-      [PaymentStatus.PAID]: [],
-      [PaymentStatus.FAILED]: [PaymentStatus.PAID],
-      [PaymentStatus.REFUNDED]: [],
-    };
-
-    if (!flow[currentStatus]?.includes(nextStatus)) {
-      throw new BadRequestException({
-        message: 'Order payment status transition is invalid',
-        details: {
-          code: 'ORDER_PAYMENT_STATUS_INVALID',
-          current_status: currentStatus,
-          next_status: nextStatus,
-        },
-      });
-    }
-  }
-
   private async guardOrderAccess(
     user: AuthenticatedUser,
     orderId: string,
@@ -454,36 +411,5 @@ export class OrdersService {
   private buildIdempotencyNote(note: string | undefined, key: string): string {
     const normalizedNote = note?.trim() ?? '';
     return `${normalizedNote}\n[idempotency:${key}]`.trim();
-  }
-
-  private sanitizeOrderNote(note: string | null | undefined): string {
-    const normalized = (note ?? '').trim();
-    if (!normalized) {
-      return '';
-    }
-    return normalized
-      .replace(/\s*\[idempotency:[^\]]+\]\s*/gi, ' ')
-      .replace(/\n{2,}/g, '\n')
-      .trim();
-  }
-
-  private async getLatestPaymentMethods(
-    orderIds: string[],
-  ): Promise<Record<string, PaymentMethod | null>> {
-    if (orderIds.length === 0) {
-      return {};
-    }
-    const payments = await this.paymentsRepository.find({
-      where: orderIds.map((orderId) => ({ orderId })),
-      order: { createdAt: 'DESC' },
-    });
-    const byOrderId: Record<string, PaymentMethod | null> = {};
-    for (const payment of payments) {
-      if (byOrderId[payment.orderId] !== undefined) {
-        continue;
-      }
-      byOrderId[payment.orderId] = payment.method;
-    }
-    return byOrderId;
   }
 }

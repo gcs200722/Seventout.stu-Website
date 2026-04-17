@@ -1,24 +1,4 @@
-import { getApiErrorMessage } from "@/lib/api-error";
-import { refreshToken } from "@/lib/auth-api";
-import { getStoredTokens, setStoredTokens } from "@/lib/auth-storage";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-
-type ApiEnvelope<T> = {
-  success: boolean;
-  data?: T;
-  message?: string;
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-  };
-};
-
-type AuthorizedRequest = {
-  method?: "GET" | "PATCH";
-  body?: string;
-};
+import { withAuth } from "@/lib/http-client";
 
 export type NotificationChannel = "SYSTEM" | "EMAIL";
 export type NotificationType =
@@ -50,49 +30,6 @@ export type ListNotificationsQuery = {
   limit?: number;
   is_read?: boolean;
 };
-
-async function requestWithToken<T>(
-  path: string,
-  accessToken: string,
-  request: AuthorizedRequest = {},
-): Promise<ApiEnvelope<T>> {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: request.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: request.body,
-    cache: "no-store",
-  });
-
-  const jsonUnknown = (await response.json()) as unknown;
-  if (!response.ok) {
-    throw new Error(getApiErrorMessage(jsonUnknown, "Notification request failed"));
-  }
-  return jsonUnknown as ApiEnvelope<T>;
-}
-
-async function withRefresh<T>(path: string, request: AuthorizedRequest = {}) {
-  const tokens = getStoredTokens();
-  if (!tokens?.access_token) {
-    throw new Error("Bạn chưa đăng nhập.");
-  }
-
-  try {
-    return await requestWithToken<T>(path, tokens.access_token, request);
-  } catch (error) {
-    if (!(error instanceof Error) || !/unauthorized|forbidden|jwt/i.test(error.message)) {
-      throw error;
-    }
-    if (!tokens.refresh_token) {
-      throw error;
-    }
-    const refreshed = await refreshToken(tokens.refresh_token);
-    setStoredTokens(refreshed);
-    return requestWithToken<T>(path, refreshed.access_token, request);
-  }
-}
 
 function toQueryString(params: ListNotificationsQuery = {}) {
   const query = new URLSearchParams();
@@ -126,7 +63,7 @@ function mapNotification(raw: Record<string, unknown>): NotificationItem {
 }
 
 export async function getNotifications(params: ListNotificationsQuery = {}) {
-  const envelope = await withRefresh<Record<string, unknown>[]>(
+  const envelope = await withAuth<Record<string, unknown>[]>(
     `/notifications${toQueryString(params)}`,
   );
   if (!envelope.data || !envelope.pagination) {
@@ -139,14 +76,14 @@ export async function getNotifications(params: ListNotificationsQuery = {}) {
 }
 
 export async function markNotificationAsRead(notificationId: string) {
-  const envelope = await withRefresh<unknown>(`/notifications/${notificationId}/read`, {
+  const envelope = await withAuth<unknown>(`/notifications/${notificationId}/read`, {
     method: "PATCH",
   });
   return envelope.message ?? "Notification marked as read";
 }
 
 export async function markAllNotificationsAsRead() {
-  const envelope = await withRefresh<{ updated: number }>("/notifications/read-all", {
+  const envelope = await withAuth<{ updated: number }>("/notifications/read-all", {
     method: "PATCH",
   });
   return envelope.data?.updated ?? 0;

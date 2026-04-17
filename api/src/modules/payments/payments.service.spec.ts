@@ -1,13 +1,14 @@
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-member-access */
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
+import { NotificationService } from '../notification/notification.service';
 import { OrderEntity } from '../orders/entities/order.entity';
-import { OrdersService } from '../orders/orders.service';
 import { PaymentStatus as OrderPaymentStatus } from '../orders/orders.types';
 import { PaymentEntity } from './entities/payment.entity';
 import { PaymentsService } from './payments.service';
@@ -17,7 +18,8 @@ describe('PaymentsService', () => {
   let service: PaymentsService;
   let paymentsRepository: jest.Mocked<Repository<PaymentEntity>>;
   let ordersRepository: jest.Mocked<Repository<OrderEntity>>;
-  let ordersService: jest.Mocked<OrdersService>;
+  let dataSource: jest.Mocked<DataSource>;
+  let notificationService: jest.Mocked<NotificationService>;
 
   const user: AuthenticatedUser = {
     id: 'u-1',
@@ -25,6 +27,31 @@ describe('PaymentsService', () => {
     role: UserRole.USER,
     permissions: [],
   };
+
+  function mockTransactionManager() {
+    dataSource.transaction.mockImplementation(
+      (arg1: unknown, arg2?: unknown): Promise<unknown> => {
+        type TransactionRunner = (manager: {
+          getRepository: (entity: unknown) => unknown;
+        }) => unknown;
+        const runInTransaction: TransactionRunner | null =
+          typeof arg1 === 'function'
+            ? (arg1 as TransactionRunner)
+            : typeof arg2 === 'function'
+              ? (arg2 as TransactionRunner)
+              : null;
+        if (!runInTransaction) {
+          throw new Error('Transaction callback is required');
+        }
+        return Promise.resolve(
+          runInTransaction({
+            getRepository: (entity: unknown) =>
+              entity === PaymentEntity ? paymentsRepository : ordersRepository,
+          }),
+        );
+      },
+    );
+  }
 
   beforeEach(() => {
     paymentsRepository = {
@@ -35,15 +62,20 @@ describe('PaymentsService', () => {
     } as never;
     ordersRepository = {
       findOne: jest.fn(),
+      save: jest.fn(),
     } as never;
-    ordersService = {
-      markOrderPaymentStatus: jest.fn(),
+    dataSource = {
+      transaction: jest.fn(),
+    } as never;
+    notificationService = {
+      notifyPaymentResult: jest.fn(),
     } as never;
 
     service = new PaymentsService(
       paymentsRepository,
       ordersRepository,
-      ordersService,
+      dataSource,
+      notificationService,
     );
   });
 
@@ -143,18 +175,36 @@ describe('PaymentsService', () => {
       id: 'p-1',
       status: PaymentStatus.SUCCESS,
     } as PaymentEntity);
-    ordersService.markOrderPaymentStatus.mockResolvedValue({
-      payment_status: OrderPaymentStatus.PAID,
-    });
+    ordersRepository.findOne.mockResolvedValue({
+      id: 'o-1',
+      paymentStatus: OrderPaymentStatus.UNPAID,
+    } as OrderEntity);
+    ordersRepository.save.mockResolvedValue({
+      id: 'o-1',
+      paymentStatus: OrderPaymentStatus.PAID,
+    } as OrderEntity);
+    mockTransactionManager();
 
     const result = await service.confirmPayment('p-1', {
       status: PaymentStatus.SUCCESS,
     });
 
     expect(result.status).toBe(PaymentStatus.SUCCESS);
-    expect(
-      (ordersService.markOrderPaymentStatus as jest.Mock).mock.calls[0],
-    ).toEqual(['o-1', OrderPaymentStatus.PAID]);
+
+    const saveOrderMock = ordersRepository.save as jest.Mock;
+
+    const notifyPaymentResultMock =
+      notificationService.notifyPaymentResult as jest.Mock;
+    expect(saveOrderMock.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        paymentStatus: OrderPaymentStatus.PAID,
+      }),
+    );
+    expect(notifyPaymentResultMock.mock.calls[0]).toEqual([
+      'o-1',
+      'SUCCESS',
+      'payment:p-1:success',
+    ]);
   });
 
   it('confirms failed payment and updates order payment status', async () => {
@@ -168,17 +218,35 @@ describe('PaymentsService', () => {
       id: 'p-1',
       status: PaymentStatus.FAILED,
     } as PaymentEntity);
-    ordersService.markOrderPaymentStatus.mockResolvedValue({
-      payment_status: OrderPaymentStatus.FAILED,
-    });
+    ordersRepository.findOne.mockResolvedValue({
+      id: 'o-1',
+      paymentStatus: OrderPaymentStatus.UNPAID,
+    } as OrderEntity);
+    ordersRepository.save.mockResolvedValue({
+      id: 'o-1',
+      paymentStatus: OrderPaymentStatus.FAILED,
+    } as OrderEntity);
+    mockTransactionManager();
 
     const result = await service.confirmPayment('p-1', {
       status: PaymentStatus.FAILED,
     });
 
     expect(result.status).toBe(PaymentStatus.FAILED);
-    expect(
-      (ordersService.markOrderPaymentStatus as jest.Mock).mock.calls[0],
-    ).toEqual(['o-1', OrderPaymentStatus.FAILED]);
+
+    const saveOrderMock = ordersRepository.save as jest.Mock;
+
+    const notifyPaymentResultMock =
+      notificationService.notifyPaymentResult as jest.Mock;
+    expect(saveOrderMock.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        paymentStatus: OrderPaymentStatus.FAILED,
+      }),
+    );
+    expect(notifyPaymentResultMock.mock.calls[0]).toEqual([
+      'o-1',
+      'FAILED',
+      'payment:p-1:failed',
+    ]);
   });
 });

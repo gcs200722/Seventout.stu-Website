@@ -2,12 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
-import { getUnreadNotificationCount } from "@/lib/notifications-api";
-
-const NOTIFICATION_POLL_INTERVAL_MS = 15000;
+import { useNotificationsFeed } from "@/components/notifications/useNotificationsFeed";
 
 const navItems = [
   { href: "/admin", label: "Tổng quan" },
@@ -23,33 +20,16 @@ const navItems = [
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, role, permissions, logout } = useAuth();
-  const [unreadCount, setUnreadCount] = useState(0);
   const canReadNotifications =
     role === "ADMIN" || role === "STAFF" || permissions.includes("NOTIFICATION_READ");
-
-  useEffect(() => {
-    if (!canReadNotifications) {
-      return;
-    }
-    let mounted = true;
-    const refresh = () => {
-      void getUnreadNotificationCount()
-        .then((count) => {
-          if (mounted) setUnreadCount(count);
-        })
-        .catch(() => {
-          if (mounted) setUnreadCount(0);
-        });
-    };
-    refresh();
-    const interval = window.setInterval(refresh, NOTIFICATION_POLL_INTERVAL_MS);
-    window.addEventListener("focus", refresh);
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [canReadNotifications]);
+  const { total } = useNotificationsFeed({
+    enabled: canReadNotifications,
+    page: 1,
+    limit: 1,
+    readFilter: "unread",
+    pollIntervalMs: 15000,
+  });
+  const unreadCount = total;
 
   return (
     <div className="min-h-screen bg-stone-100 text-stone-900">
