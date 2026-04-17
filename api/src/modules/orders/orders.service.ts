@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
+import { PaymentEntity } from '../payments/entities/payment.entity';
+import { PaymentMethod } from '../payments/payments.types';
 import { UserEntity } from '../users/user.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
@@ -40,6 +42,8 @@ export class OrdersService {
     private readonly outboxRepository: Repository<OrderEventOutboxEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
+    @InjectRepository(PaymentEntity)
+    private readonly paymentsRepository: Repository<PaymentEntity>,
     @Inject(ORDER_CART_PORT) private readonly cartPort: OrderCartPort,
     @Inject(ORDER_INVENTORY_PORT)
     private readonly inventoryPort: OrderInventoryPort,
@@ -174,7 +178,17 @@ export class OrdersService {
       .take(query.limit);
 
     const [items, total] = await qb.getManyAndCount();
-    return { items, total };
+    const paymentMethods = await this.getLatestPaymentMethods(
+      items.map((item) => item.id),
+    );
+    return {
+      items: items.map((item) => ({
+        ...item,
+        note: this.sanitizeOrderNote(item.note),
+        paymentMethod: paymentMethods[item.id] ?? null,
+      })),
+      total,
+    };
   }
 
   async getOrderById(user: AuthenticatedUser, orderId: string) {
@@ -198,11 +212,14 @@ export class OrdersService {
       where: { orderId },
       order: { createdAt: 'ASC' },
     });
+    const paymentMethods = await this.getLatestPaymentMethods([orderId]);
     return {
       id: order.id,
       status: order.status,
       payment_status: order.paymentStatus,
+      payment_method: paymentMethods[orderId] ?? null,
       total_amount: order.totalAmount,
+      note: this.sanitizeOrderNote(order.note),
       shipping_address: order.shippingAddress,
       items: items.map((item) => ({
         product_id: item.productId,
@@ -288,6 +305,26 @@ export class OrdersService {
     return { status: order.status };
   }
 
+  async markOrderPaymentStatus(
+    orderId: string,
+    paymentStatus: PaymentStatus,
+  ): Promise<{ payment_status: PaymentStatus }> {
+    const order = await this.ordersRepository.findOne({
+      where: { id: orderId },
+    });
+    if (!order) {
+      throw new NotFoundException({
+        message: 'Order not found',
+        details: { code: 'ORDER_NOT_FOUND' },
+      });
+    }
+
+    this.ensureValidPaymentTransition(order.paymentStatus, paymentStatus);
+    order.paymentStatus = paymentStatus;
+    await this.ordersRepository.save(order);
+    return { payment_status: order.paymentStatus };
+  }
+
   async processOutbox(): Promise<void> {
     const events = await this.outboxRepository.find({
       where: { processedAt: IsNull() },
@@ -360,6 +397,29 @@ export class OrdersService {
     }
   }
 
+  private ensureValidPaymentTransition(
+    currentStatus: PaymentStatus,
+    nextStatus: PaymentStatus,
+  ): void {
+    const flow: Record<PaymentStatus, PaymentStatus[]> = {
+      [PaymentStatus.UNPAID]: [PaymentStatus.PAID, PaymentStatus.FAILED],
+      [PaymentStatus.PAID]: [],
+      [PaymentStatus.FAILED]: [PaymentStatus.PAID],
+      [PaymentStatus.REFUNDED]: [],
+    };
+
+    if (!flow[currentStatus]?.includes(nextStatus)) {
+      throw new BadRequestException({
+        message: 'Order payment status transition is invalid',
+        details: {
+          code: 'ORDER_PAYMENT_STATUS_INVALID',
+          current_status: currentStatus,
+          next_status: nextStatus,
+        },
+      });
+    }
+  }
+
   private async guardOrderAccess(
     user: AuthenticatedUser,
     orderId: string,
@@ -385,5 +445,36 @@ export class OrdersService {
   private buildIdempotencyNote(note: string | undefined, key: string): string {
     const normalizedNote = note?.trim() ?? '';
     return `${normalizedNote}\n[idempotency:${key}]`.trim();
+  }
+
+  private sanitizeOrderNote(note: string | null | undefined): string {
+    const normalized = (note ?? '').trim();
+    if (!normalized) {
+      return '';
+    }
+    return normalized
+      .replace(/\s*\[idempotency:[^\]]+\]\s*/gi, ' ')
+      .replace(/\n{2,}/g, '\n')
+      .trim();
+  }
+
+  private async getLatestPaymentMethods(
+    orderIds: string[],
+  ): Promise<Record<string, PaymentMethod | null>> {
+    if (orderIds.length === 0) {
+      return {};
+    }
+    const payments = await this.paymentsRepository.find({
+      where: orderIds.map((orderId) => ({ orderId })),
+      order: { createdAt: 'DESC' },
+    });
+    const byOrderId: Record<string, PaymentMethod | null> = {};
+    for (const payment of payments) {
+      if (byOrderId[payment.orderId] !== undefined) {
+        continue;
+      }
+      byOrderId[payment.orderId] = payment.method;
+    }
+    return byOrderId;
   }
 }

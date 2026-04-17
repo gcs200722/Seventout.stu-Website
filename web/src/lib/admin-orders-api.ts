@@ -10,6 +10,7 @@ export type AdminOrderListItem = {
   userId: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentMethod?: "COD" | "VNPAY" | "STRIPE" | null;
   totalAmount: number;
   shippingAddress: {
     full_name: string;
@@ -28,7 +29,9 @@ export type AdminOrderDetail = {
   id: string;
   status: OrderStatus;
   payment_status: PaymentStatus;
+  payment_method?: "COD" | "VNPAY" | "STRIPE" | null;
   total_amount: number;
+  note?: string;
   shipping_address: {
     full_name: string;
     phone: string;

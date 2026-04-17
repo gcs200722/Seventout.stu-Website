@@ -11,6 +11,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { CartModule } from './modules/cart/cart.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { ProductsModule } from './modules/products/products.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -53,6 +54,7 @@ import { UsersModule } from './modules/users/users.module';
     ProductsModule,
     InventoryModule,
     OrdersModule,
+    PaymentsModule,
     QueueModule,
     StorageModule,
   ],

@@ -15,6 +15,8 @@ import {
   type CartSnapshot,
 } from "@/lib/cart-api";
 import { createMyOrder } from "@/lib/orders-api";
+import { createMyPayment } from "@/lib/payments-api";
+import type { PaymentMethod } from "@/lib/payments-api";
 import { formatVnd } from "@/lib/products-api";
 
 export default function CartPage() {
@@ -31,6 +33,33 @@ export default function CartPage() {
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("Vietnam");
   const [note, setNote] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
+
+  const paymentOptions: Array<{
+    value: PaymentMethod;
+    label: string;
+    description: string;
+    enabled: boolean;
+  }> = [
+    {
+      value: "COD",
+      label: "Thanh toán khi nhận hàng (COD)",
+      description: "Tạo đơn ngay, thanh toán khi giao hàng.",
+      enabled: true,
+    },
+    {
+      value: "VNPAY",
+      label: "VNPay",
+      description: "Sắp ra mắt trong giai đoạn tiếp theo.",
+      enabled: false,
+    },
+    {
+      value: "STRIPE",
+      label: "Stripe",
+      description: "Sắp ra mắt trong giai đoạn tiếp theo.",
+      enabled: false,
+    },
+  ];
 
   const reloadCart = useCallback(async () => {
     if (!isAuthenticated) {
@@ -136,7 +165,7 @@ export default function CartPage() {
     }
     try {
       const idempotencyKey = `web-${Date.now()}`;
-      const result = await createMyOrder(
+      const orderResult = await createMyOrder(
         {
           cart_id: cart.cart_id,
           shipping_address: {
@@ -149,8 +178,22 @@ export default function CartPage() {
         },
         idempotencyKey,
       );
-      setSuccess("Tạo đơn hàng thành công. Đang chuyển tới chi tiết đơn...");
-      router.push(`/orders/${result.order_id}`);
+      const paymentResult = await createMyPayment(
+        {
+          order_id: orderResult.order_id,
+          payment_method: paymentMethod,
+        },
+        `${idempotencyKey}-payment`,
+      );
+      setCart({
+        cart_id: cart.cart_id,
+        items: [],
+        total_amount: 0,
+        total_items: 0,
+      });
+      await refreshCartCount();
+      setSuccess(`Tạo đơn hàng và khởi tạo thanh toán ${paymentMethod} thành công.`);
+      router.push(`/orders/${orderResult.order_id}?payment_status=${paymentResult.status}`);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Checkout thất bại.");
     } finally {
@@ -279,6 +322,39 @@ export default function CartPage() {
                     className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-800"
                   />
                 </label>
+                <fieldset className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                  <legend className="px-1 text-xs font-semibold text-stone-800">
+                    Phương thức thanh toán
+                  </legend>
+                  <div className="mt-2 space-y-2">
+                    {paymentOptions.map((option) => (
+                      <label
+                        key={option.value}
+                        className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 ${
+                          paymentMethod === option.value
+                            ? "border-stone-900 bg-white"
+                            : "border-stone-200 bg-white"
+                        } ${option.enabled ? "hover:border-stone-400" : "cursor-not-allowed opacity-60"}`}
+                      >
+                        <input
+                          type="radio"
+                          name="payment_method"
+                          value={option.value}
+                          checked={paymentMethod === option.value}
+                          disabled={!option.enabled || pendingId !== null}
+                          onChange={() => setPaymentMethod(option.value)}
+                          className="mt-0.5 h-4 w-4 accent-stone-900"
+                        />
+                        <span>
+                          <span className="block text-xs font-semibold text-stone-900">
+                            {option.label}
+                          </span>
+                          <span className="block text-xs text-stone-600">{option.description}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button

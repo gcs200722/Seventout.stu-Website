@@ -7,6 +7,7 @@ import { DataSource, Repository } from 'typeorm';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
 import { UserEntity } from '../users/user.entity';
+import { PaymentEntity } from '../payments/entities/payment.entity';
 import { OrderEventOutboxEntity } from './entities/order-event-outbox.entity';
 import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEntity } from './entities/order.entity';
@@ -24,6 +25,7 @@ describe('OrdersService', () => {
   let cartPort: jest.Mocked<OrderCartPort>;
   let inventoryPort: jest.Mocked<OrderInventoryPort>;
   let usersRepository: jest.Mocked<Repository<UserEntity>>;
+  let paymentsRepository: jest.Mocked<Repository<PaymentEntity>>;
   let dataSource: jest.Mocked<DataSource>;
   let eventDispatcher: jest.Mocked<OrderEventDispatcherService>;
 
@@ -63,6 +65,9 @@ describe('OrdersService', () => {
     usersRepository = {
       findOne: jest.fn(),
     } as never;
+    paymentsRepository = {
+      find: jest.fn().mockResolvedValue([]),
+    } as never;
     dataSource = { transaction: jest.fn() } as never;
     eventDispatcher = { dispatch: jest.fn() } as never;
 
@@ -71,6 +76,7 @@ describe('OrdersService', () => {
       orderItemsRepository,
       outboxRepository,
       usersRepository,
+      paymentsRepository,
       cartPort,
       inventoryPort,
       dataSource,
