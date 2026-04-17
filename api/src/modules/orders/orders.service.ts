@@ -23,6 +23,8 @@ import { ORDER_CART_PORT } from './ports/order-cart.port';
 import type { OrderCartPort } from './ports/order-cart.port';
 import { ORDER_INVENTORY_PORT } from './ports/order-inventory.port';
 import type { OrderInventoryPort } from './ports/order-inventory.port';
+import { ORDER_FULFILLMENT_PORT } from './ports/order-fulfillment.port';
+import type { OrderFulfillmentPort } from './ports/order-fulfillment.port';
 import {
   FulfillmentStatus,
   OrderEventType,
@@ -47,6 +49,8 @@ export class OrdersService {
     @Inject(ORDER_CART_PORT) private readonly cartPort: OrderCartPort,
     @Inject(ORDER_INVENTORY_PORT)
     private readonly inventoryPort: OrderInventoryPort,
+    @Inject(ORDER_FULFILLMENT_PORT)
+    private readonly fulfillmentPort: OrderFulfillmentPort,
     private readonly dataSource: DataSource,
     private readonly eventDispatcher: OrderEventDispatcherService,
   ) {}
@@ -324,6 +328,9 @@ export class OrdersService {
     this.ensureValidPaymentTransition(order.paymentStatus, paymentStatus);
     order.paymentStatus = paymentStatus;
     await this.ordersRepository.save(order);
+    if (paymentStatus === PaymentStatus.PAID) {
+      await this.fulfillmentPort.onOrderPaymentSucceeded(orderId);
+    }
     return { payment_status: order.paymentStatus };
   }
 

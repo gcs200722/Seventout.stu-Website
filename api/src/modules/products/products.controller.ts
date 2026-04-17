@@ -26,6 +26,7 @@ import { RequirePermissions } from '../authorization/decorators/require-permissi
 import { RequireRoles } from '../authorization/decorators/require-roles.decorator';
 import { AuthorizationGuard } from '../authorization/guards/authorization.guard';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ListProductStocksQueryDto } from './dto/list-product-stocks.query.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
@@ -53,6 +54,24 @@ export class ProductsController {
         limit: query.limit,
         total,
       },
+    };
+  }
+
+  @Get('stocks')
+  @ApiOperation({ summary: 'Get stocks for multiple products (public)' })
+  async getProductStocks(@Query() query: ListProductStocksQueryDto) {
+    return {
+      success: true,
+      data: await this.productsService.getProductStocks(query.ids),
+    };
+  }
+
+  @Get(':id/stock')
+  @ApiOperation({ summary: 'Get product stock (public)' })
+  async getProductStock(@Param('id', ParseUUIDPipe) id: string) {
+    return {
+      success: true,
+      data: await this.productsService.getProductStockById(id),
     };
   }
 

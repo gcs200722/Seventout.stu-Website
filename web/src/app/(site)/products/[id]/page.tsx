@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { ProductImageGallery } from "@/components/products/ProductImageGallery";
-import { formatVnd, getProductByIdPublic } from "@/lib/products-api";
+import { formatVnd, getProductByIdPublic, getProductStockPublic } from "@/lib/products-api";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -27,6 +27,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
   }
 
   const images = product.images.length > 0 ? product.images : [FALLBACK_IMAGE];
+  const freshStock = await getProductStockPublic(product.id).catch(() => null);
+  const availableStock = freshStock?.available_stock ?? product.available_stock;
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -45,6 +47,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">{product.category.name}</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-900">{product.name}</h1>
           <p className="mt-4 text-2xl font-bold text-stone-900">{formatVnd(product.price)}</p>
+          <p className="mt-2 text-sm text-stone-600">
+            {availableStock > 0 ? `Tồn kho: ${availableStock}` : "Tạm hết hàng"}
+          </p>
           <p className="mt-5 text-sm leading-relaxed text-stone-600">
             {product.description?.trim().length > 0 ? product.description : "Sản phẩm chưa có mô tả chi tiết."}
           </p>

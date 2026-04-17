@@ -2,38 +2,49 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import FulfillmentSummaryCard from "@/components/orders/FulfillmentSummaryCard";
+import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
+import PaymentStatusBadge from "@/components/orders/PaymentStatusBadge";
+import { useAuth } from "@/components/auth/AuthProvider";
 import {
   getAdminOrderDetail,
   listAdminOrders,
   type ManageableOrderStatus,
   updateAdminOrderStatus,
 } from "@/lib/admin-orders-api";
+import {
+  handleFailedDeliveryAction,
+  getFulfillmentByOrderId,
+  updateFulfillmentStatus,
+  type FailedDeliveryAction,
+  type FulfillmentDetail,
+  type FulfillmentStatus,
+} from "@/lib/fulfillment-api";
 import type { OrderStatus, PaymentStatus } from "@/lib/orders-api";
 import { formatVnd } from "@/lib/products-api";
 
 const PAGE_LIMIT = 10;
+const MANAGEABLE_ORDER_STATUSES: ManageableOrderStatus[] = [
+  "CONFIRMED",
+  "PROCESSING",
+  "SHIPPED",
+  "COMPLETED",
+];
 
-function getOrderStatusBadge(status: OrderStatus) {
-  const tone: Record<OrderStatus, string> = {
-    PENDING: "bg-amber-50 text-amber-700 border-amber-200",
-    CONFIRMED: "bg-sky-50 text-sky-700 border-sky-200",
-    PROCESSING: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    SHIPPED: "bg-violet-50 text-violet-700 border-violet-200",
-    COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    CANCELED: "bg-rose-50 text-rose-700 border-rose-200",
-  };
-  return `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone[status]}`;
-}
+const MANAGEABLE_FULFILLMENT_STATUSES: FulfillmentStatus[] = [
+  "CONFIRMED",
+  "PACKING",
+  "SHIPPED",
+  "DELIVERED",
+  "CANCELLED",
+  "FAILED_DELIVERY",
+];
 
-function getPaymentStatusBadge(status: PaymentStatus) {
-  const tone: Record<PaymentStatus, string> = {
-    UNPAID: "bg-stone-100 text-stone-700 border-stone-200",
-    PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    FAILED: "bg-rose-50 text-rose-700 border-rose-200",
-    REFUNDED: "bg-sky-50 text-sky-700 border-sky-200",
-  };
-  return `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone[status]}`;
-}
+const FAILED_DELIVERY_ACTIONS: FailedDeliveryAction[] = [
+  "RETRY_DELIVERY",
+  "CANCEL_ORDER",
+  "RETURN_TO_WAREHOUSE",
+];
 
 function formatPaymentMethod(method: "COD" | "VNPAY" | "STRIPE" | null) {
   if (!method) return "-";
@@ -42,7 +53,28 @@ function formatPaymentMethod(method: "COD" | "VNPAY" | "STRIPE" | null) {
   return "Stripe";
 }
 
+function toManageableOrderStatus(status: OrderStatus): ManageableOrderStatus {
+  if (status === "PENDING" || status === "CONFIRMED") {
+    return "CONFIRMED";
+  }
+  if (status === "PROCESSING") {
+    return "PROCESSING";
+  }
+  if (status === "SHIPPED") {
+    return "SHIPPED";
+  }
+  return "COMPLETED";
+}
+
+function toManageableFulfillmentStatus(status: FulfillmentStatus): FulfillmentStatus {
+  if (MANAGEABLE_FULFILLMENT_STATUSES.includes(status)) {
+    return status;
+  }
+  return "CONFIRMED";
+}
+
 export default function AdminOrdersPage() {
+  const { role, permissions } = useAuth();
   const [orders, setOrders] = useState<
     Array<{
       id: string;
@@ -59,6 +91,15 @@ export default function AdminOrdersPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [orderDetail, setOrderDetail] = useState<Awaited<ReturnType<typeof getAdminOrderDetail>> | null>(null);
   const [nextStatus, setNextStatus] = useState<ManageableOrderStatus>("CONFIRMED");
+  const [fulfillment, setFulfillment] = useState<FulfillmentDetail | null>(null);
+  const [fulfillmentLoading, setFulfillmentLoading] = useState(false);
+  const [fulfillmentError, setFulfillmentError] = useState<string | null>(null);
+  const [nextFulfillmentStatus, setNextFulfillmentStatus] = useState<FulfillmentStatus>("CONFIRMED");
+  const [failedDeliveryAction, setFailedDeliveryAction] = useState<FailedDeliveryAction>("RETRY_DELIVERY");
+  const [failedDeliveryActionNote, setFailedDeliveryActionNote] = useState("");
+  const [nextTrackingCode, setNextTrackingCode] = useState("");
+  const [nextShippingProvider, setNextShippingProvider] = useState("");
+  const [nextFulfillmentNote, setNextFulfillmentNote] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"" | OrderStatus>("");
@@ -70,6 +111,8 @@ export default function AdminOrdersPage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_LIMIT)), [total]);
+  const canUpdateFulfillment =
+    role === "ADMIN" || role === "STAFF" || permissions.includes("FULFILLMENT_UPDATE");
 
   useEffect(() => {
     async function loadOrders() {
@@ -116,15 +159,39 @@ export default function AdminOrdersPage() {
   async function handleSelectOrder(orderId: string) {
     try {
       setDetailLoading(true);
+      setFulfillmentLoading(true);
       setError(null);
+      setFulfillmentError(null);
       setOrderDetail(null);
-      const detail = await getAdminOrderDetail(orderId);
+      const [detail, fulfillmentDetail] = await Promise.all([
+        getAdminOrderDetail(orderId),
+        getFulfillmentByOrderId(orderId).catch((requestError) => {
+          if (
+            requestError instanceof Error &&
+            /fulfillment not found|not found|404/i.test(requestError.message)
+          ) {
+            return null;
+          }
+          throw requestError;
+        }),
+      ]);
       setSelectedOrderId(orderId);
       setOrderDetail(detail);
+      setNextStatus(toManageableOrderStatus(detail.status));
+      setFulfillment(fulfillmentDetail);
+      if (fulfillmentDetail) {
+        setNextFulfillmentStatus(toManageableFulfillmentStatus(fulfillmentDetail.status));
+        setFailedDeliveryAction("RETRY_DELIVERY");
+        setFailedDeliveryActionNote("");
+        setNextTrackingCode(fulfillmentDetail.trackingCode ?? "");
+        setNextShippingProvider(fulfillmentDetail.shippingProvider ?? "");
+        setNextFulfillmentNote(fulfillmentDetail.note ?? "");
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không tải được chi tiết đơn hàng.");
     } finally {
       setDetailLoading(false);
+      setFulfillmentLoading(false);
     }
   }
 
@@ -177,9 +244,119 @@ export default function AdminOrdersPage() {
   function handleCloseDetailModal() {
     setSelectedOrderId("");
     setOrderDetail(null);
+    setFulfillment(null);
+    setFulfillmentError(null);
   }
 
   const isStatusUpdateLocked = orderDetail?.status === "CANCELED";
+  const isOrderStatusControlledByFulfillment = Boolean(fulfillment);
+  const isOrderStatusDropdownLocked =
+    isStatusUpdateLocked || isOrderStatusControlledByFulfillment;
+  const isFulfillmentUpdateLocked = !fulfillment || !canUpdateFulfillment;
+  const canEditTrackingCode =
+    nextFulfillmentStatus === "SHIPPED" && !isFulfillmentUpdateLocked;
+
+  async function reloadSelectedOrderDetail() {
+    if (!selectedOrderId) {
+      return;
+    }
+    setDetailLoading(true);
+    setFulfillmentLoading(true);
+    setFulfillmentError(null);
+    try {
+      const [detail, fulfillmentDetail] = await Promise.all([
+        getAdminOrderDetail(selectedOrderId),
+        getFulfillmentByOrderId(selectedOrderId).catch((requestError) => {
+          if (
+            requestError instanceof Error &&
+            /fulfillment not found|not found|404/i.test(requestError.message)
+          ) {
+            return null;
+          }
+          throw requestError;
+        }),
+      ]);
+      setOrderDetail(detail);
+      setNextStatus(toManageableOrderStatus(detail.status));
+      setFulfillment(fulfillmentDetail);
+      if (fulfillmentDetail) {
+        setNextFulfillmentStatus(toManageableFulfillmentStatus(fulfillmentDetail.status));
+        setFailedDeliveryAction("RETRY_DELIVERY");
+        setFailedDeliveryActionNote("");
+        setNextTrackingCode(fulfillmentDetail.trackingCode ?? "");
+        setNextShippingProvider(fulfillmentDetail.shippingProvider ?? "");
+        setNextFulfillmentNote(fulfillmentDetail.note ?? "");
+      }
+    } catch (requestError) {
+      setFulfillmentError(
+        requestError instanceof Error ? requestError.message : "Không tải được trạng thái vận chuyển.",
+      );
+    } finally {
+      setDetailLoading(false);
+      setFulfillmentLoading(false);
+    }
+  }
+
+  async function handleUpdateFulfillmentStatus() {
+    if (!fulfillment || !canUpdateFulfillment) {
+      return;
+    }
+    if (nextFulfillmentStatus === "SHIPPED" && nextTrackingCode.trim().length === 0) {
+      setFulfillmentError("Vui lòng nhập tracking code trước khi chuyển sang SHIPPED.");
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccess(null);
+      setFulfillmentError(null);
+      const normalizedTrackingCode = nextTrackingCode.trim();
+      await updateFulfillmentStatus(fulfillment.id, {
+        status: nextFulfillmentStatus,
+        tracking_code:
+          nextFulfillmentStatus === "SHIPPED" && normalizedTrackingCode
+            ? normalizedTrackingCode
+            : undefined,
+        shipping_provider: nextShippingProvider.trim() || undefined,
+        note: nextFulfillmentNote.trim() || undefined,
+      });
+      await reloadSelectedOrderDetail();
+      setSuccess("Đã cập nhật trạng thái fulfillment.");
+    } catch (requestError) {
+      setFulfillmentError(
+        requestError instanceof Error ? requestError.message : "Không thể cập nhật fulfillment.",
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleFailedDeliveryResolution() {
+    if (!fulfillment || !canUpdateFulfillment) {
+      return;
+    }
+    if (fulfillment.status !== "FAILED_DELIVERY") {
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccess(null);
+      setFulfillmentError(null);
+      await handleFailedDeliveryAction(fulfillment.id, {
+        action: failedDeliveryAction,
+        note: failedDeliveryActionNote.trim() || undefined,
+      });
+      await reloadSelectedOrderDetail();
+      setSuccess("Đã xử lý hành động sau FAILED_DELIVERY.");
+    } catch (requestError) {
+      setFulfillmentError(
+        requestError instanceof Error ? requestError.message : "Không thể xử lý failed delivery action.",
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   return (
     <section className="space-y-5">
@@ -299,12 +476,10 @@ export default function AdminOrdersPage() {
                         <p className="max-w-[220px] break-words">{order.shippingAddress}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={getOrderStatusBadge(order.status)}>{order.status}</span>
+                        <OrderStatusBadge status={order.status} />
                       </td>
                       <td className="px-4 py-3">
-                        <span className={getPaymentStatusBadge(order.paymentStatus)}>
-                          {order.paymentStatus}
-                        </span>
+                        <PaymentStatusBadge status={order.paymentStatus} />
                       </td>
                       <td className="px-4 py-3">{formatPaymentMethod(order.paymentMethod)}</td>
                       <td className="px-4 py-3 text-xs text-stone-600">
@@ -388,19 +563,26 @@ export default function AdminOrdersPage() {
                   <p className="font-semibold text-stone-900">Note</p>
                   <p className="mt-1 whitespace-pre-wrap">{orderDetail.note?.trim() || "-"}</p>
                 </div>
+                <FulfillmentSummaryCard fulfillment={fulfillment} loading={fulfillmentLoading} />
+                {fulfillmentError ? (
+                  <p className="whitespace-pre-line rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    {fulfillmentError}
+                  </p>
+                ) : null}
 
                 <label className="block text-xs font-medium text-stone-700">
                   Cập nhật trạng thái
                   <select
                     value={nextStatus}
                     onChange={(event) => setNextStatus(event.target.value as ManageableOrderStatus)}
-                    disabled={isStatusUpdateLocked}
+                    disabled={isOrderStatusDropdownLocked}
                     className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
                   >
-                    <option value="CONFIRMED">CONFIRMED</option>
-                    <option value="PROCESSING">PROCESSING</option>
-                    <option value="SHIPPED">SHIPPED</option>
-                    <option value="COMPLETED">COMPLETED</option>
+                    {MANAGEABLE_ORDER_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 {isStatusUpdateLocked ? (
@@ -408,14 +590,128 @@ export default function AdminOrdersPage() {
                     Đơn hàng đã bị khách hủy, thao tác cập nhật trạng thái đã bị khóa.
                   </p>
                 ) : null}
+                {isOrderStatusControlledByFulfillment ? (
+                  <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700">
+                    Trạng thái order đang đồng bộ tự động theo fulfillment để tránh xung đột.
+                  </p>
+                ) : null}
                 <button
                   type="button"
-                  disabled={actionLoading || isStatusUpdateLocked}
+                  disabled={actionLoading || isOrderStatusDropdownLocked}
                   onClick={() => void handleUpdateStatus()}
                   className="w-full rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
                 >
                   {actionLoading ? "Đang cập nhật..." : "Cập nhật trạng thái"}
                 </button>
+
+                <div className="space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                  <p className="text-xs font-semibold text-stone-900">Cập nhật trạng thái fulfillment</p>
+                  <label className="block text-xs font-medium text-stone-700">
+                    Trạng thái fulfillment
+                    <select
+                      value={nextFulfillmentStatus}
+                      onChange={(event) =>
+                        setNextFulfillmentStatus(event.target.value as FulfillmentStatus)
+                      }
+                      disabled={isFulfillmentUpdateLocked}
+                      className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                    >
+                      {MANAGEABLE_FULFILLMENT_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {nextFulfillmentStatus === "SHIPPED" ? (
+                    <>
+                      <label className="block text-xs font-medium text-stone-700">
+                        Tracking code
+                        <input
+                          value={nextTrackingCode}
+                          onChange={(event) => setNextTrackingCode(event.target.value)}
+                          disabled={!canEditTrackingCode}
+                          placeholder="VD: GHN123456789"
+                          className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-stone-700">
+                        Đơn vị vận chuyển
+                        <input
+                          value={nextShippingProvider}
+                          onChange={(event) => setNextShippingProvider(event.target.value)}
+                          disabled={isFulfillmentUpdateLocked}
+                          placeholder="VD: GHN"
+                          className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-stone-700">
+                        Ghi chú thực hiện
+                        <textarea
+                          value={nextFulfillmentNote}
+                          onChange={(event) => setNextFulfillmentNote(event.target.value)}
+                          disabled={isFulfillmentUpdateLocked}
+                          rows={2}
+                          className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                    </>
+                  ) : null}
+                  {!canUpdateFulfillment ? (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Tài khoản hiện tại không có quyền FULFILLMENT_UPDATE.
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={actionLoading || isFulfillmentUpdateLocked}
+                    onClick={() => void handleUpdateFulfillmentStatus()}
+                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100 disabled:opacity-50"
+                  >
+                    {actionLoading ? "Đang cập nhật..." : "Cập nhật fulfillment"}
+                  </button>
+                </div>
+
+                {fulfillment?.status === "FAILED_DELIVERY" ? (
+                  <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-xs font-semibold text-amber-800">Hành động sau FAILED_DELIVERY</p>
+                    <label className="block text-xs font-medium text-stone-700">
+                      Chọn hành động
+                      <select
+                        value={failedDeliveryAction}
+                        onChange={(event) =>
+                          setFailedDeliveryAction(event.target.value as FailedDeliveryAction)
+                        }
+                        disabled={actionLoading || isFulfillmentUpdateLocked}
+                        className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                      >
+                        {FAILED_DELIVERY_ACTIONS.map((action) => (
+                          <option key={action} value={action}>
+                            {action}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-medium text-stone-700">
+                      Ghi chú xử lý
+                      <textarea
+                        value={failedDeliveryActionNote}
+                        onChange={(event) => setFailedDeliveryActionNote(event.target.value)}
+                        disabled={actionLoading || isFulfillmentUpdateLocked}
+                        rows={2}
+                        className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={actionLoading || isFulfillmentUpdateLocked}
+                      onClick={() => void handleFailedDeliveryResolution()}
+                      className="w-full rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
+                    >
+                      {actionLoading ? "Đang xử lý..." : "Thực hiện hành động failed delivery"}
+                    </button>
+                  </div>
+                ) : null}
 
                 <div className="max-h-64 space-y-2 overflow-y-auto border-t border-stone-200 pt-3">
                   {orderDetail.items.map((item) => (

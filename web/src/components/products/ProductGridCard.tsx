@@ -50,6 +50,9 @@ export function ProductGridCard({ product }: ProductGridCardProps) {
         <p className="text-xs uppercase tracking-[0.15em] text-stone-500">{product.category.name}</p>
         <h3 className="line-clamp-2 text-sm font-semibold text-stone-900">{product.name}</h3>
         <p className="text-base font-bold text-stone-900">{formatVnd(product.price)}</p>
+        <p className="text-xs text-stone-600">
+          {product.available_stock > 0 ? `Còn ${product.available_stock} sản phẩm` : "Hết hàng"}
+        </p>
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/products/${product.id}`}

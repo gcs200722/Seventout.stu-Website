@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ProductGridCard } from "@/components/products/ProductGridCard";
 import { listCategoriesPublic } from "@/lib/categories-api";
-import { listProductsPublic, type ProductSort } from "@/lib/products-api";
+import { listProductStocksPublic, listProductsPublic, type ProductSort } from "@/lib/products-api";
 
 type PageProps = {
   searchParams: Promise<{
@@ -51,6 +51,15 @@ export default async function ProductsPage({ searchParams }: PageProps) {
       is_active: true,
     }),
   ]);
+  const productStocks = await listProductStocksPublic(productsResult.items.map((item) => item.id)).catch(() => []);
+  const stockByProductId = productStocks.reduce<Record<string, number>>((acc, item) => {
+    acc[item.product_id] = item.available_stock;
+    return acc;
+  }, {});
+  const productsWithFreshStock = productsResult.items.map((item) => ({
+    ...item,
+    available_stock: stockByProductId[item.id] ?? item.available_stock,
+  }));
 
   const subcategories = categories
     .filter((item) => item.level === 2 && item.is_active)
@@ -144,7 +153,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
             Hiển thị {productsResult.items.length} / {productsResult.pagination.total} sản phẩm
           </div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {productsResult.items.map((product) => (
+            {productsWithFreshStock.map((product) => (
               <ProductGridCard key={product.id} product={product} />
             ))}
           </div>

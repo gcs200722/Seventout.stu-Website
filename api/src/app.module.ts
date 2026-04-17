@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AddressModule } from './modules/address/address.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CartModule } from './modules/cart/cart.module';
+import { FulfillmentModule } from './modules/fulfillment/fulfillment.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -55,6 +56,7 @@ import { UsersModule } from './modules/users/users.module';
     UsersModule,
     ProductsModule,
     InventoryModule,
+    FulfillmentModule,
     OrdersModule,
     PaymentsModule,
     QueueModule,
