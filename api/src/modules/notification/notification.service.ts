@@ -369,9 +369,12 @@ export class NotificationService {
     if (!(error instanceof QueryFailedError)) {
       return false;
     }
+    const driverError = error.driverError as
+      | { code?: string; constraint?: string }
+      | undefined;
     return (
-      typeof error.message === 'string' &&
-      error.message.toLowerCase().includes('uq_notifications_dedupe')
+      driverError?.code === '23505' &&
+      driverError?.constraint === 'uq_notifications_dedupe'
     );
   }
 }

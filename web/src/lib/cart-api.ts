@@ -1,19 +1,4 @@
-import { refreshToken } from "@/lib/auth-api";
-import { getApiErrorMessage } from "@/lib/api-error";
-import { getStoredTokens, setStoredTokens } from "@/lib/auth-storage";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-
-type ApiEnvelope<T> = {
-  success: boolean;
-  data?: T;
-  message?: string;
-};
-
-type AuthorizedRequest = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
-  body?: string;
-};
+import { withAuth } from "@/lib/http-client";
 
 export type CartItem = {
   item_id: string;
@@ -41,51 +26,8 @@ export type CartValidationResult = {
   }>;
 };
 
-async function requestWithToken<T>(
-  path: string,
-  accessToken: string,
-  request: AuthorizedRequest = {},
-): Promise<ApiEnvelope<T>> {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: request.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: request.body,
-    cache: "no-store",
-  });
-
-  const jsonUnknown = (await response.json()) as unknown;
-  if (!response.ok) {
-    throw new Error(getApiErrorMessage(jsonUnknown, "Cart request failed"));
-  }
-  return jsonUnknown as ApiEnvelope<T>;
-}
-
-async function withRefresh<T>(path: string, request: AuthorizedRequest = {}) {
-  const tokens = getStoredTokens();
-  if (!tokens?.access_token) {
-    throw new Error("Bạn chưa đăng nhập.");
-  }
-
-  try {
-    return await requestWithToken<T>(path, tokens.access_token, request);
-  } catch (error) {
-    if (!(error instanceof Error) || !/unauthorized|forbidden|jwt/i.test(error.message)) {
-      throw error;
-    }
-    if (!tokens.refresh_token) {
-      throw error;
-    }
-    const refreshed = await refreshToken(tokens.refresh_token);
-    setStoredTokens(refreshed);
-    return requestWithToken<T>(path, refreshed.access_token, request);
-  }
-}
-
 export async function getMyCart(): Promise<CartSnapshot> {
-  const envelope = await withRefresh<CartSnapshot>("/cart");
+  const envelope = await withAuth<CartSnapshot>("/cart");
   if (!envelope.data) {
     throw new Error("Unexpected API response format");
   }
@@ -93,7 +35,7 @@ export async function getMyCart(): Promise<CartSnapshot> {
 }
 
 export async function addToCart(productId: string, quantity: number) {
-  const envelope = await withRefresh<unknown>("/cart/items", {
+  const envelope = await withAuth<unknown>("/cart/items", {
     method: "POST",
     body: JSON.stringify({
       product_id: productId,
@@ -104,7 +46,7 @@ export async function addToCart(productId: string, quantity: number) {
 }
 
 export async function updateCartItem(itemId: string, quantity: number) {
-  const envelope = await withRefresh<unknown>(`/cart/items/${itemId}`, {
+  const envelope = await withAuth<unknown>(`/cart/items/${itemId}`, {
     method: "PATCH",
     body: JSON.stringify({ quantity }),
   });
@@ -112,19 +54,19 @@ export async function updateCartItem(itemId: string, quantity: number) {
 }
 
 export async function removeCartItem(itemId: string) {
-  const envelope = await withRefresh<unknown>(`/cart/items/${itemId}`, {
+  const envelope = await withAuth<unknown>(`/cart/items/${itemId}`, {
     method: "DELETE",
   });
   return envelope.message ?? "Cart item removed successfully";
 }
 
 export async function clearMyCart() {
-  const envelope = await withRefresh<unknown>("/cart/clear", { method: "DELETE" });
+  const envelope = await withAuth<unknown>("/cart/clear", { method: "DELETE" });
   return envelope.message ?? "Cart cleared successfully";
 }
 
 export async function validateMyCart(): Promise<CartValidationResult> {
-  const envelope = await withRefresh<CartValidationResult>("/cart/validate", {
+  const envelope = await withAuth<CartValidationResult>("/cart/validate", {
     method: "POST",
   });
   if (!envelope.data) {

@@ -1,107 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import NotificationCard from "@/components/notifications/NotificationCard";
-import {
-  getNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-  type NotificationItem,
-} from "@/lib/notifications-api";
+import { useNotificationsFeed } from "@/components/notifications/useNotificationsFeed";
 
 const PAGE_LIMIT = 10;
-const POLL_INTERVAL_MS = 15000;
 type ReadFilter = "all" | "unread" | "read";
 
 export default function AdminNotificationsPage() {
   const { role, permissions } = useAuth();
-  const [items, setItems] = useState<NotificationItem[]>([]);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
   const [readFilter, setReadFilter] = useState<ReadFilter>("all");
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const canRead =
     role === "ADMIN" || role === "STAFF" || permissions.includes("NOTIFICATION_READ");
   const canManage = role === "ADMIN" || permissions.includes("NOTIFICATION_MANAGE");
+  const { items, total, loading, actionLoading, error, markAsRead, markAllAsRead } =
+    useNotificationsFeed({
+      enabled: canRead,
+      page,
+      limit: PAGE_LIMIT,
+      readFilter,
+      pollIntervalMs: 15000,
+    });
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_LIMIT)), [total]);
-
-  const loadNotifications = useCallback(async (showLoading = true) => {
-    if (!canRead) {
-      return;
-    }
-    try {
-      if (showLoading) {
-        setLoading(true);
-      }
-      setError(null);
-      const response = await getNotifications({
-        page,
-        limit: PAGE_LIMIT,
-        is_read:
-          readFilter === "all" ? undefined : readFilter === "read" ? true : false,
-      });
-      setItems(response.items);
-      setTotal(response.pagination.total);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Không tải được thông báo.",
-      );
-    } finally {
-      if (showLoading) {
-        setLoading(false);
-      }
-    }
-  }, [canRead, page, readFilter]);
-
-  useEffect(() => {
-    if (!canRead) {
-      setLoading(false);
-      return;
-    }
-    void loadNotifications(true);
-  }, [canRead, loadNotifications]);
-
-  useEffect(() => {
-    if (!canRead) {
-      return;
-    }
-    const interval = window.setInterval(() => {
-      void loadNotifications(false);
-    }, POLL_INTERVAL_MS);
-    const onFocus = () => {
-      void loadNotifications(false);
-    };
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [canRead, loadNotifications]);
 
   async function handleMarkAsRead(id: string) {
     try {
-      setActionLoading(true);
-      setError(null);
       setSuccess(null);
-      await markNotificationAsRead(id);
-      await loadNotifications(false);
+      await markAsRead(id);
       setSuccess("Đã cập nhật trạng thái thông báo.");
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Không thể cập nhật thông báo.",
-      );
-    } finally {
-      setActionLoading(false);
+    } catch {
+      setSuccess(null);
     }
   }
 
@@ -110,20 +43,11 @@ export default function AdminNotificationsPage() {
       return;
     }
     try {
-      setActionLoading(true);
-      setError(null);
       setSuccess(null);
-      const updated = await markAllNotificationsAsRead();
-      await loadNotifications(false);
+      const updated = await markAllAsRead();
       setSuccess(`Đã cập nhật ${updated} thông báo.`);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Không thể cập nhật trạng thái thông báo.",
-      );
-    } finally {
-      setActionLoading(false);
+    } catch {
+      setSuccess(null);
     }
   }
 

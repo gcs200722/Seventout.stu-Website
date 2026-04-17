@@ -145,5 +145,36 @@ export function validateEnv(config: Record<string, unknown>) {
     throw new Error(errors.toString());
   }
 
+  const isProduction = validatedConfig.NODE_ENV === 'production';
+  if (isProduction) {
+    const requiredSecrets: Array<[string, string | undefined]> = [
+      ['JWT_ACCESS_SECRET', validatedConfig.JWT_ACCESS_SECRET],
+      ['JWT_REFRESH_SECRET', validatedConfig.JWT_REFRESH_SECRET],
+      ['DB_PASSWORD', validatedConfig.DB_PASSWORD],
+      ['DEFAULT_ADMIN_PASSWORD', validatedConfig.DEFAULT_ADMIN_PASSWORD],
+    ];
+
+    for (const [key, value] of requiredSecrets) {
+      if (!value || value.trim().length < 12) {
+        throw new Error(`${key} must be set and strong in production.`);
+      }
+    }
+
+    const forbiddenDefaults: Array<[string, string | undefined, string]> = [
+      ['JWT_ACCESS_SECRET', validatedConfig.JWT_ACCESS_SECRET, 'access-secret'],
+      [
+        'JWT_REFRESH_SECRET',
+        validatedConfig.JWT_REFRESH_SECRET,
+        'refresh-secret',
+      ],
+      ['DB_PASSWORD', validatedConfig.DB_PASSWORD, 'postgres'],
+    ];
+    for (const [key, currentValue, defaultValue] of forbiddenDefaults) {
+      if (currentValue?.trim() === defaultValue) {
+        throw new Error(`${key} cannot use default value in production.`);
+      }
+    }
+  }
+
   return validatedConfig;
 }

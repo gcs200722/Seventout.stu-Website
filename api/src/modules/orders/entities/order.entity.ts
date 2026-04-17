@@ -38,6 +38,14 @@ export class OrderEntity {
   @Column({ type: 'text', default: '' })
   note: string;
 
+  @Column({
+    name: 'idempotency_key',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
+  idempotencyKey: string | null;
+
   @Column({ name: 'canceled_at', type: 'timestamptz', nullable: true })
   canceledAt: Date | null;
 

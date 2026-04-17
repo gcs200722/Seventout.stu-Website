@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   createAdminProduct,
@@ -48,7 +48,7 @@ export default function AdminProductsPage() {
   const [editMainImageIndex, setEditMainImageIndex] = useState(0);
   const [editFiles, setEditFiles] = useState<File[]>([]);
 
-  async function loadProducts() {
+  const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -65,7 +65,7 @@ export default function AdminProductsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [keyword, sort]);
 
   useEffect(() => {
     async function bootstrap() {
@@ -90,8 +90,7 @@ export default function AdminProductsPage() {
     }
 
     void bootstrap();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort]);
+  }, [loadProducts]);
 
   async function openEdit(product: AdminProduct) {
     try {

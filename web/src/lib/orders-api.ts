@@ -1,25 +1,4 @@
-import { getApiErrorMessage } from "@/lib/api-error";
-import { refreshToken } from "@/lib/auth-api";
-import { getStoredTokens, setStoredTokens } from "@/lib/auth-storage";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-
-type ApiEnvelope<T> = {
-  success: boolean;
-  data?: T;
-  message?: string;
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-  };
-};
-
-type AuthorizedRequest = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
-  body?: string;
-  headers?: Record<string, string>;
-};
+import { withAuth } from "@/lib/http-client";
 
 export type OrderStatus =
   | "PENDING"
@@ -90,50 +69,6 @@ export type ListOrdersQuery = {
   payment_status?: PaymentStatus;
 };
 
-async function requestWithToken<T>(
-  path: string,
-  accessToken: string,
-  request: AuthorizedRequest = {},
-): Promise<ApiEnvelope<T>> {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: request.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      ...(request.headers ?? {}),
-    },
-    body: request.body,
-    cache: "no-store",
-  });
-
-  const jsonUnknown = (await response.json()) as unknown;
-  if (!response.ok) {
-    throw new Error(getApiErrorMessage(jsonUnknown, "Order request failed"));
-  }
-  return jsonUnknown as ApiEnvelope<T>;
-}
-
-async function withRefresh<T>(path: string, request: AuthorizedRequest = {}) {
-  const tokens = getStoredTokens();
-  if (!tokens?.access_token) {
-    throw new Error("Bạn chưa đăng nhập.");
-  }
-
-  try {
-    return await requestWithToken<T>(path, tokens.access_token, request);
-  } catch (error) {
-    if (!(error instanceof Error) || !/unauthorized|forbidden|jwt/i.test(error.message)) {
-      throw error;
-    }
-    if (!tokens.refresh_token) {
-      throw error;
-    }
-    const refreshed = await refreshToken(tokens.refresh_token);
-    setStoredTokens(refreshed);
-    return requestWithToken<T>(path, refreshed.access_token, request);
-  }
-}
-
 function toQueryString(params: ListOrdersQuery = {}) {
   const query = new URLSearchParams();
   if (params.page !== undefined) query.set("page", String(params.page));
@@ -145,7 +80,7 @@ function toQueryString(params: ListOrdersQuery = {}) {
 }
 
 export async function createMyOrder(payload: CreateOrderPayload, idempotencyKey?: string) {
-  const envelope = await withRefresh<{
+  const envelope = await withAuth<{
     order_id: string;
     status: OrderStatus;
     payment_status: PaymentStatus;
@@ -163,7 +98,7 @@ export async function createMyOrder(payload: CreateOrderPayload, idempotencyKey?
 }
 
 export async function listMyOrders(params: ListOrdersQuery = {}) {
-  const envelope = await withRefresh<OrderListItem[]>(`/orders${toQueryString(params)}`);
+  const envelope = await withAuth<OrderListItem[]>(`/orders${toQueryString(params)}`);
   if (!envelope.data || !envelope.pagination) {
     throw new Error("Unexpected API response format");
   }
@@ -174,7 +109,7 @@ export async function listMyOrders(params: ListOrdersQuery = {}) {
 }
 
 export async function getMyOrderDetail(orderId: string) {
-  const envelope = await withRefresh<OrderDetail>(`/orders/${orderId}`);
+  const envelope = await withAuth<OrderDetail>(`/orders/${orderId}`);
   if (!envelope.data) {
     throw new Error("Unexpected API response format");
   }
@@ -182,7 +117,7 @@ export async function getMyOrderDetail(orderId: string) {
 }
 
 export async function cancelMyOrder(orderId: string) {
-  const envelope = await withRefresh<unknown>(`/orders/${orderId}/cancel`, {
+  const envelope = await withAuth<unknown>(`/orders/${orderId}/cancel`, {
     method: "PATCH",
   });
   return envelope.message ?? "Order canceled successfully";

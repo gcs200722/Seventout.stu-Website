@@ -1,130 +1,50 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import NotificationCard from "@/components/notifications/NotificationCard";
-import {
-  getNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-  type NotificationItem,
-} from "@/lib/notifications-api";
+import { useNotificationsFeed } from "@/components/notifications/useNotificationsFeed";
 
 const PAGE_LIMIT = 10;
-const POLL_INTERVAL_MS = 15000;
 
 type ReadFilter = "all" | "unread" | "read";
 
 export default function NotificationsPage() {
   const { loading: authLoading, isAuthenticated, permissions } = useAuth();
-  const [items, setItems] = useState<NotificationItem[]>([]);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [readFilter, setReadFilter] = useState<ReadFilter>("all");
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const canRead = permissions.includes("NOTIFICATION_READ");
+  const { items, total, loading, actionLoading, error, unreadCount, markAsRead, markAllAsRead } =
+    useNotificationsFeed({
+      enabled: isAuthenticated && canRead,
+      page,
+      limit: PAGE_LIMIT,
+      readFilter,
+      pollIntervalMs: 15000,
+    });
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_LIMIT)), [total]);
-  const unreadCount = useMemo(
-    () => items.filter((item) => !item.isRead).length,
-    [items],
-  );
-
-  const loadNotifications = useCallback(async (showLoading = true) => {
-    if (!isAuthenticated || !canRead) {
-      return;
-    }
-    try {
-      if (showLoading) {
-        setLoading(true);
-      }
-      setError(null);
-      const response = await getNotifications({
-        page,
-        limit: PAGE_LIMIT,
-        is_read:
-          readFilter === "all" ? undefined : readFilter === "read" ? true : false,
-      });
-      setItems(response.items);
-      setTotal(response.pagination.total);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Không tải được thông báo.",
-      );
-    } finally {
-      if (showLoading) {
-        setLoading(false);
-      }
-    }
-  }, [canRead, isAuthenticated, page, readFilter]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !canRead) {
-      setLoading(false);
-      return;
-    }
-    void loadNotifications(true);
-  }, [canRead, isAuthenticated, loadNotifications]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !canRead) {
-      return;
-    }
-    const interval = window.setInterval(() => {
-      void loadNotifications(false);
-    }, POLL_INTERVAL_MS);
-    const onFocus = () => {
-      void loadNotifications(false);
-    };
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [canRead, isAuthenticated, loadNotifications]);
 
   async function handleMarkAsRead(id: string) {
     try {
-      setActionLoading(true);
-      setError(null);
       setSuccess(null);
-      await markNotificationAsRead(id);
-      await loadNotifications(false);
+      await markAsRead(id);
       setSuccess("Đã đánh dấu thông báo là đã đọc.");
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Không thể đánh dấu đã đọc.",
-      );
-    } finally {
-      setActionLoading(false);
+    } catch {
+      setSuccess(null);
     }
   }
 
   async function handleMarkAllAsRead() {
     try {
-      setActionLoading(true);
-      setError(null);
       setSuccess(null);
-      const updated = await markAllNotificationsAsRead();
-      await loadNotifications(false);
+      const updated = await markAllAsRead();
       setSuccess(`Đã cập nhật ${updated} thông báo.`);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Không thể đánh dấu tất cả đã đọc.",
-      );
-    } finally {
-      setActionLoading(false);
+    } catch {
+      setSuccess(null);
     }
   }
 

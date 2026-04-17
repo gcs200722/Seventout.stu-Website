@@ -19,6 +19,9 @@ import { OrderEventOutboxEntity } from './entities/order-event-outbox.entity';
 import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEntity } from './entities/order.entity';
 import { OrderEventDispatcherService } from './events/order-event-dispatcher.service';
+import { OrderOutboxProcessor } from './order-outbox.processor';
+import { OrderQueryService } from './order-query.service';
+import { OrderStatusPolicy } from './order-status.policy';
 import { ORDER_FULFILLMENT_PORT } from './ports/order-fulfillment.port';
 import { ORDER_CART_PORT } from './ports/order-cart.port';
 import { ORDER_INVENTORY_PORT } from './ports/order-inventory.port';
@@ -51,6 +54,9 @@ import { OrdersService } from './orders.service';
   providers: [
     OrdersService,
     OrderEventDispatcherService,
+    OrderOutboxProcessor,
+    OrderQueryService,
+    OrderStatusPolicy,
     { provide: ORDER_CART_PORT, useClass: OrderCartAdapter },
     { provide: ORDER_INVENTORY_PORT, useClass: OrderInventoryAdapter },
     { provide: ORDER_PAYMENT_PORT, useClass: NoopOrderPaymentAdapter },

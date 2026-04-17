@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import {
   BadRequestException,
   ForbiddenException,
@@ -7,11 +8,12 @@ import { DataSource, Repository } from 'typeorm';
 import { AddressEntity } from '../address/entities/address.entity';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
-import { PaymentEntity } from '../payments/entities/payment.entity';
 import { OrderEventOutboxEntity } from './entities/order-event-outbox.entity';
 import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEntity } from './entities/order.entity';
 import { OrderEventDispatcherService } from './events/order-event-dispatcher.service';
+import { OrderQueryService } from './order-query.service';
+import { OrderStatusPolicy } from './order-status.policy';
 import { OrderCartPort } from './ports/order-cart.port';
 import { OrderFulfillmentPort } from './ports/order-fulfillment.port';
 import { OrderInventoryPort } from './ports/order-inventory.port';
@@ -27,9 +29,10 @@ describe('OrdersService', () => {
   let inventoryPort: jest.Mocked<OrderInventoryPort>;
   let fulfillmentPort: jest.Mocked<OrderFulfillmentPort>;
   let addressesRepository: jest.Mocked<Repository<AddressEntity>>;
-  let paymentsRepository: jest.Mocked<Repository<PaymentEntity>>;
   let dataSource: jest.Mocked<DataSource>;
   let eventDispatcher: jest.Mocked<OrderEventDispatcherService>;
+  let statusPolicy: jest.Mocked<OrderStatusPolicy>;
+  let orderQueryService: jest.Mocked<OrderQueryService>;
 
   const user: AuthenticatedUser = {
     id: 'u-1',
@@ -73,23 +76,30 @@ describe('OrdersService', () => {
     addressesRepository = {
       findOne: jest.fn(),
     } as never;
-    paymentsRepository = {
-      find: jest.fn().mockResolvedValue([]),
-    } as never;
     dataSource = { transaction: jest.fn() } as never;
     eventDispatcher = { dispatch: jest.fn() } as never;
+    statusPolicy = {
+      ensureValidTransition: jest.fn(),
+      ensureValidPaymentTransition: jest.fn(),
+    } as never;
+    orderQueryService = {
+      getLatestPaymentMethods: jest.fn().mockResolvedValue({}),
+      mapOrderListItem: jest.fn((item) => item as never),
+      sanitizeOrderNote: jest.fn((note) => (note ?? '') as never),
+    } as never;
 
     service = new OrdersService(
       ordersRepository,
       orderItemsRepository,
       outboxRepository,
       addressesRepository,
-      paymentsRepository,
       cartPort,
       inventoryPort,
       fulfillmentPort,
       dataSource,
       eventDispatcher,
+      statusPolicy,
+      orderQueryService,
     );
   });
 
@@ -149,8 +159,6 @@ describe('OrdersService', () => {
           }),
         ),
     );
-    outboxRepository.find.mockResolvedValue([]);
-
     const result = await service.createOrder(
       user,
       {
@@ -173,6 +181,7 @@ describe('OrdersService', () => {
       status: OrderStatus.PENDING,
       paymentStatus: PaymentStatus.UNPAID,
       totalAmount: 1000,
+      idempotencyKey: 'idmp-1',
     } as OrderEntity);
 
     const result = await service.createOrder(
@@ -241,9 +250,19 @@ describe('OrdersService', () => {
       id: 'o-1',
       status: OrderStatus.PENDING,
     } as OrderEntity);
+    statusPolicy.ensureValidTransition.mockImplementation(() => {
+      throw new BadRequestException();
+    });
     await expect(
       service.updateStatus('o-1', { status: OrderStatus.SHIPPED }),
     ).rejects.toThrow(BadRequestException);
+
+    const ensureValidTransitionMock =
+      statusPolicy.ensureValidTransition as jest.Mock;
+    expect(ensureValidTransitionMock.mock.calls[0]).toEqual([
+      OrderStatus.PENDING,
+      OrderStatus.SHIPPED,
+    ]);
   });
 
   it('processes outbox with success and marks processed', async () => {

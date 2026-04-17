@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCart } from "@/components/cart/CartProvider";
 import {
-  getNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
   type NotificationItem,
 } from "@/lib/notifications-api";
+import { useNotificationsFeed } from "@/components/notifications/useNotificationsFeed";
 
 import type { CategoryNavLink } from "@/lib/categories-api";
 
@@ -133,119 +131,46 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
   const [showAuthPanel, setShowAuthPanel] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [openNotifications, setOpenNotifications] = useState(false);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
-  const [notificationItems, setNotificationItems] = useState<NotificationItem[]>([]);
-
-  const unreadInPanel = useMemo(
-    () => notificationItems.filter((item) => !item.isRead).length,
-    [notificationItems],
-  );
-
-  async function loadNotificationSnapshot() {
-    const [unreadResponse, allResponse] = await Promise.all([
-      getNotifications({ page: 1, limit: 1, is_read: false }),
-      getNotifications({ page: 1, limit: 10 }),
-    ]);
-    setUnreadCount(unreadResponse.pagination.total);
-    setNotificationItems(allResponse.items);
-  }
+  const {
+    items: notificationItems,
+    loading: notificationsLoading,
+    error,
+    unreadCount: unreadInPanel,
+    total: totalNotifications,
+    markAsRead,
+    markAllAsRead,
+    reload,
+  } = useNotificationsFeed({
+    enabled: isAuthenticated,
+    page: 1,
+    limit: 10,
+    pollIntervalMs: openNotifications
+      ? NOTIFICATION_PANEL_POLL_INTERVAL_MS
+      : NOTIFICATION_POLL_INTERVAL_MS,
+  });
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setUnreadCount(0);
-      setNotificationItems([]);
       setOpenNotifications(false);
+      setNotificationsError(null);
+      setUnreadCount(0);
       return;
     }
-    let mounted = true;
-    void loadNotificationSnapshot()
-      .then(() => {
-        if (!mounted) return;
-      })
-      .catch(() => {
-        if (mounted) {
-          setUnreadCount(0);
-        }
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [isAuthenticated]);
+    setUnreadCount(totalNotifications);
+  }, [isAuthenticated, totalNotifications]);
 
   useEffect(() => {
-    if (!openNotifications || !isAuthenticated) {
-      return;
-    }
-    let mounted = true;
-    setNotificationsLoading(true);
-    setNotificationsError(null);
-    void loadNotificationSnapshot()
-      .catch((error) => {
-        if (mounted) {
-          setNotificationsError(
-            error instanceof Error ? error.message : "Không tải được thông báo.",
-          );
-        }
-      })
-      .finally(() => {
-        if (mounted) {
-          setNotificationsLoading(false);
-        }
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [isAuthenticated, openNotifications]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    let mounted = true;
-    const refresh = () => {
-      void loadNotificationSnapshot().catch((error) => {
-        if (mounted && openNotifications) {
-          setNotificationsError(
-            error instanceof Error ? error.message : "Không tải được thông báo.",
-          );
-        }
-      });
-    };
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        refresh();
-      }
-    };
-
-    const interval = window.setInterval(
-      refresh,
-      openNotifications ? NOTIFICATION_PANEL_POLL_INTERVAL_MS : NOTIFICATION_POLL_INTERVAL_MS,
-    );
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [isAuthenticated, openNotifications]);
+    setNotificationsError(error);
+  }, [error]);
 
   async function handleMarkAllAsRead() {
     try {
-      setNotificationsLoading(true);
-      await markAllNotificationsAsRead();
-      await loadNotificationSnapshot();
+      await markAllAsRead();
     } catch (error) {
       setNotificationsError(
         error instanceof Error ? error.message : "Không thể cập nhật thông báo.",
       );
-    } finally {
-      setNotificationsLoading(false);
     }
   }
 
@@ -256,12 +181,12 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
     }
     if (!selected.isRead) {
       try {
-        await markNotificationAsRead(id);
+        await markAsRead(id);
       } catch {
         // Keep panel interaction resilient even if mark-read fails.
       }
     }
-    await loadNotificationSnapshot().catch(() => undefined);
+    await reload(false).catch(() => undefined);
     setOpenNotifications(false);
   }
 
