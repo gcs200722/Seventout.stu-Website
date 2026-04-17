@@ -5,6 +5,8 @@ import { ORDER_INVENTORY_PORT } from '../ports/order-inventory.port';
 import type { OrderInventoryPort } from '../ports/order-inventory.port';
 import { ORDER_PAYMENT_PORT } from '../ports/order-payment.port';
 import type { OrderPaymentPort } from '../ports/order-payment.port';
+import { ORDER_NOTIFICATION_PORT } from '../ports/order-notification.port';
+import type { OrderNotificationPort } from '../ports/order-notification.port';
 import { OrderEventType } from '../orders.types';
 import { OrderEventOutboxEntity } from '../entities/order-event-outbox.entity';
 
@@ -15,6 +17,8 @@ export class OrderEventDispatcherService {
     private readonly inventoryPort: OrderInventoryPort,
     @Inject(ORDER_PAYMENT_PORT)
     private readonly paymentPort: OrderPaymentPort,
+    @Inject(ORDER_NOTIFICATION_PORT)
+    private readonly notificationPort: OrderNotificationPort,
     @Inject(ORDER_FULFILLMENT_PORT)
     private readonly fulfillmentPort: OrderFulfillmentPort,
   ) {}
@@ -35,6 +39,7 @@ export class OrderEventDispatcherService {
       }
       await this.paymentPort.onOrderCreated(payload.order_id);
       await this.fulfillmentPort.onOrderCreated(payload.order_id);
+      await this.notificationPort.onOrderCreated(payload.order_id, event.id);
       return;
     }
 

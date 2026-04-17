@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
+import { NotificationService } from '../notification/notification.service';
 import { OrderEventOutboxEntity } from '../orders/entities/order-event-outbox.entity';
 import { OrderItemEntity } from '../orders/entities/order-item.entity';
 import { OrderEntity } from '../orders/entities/order.entity';
@@ -75,6 +76,7 @@ export class FulfillmentService {
     @InjectRepository(OrderEventOutboxEntity)
     private readonly outboxRepository: Repository<OrderEventOutboxEntity>,
     private readonly dataSource: DataSource,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createFulfillment(
@@ -226,6 +228,20 @@ export class FulfillmentService {
 
     const savedFulfillment = await this.fulfillmentRepository.save(fulfillment);
     await this.syncOrderStatusFromFulfillment(savedFulfillment);
+    if (payload.status === FulfillmentShippingStatus.SHIPPED) {
+      await this.notificationService.notifyFulfillmentStatus(
+        savedFulfillment.orderId,
+        'SHIPPED',
+        `fulfillment:${savedFulfillment.id}:shipped`,
+      );
+    }
+    if (payload.status === FulfillmentShippingStatus.DELIVERED) {
+      await this.notificationService.notifyFulfillmentStatus(
+        savedFulfillment.orderId,
+        'DELIVERED',
+        `fulfillment:${savedFulfillment.id}:delivered`,
+      );
+    }
     return savedFulfillment;
   }
 

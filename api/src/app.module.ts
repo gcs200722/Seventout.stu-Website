@@ -12,6 +12,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { CartModule } from './modules/cart/cart.module';
 import { FulfillmentModule } from './modules/fulfillment/fulfillment.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { NotificationModule } from './modules/notification/notification.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -58,6 +59,7 @@ import { UsersModule } from './modules/users/users.module';
     UsersModule,
     ProductsModule,
     InventoryModule,
+    NotificationModule,
     FulfillmentModule,
     OrdersModule,
     PaymentsModule,
