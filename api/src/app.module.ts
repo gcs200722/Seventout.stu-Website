@@ -22,6 +22,7 @@ import { ReturnsModule } from './modules/returns/returns.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UsersModule } from './modules/users/users.module';
 import { CmsModule } from './modules/cms/cms.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { CmsModule } from './modules/cms/cms.module';
     QueueModule,
     StorageModule,
     CmsModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

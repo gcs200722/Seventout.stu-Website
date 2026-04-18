@@ -1,6 +1,7 @@
 import { plainToInstance, Transform } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -142,6 +143,28 @@ class EnvironmentVariables {
   @Min(30)
   @IsOptional()
   PROMOTION_CACHE_TTL_SECONDS = 120;
+
+  @IsIn(['PENDING', 'APPROVED'])
+  @IsOptional()
+  REVIEWS_DEFAULT_STATUS: 'PENDING' | 'APPROVED' = 'APPROVED';
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  REVIEWS_EDIT_WINDOW_DAYS = 14;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(30)
+  @IsOptional()
+  REVIEWS_CACHE_TTL_SECONDS = 120;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  REVIEWS_MAX_MEDIA_URLS = 5;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

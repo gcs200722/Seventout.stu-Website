@@ -120,6 +120,75 @@ export class NotificationService {
     return result.affected ?? 0;
   }
 
+  async notifyReviewApprovedOwner(input: {
+    ownerUserId: string;
+    reviewId: string;
+    productId: string;
+    eventId: string;
+  }): Promise<void> {
+    const user = await this.usersRepository.findOne({
+      where: { id: input.ownerUserId },
+    });
+    if (!user) {
+      return;
+    }
+    const template: NotificationTemplate = {
+      type: NotificationType.REVIEW_APPROVED,
+      title: 'Đánh giá của bạn đã hiển thị',
+      content: `Đánh giá của bạn cho sản phẩm đã được duyệt và hiển thị trên trang sản phẩm.`,
+      channels: [NotificationChannel.SYSTEM],
+    };
+    await this.dispatchTemplate(
+      { userId: user.id, email: user.email },
+      template,
+      'review.outbox',
+      input.eventId,
+      {
+        review_id: input.reviewId,
+        product_id: input.productId,
+      },
+    );
+  }
+
+  async notifyAdminsReviewReported(input: {
+    reviewId: string;
+    reporterUserId: string;
+    reason: string;
+    eventId: string;
+  }): Promise<void> {
+    const adminRecipients = await this.usersRepository.find({
+      where: {
+        role: In([UserRole.ADMIN, UserRole.STAFF]),
+      },
+    });
+    if (adminRecipients.length === 0) {
+      return;
+    }
+    const template: NotificationTemplate = {
+      type: NotificationType.REVIEW_REPORTED,
+      title: 'Review bị báo cáo',
+      content: `Một đánh giá (${input.reviewId}) vừa bị báo cáo với lý do: ${input.reason}.`,
+      channels: [NotificationChannel.SYSTEM],
+    };
+    for (const recipient of adminRecipients) {
+      await this.dispatchTemplate(
+        {
+          userId: recipient.id,
+          email: recipient.email,
+        },
+        template,
+        'review.outbox',
+        `${input.eventId}:admin:${recipient.id}`,
+        {
+          review_id: input.reviewId,
+          reporter_user_id: input.reporterUserId,
+          reason: input.reason,
+          audience: 'ADMIN',
+        },
+      );
+    }
+  }
+
   async notifyOrderCreated(orderId: string, eventId: string): Promise<void> {
     const target = await this.getOrderRecipient(orderId);
     if (!target) {
