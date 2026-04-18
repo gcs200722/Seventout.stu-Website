@@ -12,6 +12,11 @@ const cards = [
     href: "/admin/categories",
   },
   {
+    title: "CMS / Trang chủ",
+    description: "Merchandising: hero, section sản phẩm, banner (CMS_READ / CMS_EDIT).",
+    href: "/admin/cms",
+  },
+  {
     title: "Đơn hàng",
     description: "Kiểm tra trạng thái endpoint phân quyền ORDER_MANAGE.",
     href: "/admin/orders",

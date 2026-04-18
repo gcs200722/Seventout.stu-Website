@@ -41,7 +41,9 @@ export type PermissionCode =
   | "CATEGORY_READ"
   | "CATEGORY_MANAGE"
   | "INVENTORY_READ"
-  | "INVENTORY_MANAGE";
+  | "INVENTORY_MANAGE"
+  | "CMS_READ"
+  | "CMS_EDIT";
 
 export type ListUsersQuery = {
   page?: number;

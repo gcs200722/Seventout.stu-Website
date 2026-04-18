@@ -11,5 +11,5 @@ coverage
 !**/*.env.example
 !api/.env.vps.example
 /docs
-design_guidline.md
-designpatern.md
+#design_guidline.md
+#designpatern.md
