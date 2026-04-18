@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import CartPromotionSection from "@/components/cart/CartPromotionSection";
 import { useCart } from "@/components/cart/CartProvider";
+import { useCartPromotionQuote } from "@/hooks/use-cart-promotion-quote";
 import {
   clearMyCart,
   getMyCart,
@@ -33,6 +35,21 @@ export default function CartPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
+  const [couponCode, setCouponCode] = useState("");
+
+  const cartRefreshKey = useMemo(() => {
+    if (!cart || cart.items.length === 0) {
+      return "";
+    }
+    const lines = cart.items.map((item) => `${item.item_id}:${item.quantity}:${item.subtotal}`).join("|");
+    return `${cart.cart_id}:${cart.total_amount}:${lines}`;
+  }, [cart]);
+
+  const quoteEnabled = useMemo(
+    () => Boolean(!loading && isAuthenticated && cart && cart.items.length > 0),
+    [loading, isAuthenticated, cart],
+  );
+  const promotionQuote = useCartPromotionQuote(quoteEnabled, cartRefreshKey);
 
   const paymentOptions: Array<{
     value: PaymentMethod;
@@ -76,18 +93,43 @@ export default function CartPage() {
       const defaultAddress = addressItems.find((item) => item.is_default);
       setSelectedAddressId((current) => current || defaultAddress?.id || addressItems[0]?.id || "");
       await refreshCartCount();
+      if (snapshot.items.length > 0) {
+        void promotionQuote.refresh();
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Không tải được giỏ hàng.");
     } finally {
       setPageLoading(false);
     }
-  }, [isAuthenticated, refreshCartCount, user?.id]);
+  }, [isAuthenticated, promotionQuote.refresh, refreshCartCount, user?.id]);
 
   useEffect(() => {
     void reloadCart();
   }, [reloadCart]);
 
   const canCheckout = useMemo(() => Boolean(cart && cart.items.length > 0), [cart]);
+
+  const displayTotalAmount = useMemo(() => {
+    if (!cart) {
+      return 0;
+    }
+    if (promotionQuote.quote && !promotionQuote.loading) {
+      return promotionQuote.quote.final_total;
+    }
+    return cart.total_amount;
+  }, [cart, promotionQuote.quote, promotionQuote.loading]);
+
+  const appliedCouponCode = useMemo(() => {
+    const snap = promotionQuote.quote?.pricing_snapshot;
+    if (!snap || typeof snap !== "object" || !("coupon" in snap)) {
+      return null;
+    }
+    const coupon = snap.coupon;
+    if (!coupon || typeof coupon !== "object" || !("code" in coupon)) {
+      return null;
+    }
+    return String((coupon as { code: string }).code);
+  }, [promotionQuote.quote]);
 
   async function handleUpdateItem(itemId: string, quantity: number) {
     setPendingId(itemId);
@@ -269,9 +311,41 @@ export default function CartPage() {
               </article>
             ))}
 
+            <CartPromotionSection
+              code={couponCode}
+              onCodeChange={setCouponCode}
+              onApply={() => {
+                void (async () => {
+                  await promotionQuote.apply(couponCode.trim());
+                  setCouponCode("");
+                })();
+              }}
+              onRemove={() => void promotionQuote.remove()}
+              busy={promotionQuote.actionPending || pendingId !== null}
+              loadingQuote={promotionQuote.loading}
+              error={promotionQuote.error}
+              subtotalAmount={promotionQuote.quote?.subtotal_amount ?? cart.total_amount}
+              discountAmount={promotionQuote.quote?.discount ?? 0}
+              finalTotal={promotionQuote.quote?.final_total ?? cart.total_amount}
+              appliedCouponCode={appliedCouponCode}
+              pricingSnapshot={promotionQuote.quote?.pricing_snapshot ?? null}
+            />
+
             <div className="rounded-xl border border-stone-200 bg-white p-4">
-              <p className="text-sm text-stone-700">Tổng sản phẩm: {cart.total_items}</p>
-              <p className="mt-1 text-lg font-semibold text-stone-900">Tổng tiền: {formatVnd(cart.total_amount)}</p>
+              <p className="text-sm text-stone-700">
+                Tổng số lượng món trong giỏ: <span className="font-semibold">{cart.total_items}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-stone-500">
+                Là cộng dồn số lượng từng dòng (cùng một sản phẩm nhiều món vẫn tính dồn), không phải số loại sản phẩm khác nhau.
+              </p>
+              <p className="mt-1 text-lg font-semibold text-stone-900">
+                Tổng tiền (ước tính): {formatVnd(displayTotalAmount)}
+              </p>
+              {promotionQuote.quote && !promotionQuote.loading && promotionQuote.quote.discount > 0 ? (
+                <p className="mt-1 text-xs text-stone-500">
+                  Đã gồm khuyến mãi theo báo giá hiện tại; số tiền cuối khi tạo đơn do hệ thống xác nhận.
+                </p>
+              ) : null}
               <div className="mt-4 space-y-3">
                 <fieldset className="rounded-xl border border-stone-200 bg-stone-50 p-3">
                   <legend className="px-1 text-xs font-semibold text-stone-800">Địa chỉ giao hàng</legend>

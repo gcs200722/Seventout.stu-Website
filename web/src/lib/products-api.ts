@@ -18,6 +18,19 @@ export type ProductStock = {
   available_stock: number;
 };
 
+/** Catalog promotion preview from API (snake_case). */
+export type ProductPromotionPreview = {
+  campaign_name: string;
+  list_price: number;
+  sale_price: number;
+  conditions_display?: {
+    min_quantity: number | null;
+    min_order_value: number | null;
+    scoped_to_products?: boolean;
+    scoped_to_categories?: boolean;
+  };
+};
+
 export type ProductListItem = {
   id: string;
   name: string;
@@ -31,6 +44,7 @@ export type ProductListItem = {
   available_stock: number;
   is_active: boolean;
   created_at: string;
+  promotion?: ProductPromotionPreview;
 };
 
 export type ProductDetail = {
@@ -49,6 +63,7 @@ export type ProductDetail = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  promotion?: ProductPromotionPreview;
 };
 
 export type ProductSort = "price_asc" | "price_desc" | "newest";

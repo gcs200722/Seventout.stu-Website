@@ -5,9 +5,11 @@ import { useMemo, useState } from "react";
 type ProductImageGalleryProps = {
   images: string[];
   productName: string;
+  /** Optional campaign label shown on the main image (e.g. active promotion name). */
+  campaignName?: string;
 };
 
-export function ProductImageGallery({ images, productName }: ProductImageGalleryProps) {
+export function ProductImageGallery({ images, productName, campaignName }: ProductImageGalleryProps) {
   const safeImages = useMemo(() => (images.length > 0 ? images : []), [images]);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -17,7 +19,12 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
 
   return (
     <div className="space-y-3">
-      <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-stone-100">
+      <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-stone-100">
+        {campaignName ? (
+          <span className="absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)] truncate rounded-md bg-red-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+            {campaignName}
+          </span>
+        ) : null}
         {/* eslint-disable-next-line @next/next/no-img-element -- Presigned URL dynamic host */}
         <img src={safeImages[activeIndex]} alt={productName} className="h-full w-full object-cover" />
       </div>

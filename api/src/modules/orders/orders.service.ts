@@ -21,6 +21,8 @@ import { OrderQueryService } from './order-query.service';
 import { OrderStatusPolicy } from './order-status.policy';
 import { ORDER_CART_PORT } from './ports/order-cart.port';
 import type { OrderCartPort } from './ports/order-cart.port';
+import { ORDER_PRICING_PORT } from './ports/order-pricing.port';
+import type { OrderPricingPort } from './ports/order-pricing.port';
 import { ORDER_INVENTORY_PORT } from './ports/order-inventory.port';
 import type { OrderInventoryPort } from './ports/order-inventory.port';
 import { ORDER_FULFILLMENT_PORT } from './ports/order-fulfillment.port';
@@ -45,6 +47,7 @@ export class OrdersService {
     @InjectRepository(AddressEntity)
     private readonly addressesRepository: Repository<AddressEntity>,
     @Inject(ORDER_CART_PORT) private readonly cartPort: OrderCartPort,
+    @Inject(ORDER_PRICING_PORT) private readonly pricingPort: OrderPricingPort,
     @Inject(ORDER_INVENTORY_PORT)
     private readonly inventoryPort: OrderInventoryPort,
     @Inject(ORDER_FULFILLMENT_PORT)
@@ -82,10 +85,6 @@ export class OrdersService {
       };
     }
 
-    const cartSnapshot = await this.cartPort.getCheckoutCart(
-      user.id,
-      payload.cart_id,
-    );
     const address = await this.addressesRepository.findOne({
       where: { id: payload.address_id, userId: user.id },
     });
@@ -109,6 +108,18 @@ export class OrdersService {
       const itemRepo = manager.getRepository(OrderItemEntity);
       const outboxRepo = manager.getRepository(OrderEventOutboxEntity);
 
+      const cartSnapshot = await this.cartPort.getCheckoutCart(
+        user.id,
+        payload.cart_id,
+        manager,
+      );
+      const priced = await this.pricingPort.priceCheckoutSnapshot(
+        user.id,
+        payload.cart_id,
+        cartSnapshot,
+        manager,
+      );
+
       const order = await orderRepo.save(
         orderRepo.create({
           userId: user.id,
@@ -116,14 +127,16 @@ export class OrdersService {
           status: OrderStatus.PENDING,
           paymentStatus: PaymentStatus.UNPAID,
           fulfillmentStatus: FulfillmentStatus.UNFULFILLED,
-          totalAmount: cartSnapshot.total_amount,
+          totalAmount: priced.total_amount,
+          discountTotal: priced.discount_total,
+          pricingSnapshot: priced.pricing_snapshot,
           shippingAddress: shippingAddressSnapshot,
           note: this.buildIdempotencyNote(payload.note, normalizedKey),
           idempotencyKey: normalizedKey,
         }),
       );
 
-      const items = cartSnapshot.items.map((item) =>
+      const items = priced.items.map((item) =>
         itemRepo.create({
           orderId: order.id,
           productId: item.product_id,
@@ -135,12 +148,21 @@ export class OrdersService {
       );
       await itemRepo.save(items);
 
+      await this.pricingPort.finalizeCouponAfterOrder(
+        user.id,
+        order.id,
+        priced,
+        manager,
+      );
+
       await outboxRepo.save(
         outboxRepo.create({
           orderId: order.id,
           eventType: OrderEventType.ORDER_CREATED,
           payload: {
             order_id: order.id,
+            discount_total: priced.discount_total,
+            pricing_snapshot: priced.pricing_snapshot,
             items: items.map((item) => ({
               product_id: item.productId,
               quantity: item.quantity,
@@ -228,6 +250,8 @@ export class OrdersService {
       payment_status: order.paymentStatus,
       payment_method: paymentMethods[orderId] ?? null,
       total_amount: order.totalAmount,
+      discount_total: order.discountTotal,
+      pricing_snapshot: order.pricingSnapshot,
       note: this.orderQueryService.sanitizeOrderNote(order.note),
       shipping_address: order.shippingAddress,
       items: items.map((item) => ({

@@ -26,6 +26,7 @@ async function loadProductsByIds(ids: string[]): Promise<Map<string, Product>> {
           name: p.name,
           price: p.price,
           image,
+          promotion: p.promotion,
         });
       } catch {
         /* skip missing products */

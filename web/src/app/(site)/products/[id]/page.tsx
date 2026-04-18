@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
+import { PromotionConditionsHint } from "@/components/promotions/PromotionConditionsHint";
 import { ProductImageGallery } from "@/components/products/ProductImageGallery";
 import { formatVnd, getProductByIdPublic, getProductStockPublic } from "@/lib/products-api";
 
@@ -41,12 +42,27 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </nav>
 
       <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
-        <ProductImageGallery images={images} productName={product.name} />
+        <ProductImageGallery
+          images={images}
+          productName={product.name}
+          campaignName={product.promotion?.campaign_name}
+        />
 
         <div className="flex flex-col justify-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">{product.category.name}</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-900">{product.name}</h1>
-          <p className="mt-4 text-2xl font-bold text-stone-900">{formatVnd(product.price)}</p>
+          {product.promotion ? (
+            <p className="mt-4 flex flex-wrap items-baseline gap-3">
+              <span className="text-lg font-medium text-stone-400 line-through">{formatVnd(product.promotion.list_price)}</span>
+              <span className="text-2xl font-bold text-stone-900">{formatVnd(product.promotion.sale_price)}</span>
+            </p>
+          ) : (
+            <p className="mt-4 text-2xl font-bold text-stone-900">{formatVnd(product.price)}</p>
+          )}
+          <PromotionConditionsHint
+            display={product.promotion?.conditions_display}
+            className="mt-2 max-w-xl text-xs leading-relaxed text-stone-600"
+          />
           <p className="mt-2 text-sm text-stone-600">
             {availableStock > 0 ? `Tồn kho: ${availableStock}` : "Tạm hết hàng"}
           </p>

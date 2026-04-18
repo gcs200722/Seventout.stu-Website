@@ -17,6 +17,11 @@ const cards = [
     href: "/admin/cms",
   },
   {
+    title: "Khuyến mãi",
+    description: "Coupon và chiến dịch (PROMOTION_READ / PROMOTION_MANAGE).",
+    href: "/admin/promotions",
+  },
+  {
     title: "Đơn hàng",
     description: "Kiểm tra trạng thái endpoint phân quyền ORDER_MANAGE.",
     href: "/admin/orders",

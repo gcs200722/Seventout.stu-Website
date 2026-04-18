@@ -4,6 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import { CategoryEntity } from '../categories/category.entity';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { StoragePort } from '../storage/storage.port';
+import { PromotionsApplicationService } from '../promotions/promotions.application.service';
 import { ProductEntity } from './product.entity';
 import { ProductsService } from './products.service';
 import { ProductSort } from './dto/list-products.query.dto';
@@ -63,6 +64,9 @@ describe('ProductsService', () => {
   let storageService: jest.Mocked<StoragePort>;
   let configService: jest.Mocked<ConfigService>;
   let dataSource: jest.Mocked<DataSource>;
+  let promotionsApplication: jest.Mocked<
+    Pick<PromotionsApplicationService, 'previewCatalogPromotionsForProducts'>
+  >;
 
   beforeEach(() => {
     productsRepository = {
@@ -92,6 +96,9 @@ describe('ProductsService', () => {
       query: jest.fn(),
       transaction: jest.fn(),
     } as unknown as jest.Mocked<DataSource>;
+    promotionsApplication = {
+      previewCatalogPromotionsForProducts: jest.fn().mockResolvedValue({}),
+    };
     service = new ProductsService(
       productsRepository,
       categoriesRepository,
@@ -99,6 +106,7 @@ describe('ProductsService', () => {
       storageService,
       configService,
       dataSource,
+      promotionsApplication as unknown as PromotionsApplicationService,
     );
   });
 

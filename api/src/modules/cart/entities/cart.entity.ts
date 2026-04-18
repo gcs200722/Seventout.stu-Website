@@ -22,6 +22,9 @@ export class CartEntity {
   @Column({ type: 'varchar', length: 20, default: CartStatus.ACTIVE })
   status: CartStatus;
 
+  @Column({ name: 'applied_coupon_id', type: 'uuid', nullable: true })
+  appliedCouponId: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

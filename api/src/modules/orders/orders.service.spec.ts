@@ -15,6 +15,7 @@ import { OrderEventDispatcherService } from './events/order-event-dispatcher.ser
 import { OrderQueryService } from './order-query.service';
 import { OrderStatusPolicy } from './order-status.policy';
 import { OrderCartPort } from './ports/order-cart.port';
+import { OrderPricingPort } from './ports/order-pricing.port';
 import { OrderFulfillmentPort } from './ports/order-fulfillment.port';
 import { OrderInventoryPort } from './ports/order-inventory.port';
 import { OrdersService } from './orders.service';
@@ -26,6 +27,7 @@ describe('OrdersService', () => {
   let orderItemsRepository: jest.Mocked<Repository<OrderItemEntity>>;
   let outboxRepository: jest.Mocked<Repository<OrderEventOutboxEntity>>;
   let cartPort: jest.Mocked<OrderCartPort>;
+  let pricingPort: jest.Mocked<OrderPricingPort>;
   let inventoryPort: jest.Mocked<OrderInventoryPort>;
   let fulfillmentPort: jest.Mocked<OrderFulfillmentPort>;
   let addressesRepository: jest.Mocked<Repository<AddressEntity>>;
@@ -62,6 +64,10 @@ describe('OrdersService', () => {
       getCheckoutCart: jest.fn(),
       clearCartAfterCheckout: jest.fn(),
     };
+    pricingPort = {
+      priceCheckoutSnapshot: jest.fn(),
+      finalizeCouponAfterOrder: jest.fn(),
+    };
     inventoryPort = {
       reserveStock: jest.fn(),
       releaseStock: jest.fn(),
@@ -94,6 +100,7 @@ describe('OrdersService', () => {
       outboxRepository,
       addressesRepository,
       cartPort,
+      pricingPort,
       inventoryPort,
       fulfillmentPort,
       dataSource,
@@ -107,6 +114,8 @@ describe('OrdersService', () => {
     ordersRepository.findOne.mockResolvedValue(null);
     cartPort.getCheckoutCart.mockResolvedValue({
       cart_id: 'c-1',
+      applied_coupon_id: null,
+      subtotal_amount: 1000,
       total_amount: 1000,
       items: [
         {
@@ -117,6 +126,31 @@ describe('OrdersService', () => {
           subtotal: 1000,
         },
       ],
+    });
+    pricingPort.priceCheckoutSnapshot.mockResolvedValue({
+      cart_id: 'c-1',
+      applied_coupon_id: null,
+      subtotal_amount: 1000,
+      total_amount: 1000,
+      items: [
+        {
+          product_id: 'p-1',
+          product_name: 'Hoodie',
+          price: 1000,
+          quantity: 1,
+          subtotal: 1000,
+        },
+      ],
+      discount_total: 0,
+      pricing_snapshot: {
+        subtotal_amount: 1000,
+        discount_total: 0,
+        total_amount: 1000,
+        stack_mode: 'BEST_OF',
+      },
+      record_coupon_usage: false,
+      winning_coupon_code: null,
+      coupon_discount_applied: 0,
     });
     addressesRepository.findOne.mockResolvedValue({
       id: 'a-1',
@@ -200,6 +234,8 @@ describe('OrdersService', () => {
     ordersRepository.findOne.mockResolvedValue(null);
     cartPort.getCheckoutCart.mockResolvedValue({
       cart_id: 'c-1',
+      applied_coupon_id: null,
+      subtotal_amount: 1000,
       total_amount: 1000,
       items: [],
     });
