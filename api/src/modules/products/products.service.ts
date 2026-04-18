@@ -18,6 +18,7 @@ import {
   ProductSort,
 } from './dto/list-products.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { PromotionsApplicationService } from '../promotions/promotions.application.service';
 import { STORAGE_PORT } from '../storage/storage.constants';
 import type { StoragePort } from '../storage/storage.port';
 
@@ -37,6 +38,17 @@ export interface ProductListItemResponse {
   available_stock: number;
   is_active: boolean;
   created_at: string;
+  promotion?: {
+    campaign_name: string;
+    list_price: number;
+    sale_price: number;
+    conditions_display?: {
+      min_quantity: number | null;
+      min_order_value: number | null;
+      scoped_to_products: boolean;
+      scoped_to_categories: boolean;
+    };
+  };
 }
 
 export interface ProductDetailResponse {
@@ -55,6 +67,17 @@ export interface ProductDetailResponse {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  promotion?: {
+    campaign_name: string;
+    list_price: number;
+    sale_price: number;
+    conditions_display?: {
+      min_quantity: number | null;
+      min_order_value: number | null;
+      scoped_to_products: boolean;
+      scoped_to_categories: boolean;
+    };
+  };
 }
 
 export interface ProductStockResponse {
@@ -85,6 +108,7 @@ export class ProductsService {
     private readonly storageService: StoragePort,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    private readonly promotionsApplication: PromotionsApplicationService,
   ) {
     this.imageUrlTtlSeconds = this.configService.get<number>(
       'AWS_S3_PRESIGNED_EXPIRES_SECONDS',
@@ -176,7 +200,7 @@ export class ProductsService {
       rows.map((item) => item.id),
     );
 
-    const items = await Promise.all(
+    const itemsBase = await Promise.all(
       rows.map(async (product) => ({
         id: product.id,
         name: product.name,
@@ -192,6 +216,41 @@ export class ProductsService {
         created_at: product.createdAt.toISOString(),
       })),
     );
+
+    let items = itemsBase;
+    try {
+      const previews =
+        await this.promotionsApplication.previewCatalogPromotionsForProducts(
+          itemsBase.map((i) => ({
+            productId: i.id,
+            categoryId: i.category.id,
+            unitPrice: i.price,
+          })),
+        );
+      items = itemsBase.map((i) => {
+        const preview = previews[i.id];
+        if (
+          !preview ||
+          preview.discount_amount <= 0 ||
+          !preview.campaign_name
+        ) {
+          return i;
+        }
+        return {
+          ...i,
+          promotion: {
+            campaign_name: preview.campaign_name,
+            list_price: preview.list_price,
+            sale_price: preview.sale_price,
+            ...(preview.conditions_display
+              ? { conditions_display: preview.conditions_display }
+              : {}),
+          },
+        };
+      });
+    } catch {
+      items = itemsBase;
+    }
 
     const payload = { items, total };
     this.listCache.set(cacheKey, {
@@ -224,7 +283,7 @@ export class ProductsService {
       },
     });
 
-    return {
+    const base: ProductDetailResponse = {
       id: product.id,
       name: product.name,
       slug: product.slug,
@@ -248,6 +307,35 @@ export class ProductsService {
       created_at: product.createdAt.toISOString(),
       updated_at: product.updatedAt.toISOString(),
     };
+
+    try {
+      const previews =
+        await this.promotionsApplication.previewCatalogPromotionsForProducts([
+          {
+            productId: product.id,
+            categoryId: product.category.id,
+            unitPrice: product.price,
+          },
+        ]);
+      const preview = previews[product.id];
+      if (preview && preview.discount_amount > 0 && preview.campaign_name) {
+        return {
+          ...base,
+          promotion: {
+            campaign_name: preview.campaign_name,
+            list_price: preview.list_price,
+            sale_price: preview.sale_price,
+            ...(preview.conditions_display
+              ? { conditions_display: preview.conditions_display }
+              : {}),
+          },
+        };
+      }
+    } catch {
+      /* promotion preview is best-effort */
+    }
+
+    return base;
   }
 
   async getProductStockById(productId: string): Promise<ProductStockResponse> {

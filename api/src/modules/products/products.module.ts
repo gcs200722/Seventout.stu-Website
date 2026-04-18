@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { CategoryEntity } from '../categories/category.entity';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
+import { PromotionsModule } from '../promotions/promotions.module';
 import { StorageModule } from '../storage/storage.module';
 import { ProductImageEntity } from './product-image.entity';
 import { ProductEntity } from './product.entity';
@@ -18,6 +19,7 @@ import { ProductsService } from './products.service';
       InventoryEntity,
     ]),
     AuthorizationModule,
+    PromotionsModule,
     StorageModule,
   ],
   controllers: [ProductsController],

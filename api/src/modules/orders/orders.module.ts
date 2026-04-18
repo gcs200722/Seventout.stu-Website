@@ -30,6 +30,7 @@ import {
   ORDER_PAYMENT_PORT,
 } from './ports/order-payment.port';
 import { ORDER_NOTIFICATION_PORT } from './ports/order-notification.port';
+import { PromotionsModule } from '../promotions/promotions.module';
 import { OrdersService } from './orders.service';
 
 @Module({
@@ -49,6 +50,7 @@ import { OrdersService } from './orders.service';
     FulfillmentModule,
     InventoryModule,
     NotificationModule,
+    PromotionsModule,
   ],
   controllers: [OrdersController],
   providers: [

@@ -32,6 +32,12 @@ export class OrderEntity {
   @Column({ name: 'total_amount', type: 'int', default: 0 })
   totalAmount: number;
 
+  @Column({ name: 'discount_total', type: 'int', default: 0 })
+  discountTotal: number;
+
+  @Column({ name: 'pricing_snapshot', type: 'jsonb', default: () => "'{}'" })
+  pricingSnapshot: Record<string, unknown>;
+
   @Column({ name: 'shipping_address', type: 'jsonb' })
   shippingAddress: ShippingAddressSnapshot;
 

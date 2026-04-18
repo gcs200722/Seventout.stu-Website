@@ -7,14 +7,57 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import FulfillmentSummaryCard from "@/components/orders/FulfillmentSummaryCard";
 import RefundSummaryCard from "@/components/orders/RefundSummaryCard";
 import ReturnRequestCard from "@/components/orders/ReturnRequestCard";
+import { DiscountLineItemsBreakdown } from "@/components/promotions/DiscountLineItemsBreakdown";
 import { getFulfillmentByOrderId, type FulfillmentDetail } from "@/lib/fulfillment-api";
 import { listRefunds } from "@/lib/refunds-api";
 import { createReturn, listReturns } from "@/lib/returns-api";
-import { cancelMyOrder, getMyOrderDetail } from "@/lib/orders-api";
+import {
+  cancelMyOrder,
+  getMyOrderDetail,
+  type OrderDiscountLineItem,
+  type OrderPricingSnapshot,
+} from "@/lib/orders-api";
 import { formatVnd } from "@/lib/products-api";
 
 function canCancelOrder(status: string) {
   return status === "PENDING" || status === "CONFIRMED";
+}
+
+function discountLineItemsFromSnapshot(snapshot: OrderPricingSnapshot | undefined): OrderDiscountLineItem[] {
+  const raw = snapshot?.discount_line_items;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.filter(
+    (row): row is OrderDiscountLineItem =>
+      typeof row === "object" &&
+      row !== null &&
+      "product_id" in row &&
+      typeof (row as { product_id: unknown }).product_id === "string" &&
+      "discount_amount" in row &&
+      typeof (row as { discount_amount: unknown }).discount_amount === "number",
+  );
+}
+
+function promotionSummaryFromSnapshot(snapshot: OrderPricingSnapshot | undefined): string | null {
+  if (!snapshot || typeof snapshot !== "object") {
+    return null;
+  }
+  const parts: string[] = [];
+  const coupon = snapshot.coupon;
+  if (coupon && typeof coupon === "object" && "code" in coupon && typeof (coupon as { code?: unknown }).code === "string") {
+    parts.push(`Coupon ${(coupon as { code: string }).code}`);
+  }
+  const auto = snapshot.auto_promotion;
+  if (
+    auto &&
+    typeof auto === "object" &&
+    "campaign_name" in auto &&
+    typeof (auto as { campaign_name?: unknown }).campaign_name === "string"
+  ) {
+    parts.push(String((auto as { campaign_name: string }).campaign_name));
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 export default function OrderDetailPage() {
@@ -145,6 +188,11 @@ export default function OrderDetailPage() {
     }
   }
 
+  const orderPromotionSummary = order ? promotionSummaryFromSnapshot(order.pricing_snapshot) : null;
+  const orderDiscountLines = order ? discountLineItemsFromSnapshot(order.pricing_snapshot) : [];
+  const hasOrderDiscountBreakdown =
+    orderDiscountLines.length > 0 && (order?.discount_total ?? 0) > 0;
+
   async function handleCreateReturn() {
     if (!order || returnReason.trim().length === 0) return;
     setActionLoading(true);
@@ -213,6 +261,30 @@ export default function OrderDetailPage() {
               <p className="mt-1">
                 <span className="font-semibold text-stone-900">Tổng tiền:</span> {formatVnd(order.total_amount)}
               </p>
+              {(order.discount_total ?? 0) > 0 ? (
+                hasOrderDiscountBreakdown ? (
+                  <div className="mt-2 space-y-2">
+                    <DiscountLineItemsBreakdown
+                      items={orderDiscountLines}
+                      className="rounded-md border border-stone-200 bg-white p-3"
+                    />
+                    <p className="text-sm">
+                      <span className="font-semibold text-stone-900">Tổng giảm giá:</span>{" "}
+                      <span className="text-emerald-700">−{formatVnd(order.discount_total ?? 0)}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-1">
+                    <span className="font-semibold text-stone-900">Giảm giá:</span>{" "}
+                    <span className="text-emerald-700">−{formatVnd(order.discount_total ?? 0)}</span>
+                  </p>
+                )
+              ) : null}
+              {orderPromotionSummary ? (
+                <p className="mt-1 text-xs text-stone-600">
+                  <span className="font-semibold text-stone-800">Khuyến mãi:</span> {orderPromotionSummary}
+                </p>
+              ) : null}
               <p className="mt-1">
                 <span className="font-semibold text-stone-900">Người nhận:</span> {order.shipping_address.full_name} (
                 {order.shipping_address.phone})

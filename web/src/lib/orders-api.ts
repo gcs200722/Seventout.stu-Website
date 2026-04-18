@@ -31,12 +31,32 @@ export type OrderListItem = {
   updatedAt: string;
 };
 
+export type OrderDiscountLineItem = {
+  product_id: string;
+  product_name?: string;
+  subtotal?: number;
+  discount_amount: number;
+  attribution?: "auto" | "coupon";
+};
+
+export type OrderPricingSnapshot = Record<string, unknown> & {
+  subtotal_amount?: number;
+  discount_total?: number;
+  total_amount?: number;
+  stack_mode?: string;
+  coupon?: { id?: string; code?: string; discount_amount?: number };
+  auto_promotion?: { campaign_id?: string; campaign_name?: string; discount_amount?: number };
+  discount_line_items?: OrderDiscountLineItem[];
+};
+
 export type OrderDetail = {
   id: string;
   status: OrderStatus;
   payment_status: PaymentStatus;
   payment_method?: "COD" | "VNPAY" | "STRIPE" | null;
   total_amount: number;
+  discount_total?: number;
+  pricing_snapshot?: OrderPricingSnapshot;
   shipping_address: {
     full_name: string;
     phone: string;

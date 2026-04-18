@@ -136,6 +136,12 @@ class EnvironmentVariables {
   @Min(60)
   @IsOptional()
   CMS_CACHE_TTL_SECONDS = 600;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(30)
+  @IsOptional()
+  PROMOTION_CACHE_TTL_SECONDS = 120;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
