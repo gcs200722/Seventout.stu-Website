@@ -45,7 +45,9 @@ export type PermissionCode =
   | "CMS_READ"
   | "CMS_EDIT"
   | "PROMOTION_READ"
-  | "PROMOTION_MANAGE";
+  | "PROMOTION_MANAGE"
+  | "REVIEW_READ"
+  | "REVIEW_MODERATE";
 
 export type ListUsersQuery = {
   page?: number;
@@ -416,4 +418,56 @@ export async function deleteAdminCategory(id: string) {
     method: "DELETE",
   });
   return response.message ?? "Category deleted successfully";
+}
+
+export type AdminReviewRow = {
+  id: string;
+  product_id: string;
+  user_id: string;
+  order_id: string;
+  rating: number;
+  content: string;
+  media_urls: string[];
+  status: string;
+  is_verified_purchase: boolean;
+  helpful_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ListAdminReviewsQuery = {
+  page?: number;
+  limit?: number;
+  status?: "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN";
+  product_id?: string;
+};
+
+function toAdminReviewsQueryString(query: ListAdminReviewsQuery = {}) {
+  const params = new URLSearchParams();
+  if (query.page !== undefined) params.set("page", String(query.page));
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  if (query.status) params.set("status", query.status);
+  if (query.product_id) params.set("product_id", query.product_id);
+  const qs = params.toString();
+  return qs.length > 0 ? `?${qs}` : "";
+}
+
+export async function listAdminReviews(query: ListAdminReviewsQuery = {}) {
+  return adminFetchPaginated<AdminReviewRow[]>(
+    `/admin/reviews${toAdminReviewsQueryString(query)}`,
+  );
+}
+
+export async function moderateAdminReview(
+  reviewId: string,
+  status: ListAdminReviewsQuery["status"],
+): Promise<AdminReviewRow> {
+  const response = await withRefresh<AdminReviewRow>(`/admin/reviews/${reviewId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+  if (!response.success || !response.data) {
+    throw new Error(response.message ?? "Không cập nhật được trạng thái đánh giá.");
+  }
+  return response.data;
 }

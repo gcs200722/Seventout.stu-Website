@@ -4,17 +4,35 @@ import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { PromotionConditionsHint } from "@/components/promotions/PromotionConditionsHint";
 import { ProductImageGallery } from "@/components/products/ProductImageGallery";
+import { ProductReviewsSection } from "@/components/products/ProductReviewsSection";
 import { formatVnd, getProductByIdPublic, getProductStockPublic } from "@/lib/products-api";
+import {
+  getProductReviewStatsPublic,
+  listProductReviewsPublic,
+  type ProductReview,
+  type ProductReviewStats,
+} from "@/lib/reviews-api";
 
 type PageProps = {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1200&q=80";
 
-export default async function ProductDetailPage({ params }: PageProps) {
+const emptyStats: ProductReviewStats = {
+  average_rating: 0,
+  total_reviews: 0,
+  rating_distribution: { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 },
+};
+
+export default async function ProductDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
+  const rawOrder = sp.order_id;
+  const orderIdForReview =
+    typeof rawOrder === "string" && rawOrder.trim().length > 0 ? rawOrder.trim() : undefined;
 
   let product: Awaited<ReturnType<typeof getProductByIdPublic>> | null = null;
   try {
@@ -30,6 +48,23 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const images = product.images.length > 0 ? product.images : [FALLBACK_IMAGE];
   const freshStock = await getProductStockPublic(product.id).catch(() => null);
   const availableStock = freshStock?.available_stock ?? product.available_stock;
+
+  let reviewStats = emptyStats;
+  let reviewList: { items: ProductReview[]; pagination: { page: number; limit: number; total: number } } = {
+    items: [],
+    pagination: { page: 1, limit: 10, total: 0 },
+  };
+  try {
+    const [stats, list] = await Promise.all([
+      getProductReviewStatsPublic(id),
+      listProductReviewsPublic(id, { page: 1, limit: 10, sort: "latest" }),
+    ]);
+    reviewStats = stats;
+    reviewList = list;
+  } catch {
+    reviewStats = emptyStats;
+    reviewList = { items: [], pagination: { page: 1, limit: 10, total: 0 } };
+  }
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -81,6 +116,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      <ProductReviewsSection
+        productId={product.id}
+        initialStats={reviewStats}
+        initialList={reviewList}
+        orderIdForReview={orderIdForReview}
+      />
     </div>
   );
 }

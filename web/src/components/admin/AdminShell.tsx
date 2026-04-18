@@ -17,6 +17,7 @@ const navItems = [
   { href: "/admin/products", label: "Sản phẩm" },
   { href: "/admin/inventory", label: "Tồn kho" },
   { href: "/admin/promotions", label: "Khuyến mãi" },
+  { href: "/admin/reviews", label: "Đánh giá" },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
