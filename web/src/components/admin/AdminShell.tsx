@@ -10,6 +10,7 @@ const navItems = [
   { href: "/admin", label: "Tổng quan" },
   { href: "/admin/users", label: "Người dùng" },
   { href: "/admin/categories", label: "Danh mục" },
+  { href: "/admin/cms", label: "CMS / Trang chủ" },
   { href: "/admin/orders", label: "Đơn hàng" },
   { href: "/admin/returns", label: "Đơn hoàn" },
   { href: "/admin/notifications", label: "Thông báo" },
@@ -40,7 +41,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           <nav className="mt-4 space-y-1.5">
             {navItems.map((item) => {
-              const active = pathname === item.href;
+              const active =
+                item.href === "/admin"
+                  ? pathname === "/admin"
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}
@@ -81,7 +85,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           <nav className="flex gap-2 overflow-x-auto border-b border-stone-200 px-4 py-2 md:hidden">
             {navItems.map((item) => {
-              const active = pathname === item.href;
+              const active =
+                item.href === "/admin"
+                  ? pathname === "/admin"
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}

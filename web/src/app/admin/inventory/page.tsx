@@ -49,7 +49,6 @@ export default function AdminInventoryPage() {
   const [listProductId, setListProductId] = useState("");
 
   const [detail, setDetail] = useState<AdminProductInventoryResponse | null>(null);
-  const [detailProductId, setDetailProductId] = useState("");
 
   const [movements, setMovements] = useState<AdminInventoryMovement[]>([]);
   const [movPage, setMovPage] = useState(1);
@@ -66,7 +65,6 @@ export default function AdminInventoryPage() {
   const [syncChannel, setSyncChannel] = useState<"shopee" | "tiktok">("shopee");
 
   const [loading, setLoading] = useState(true);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [movLoading, setMovLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,23 +155,6 @@ export default function AdminInventoryPage() {
   useEffect(() => {
     void loadMovements();
   }, [loadMovements]);
-
-  async function handleLoadDetail() {
-    if (!readAllowed || !detailProductId.trim()) {
-      return;
-    }
-    try {
-      setDetailLoading(true);
-      setError(null);
-      const data = await getAdminProductInventory(detailProductId.trim());
-      setDetail(data);
-    } catch (requestError) {
-      setDetail(null);
-      setError(requestError instanceof Error ? requestError.message : "Không tải chi tiết tồn kho.");
-    } finally {
-      setDetailLoading(false);
-    }
-  }
 
   async function handleAdjust() {
     if (!manageAllowed || !adjustProductId.trim()) {

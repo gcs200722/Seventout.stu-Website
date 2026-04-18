@@ -21,6 +21,7 @@ import { RefundsModule } from './modules/refunds/refunds.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UsersModule } from './modules/users/users.module';
+import { CmsModule } from './modules/cms/cms.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { UsersModule } from './modules/users/users.module';
     RefundsModule,
     QueueModule,
     StorageModule,
+    CmsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

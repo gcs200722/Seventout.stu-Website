@@ -130,6 +130,12 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   EMAIL_FROM?: string;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(60)
+  @IsOptional()
+  CMS_CACHE_TTL_SECONDS = 600;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
