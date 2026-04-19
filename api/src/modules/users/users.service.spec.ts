@@ -1,7 +1,9 @@
 import { NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { PermissionCode, UserRole } from '../authorization/authorization.types';
 import { PermissionEntity } from '../authorization/entities/permission.entity';
+import type { AuditWriterService } from '../audit/audit-writer.service';
 import { UserEntity } from './user.entity';
 import { UsersService } from './users.service';
 
@@ -9,6 +11,14 @@ describe('UsersService', () => {
   let service: UsersService;
   let usersRepository: jest.Mocked<Repository<UserEntity>>;
   let permissionsRepository: jest.Mocked<Repository<PermissionEntity>>;
+  let auditWriter: jest.Mocked<Pick<AuditWriterService, 'log'>>;
+
+  const adminActor: AuthenticatedUser = {
+    id: 'admin-1',
+    email: 'admin@e.com',
+    role: UserRole.ADMIN,
+    permissions: [],
+  };
 
   beforeEach(() => {
     usersRepository = {
@@ -21,7 +31,15 @@ describe('UsersService', () => {
       find: jest.fn(),
     } as unknown as jest.Mocked<Repository<PermissionEntity>>;
 
-    service = new UsersService(usersRepository, permissionsRepository);
+    auditWriter = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
+    service = new UsersService(
+      usersRepository,
+      permissionsRepository,
+      auditWriter as unknown as AuditWriterService,
+    );
   });
 
   it('should_return_user_list_when_list_users_called', async () => {
@@ -101,11 +119,15 @@ describe('UsersService', () => {
     } as unknown as UserEntity);
     usersRepository.save.mockResolvedValue({} as UserEntity);
 
-    await service.updateUser('u-1', {
-      first_name: 'Lê',
-      last_name: 'Thanh Tùng',
-      phone: '0326373527',
-    });
+    await service.updateUser(
+      'u-1',
+      {
+        first_name: 'Lê',
+        last_name: 'Thanh Tùng',
+        phone: '0326373527',
+      },
+      adminActor,
+    );
 
     expect(usersRepository.save.mock.calls[0][0]).toEqual(
       expect.objectContaining({
@@ -122,7 +144,7 @@ describe('UsersService', () => {
     } as unknown as UserEntity);
     usersRepository.softDelete.mockResolvedValue({} as never);
 
-    await service.softDeleteUser('u-1');
+    await service.softDeleteUser('u-1', adminActor);
 
     expect(usersRepository.softDelete.mock.calls[0][0]).toBe('u-1');
   });
@@ -142,10 +164,14 @@ describe('UsersService', () => {
       { code: PermissionCode.USER_READ } as PermissionEntity,
     ]);
 
-    await service.updateUserRole('u-1', {
-      role: UserRole.STAFF,
-      permissions: [PermissionCode.USER_READ],
-    });
+    await service.updateUserRole(
+      'u-1',
+      {
+        role: UserRole.STAFF,
+        permissions: [PermissionCode.USER_READ],
+      },
+      adminActor,
+    );
 
     expect(usersRepository.save.mock.calls[0][0]).toEqual(
       expect.objectContaining({

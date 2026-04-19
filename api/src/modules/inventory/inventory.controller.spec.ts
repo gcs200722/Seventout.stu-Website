@@ -1,5 +1,7 @@
 import { CanActivate } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { UserRole } from '../authorization/authorization.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthorizationGuard } from '../authorization/guards/authorization.guard';
 import { InventoryController } from './inventory.controller';
@@ -7,6 +9,13 @@ import { InventoryService } from './inventory.service';
 import { InventoryWebhookService } from './inventory-webhook.service';
 
 const allowGuard: CanActivate = { canActivate: () => true };
+
+const actor: AuthenticatedUser = {
+  id: 'u1',
+  email: 'a@test.com',
+  role: UserRole.ADMIN,
+  permissions: [],
+};
 
 describe('InventoryController', () => {
   let controller: InventoryController;
@@ -81,21 +90,30 @@ describe('InventoryController', () => {
 
   it('PATCH adjust delegates and returns message', async () => {
     inventoryService.adjustInventory.mockResolvedValue(undefined);
-    const result = await controller.adjustInventory('p-1', {
+    const result = await controller.adjustInventory(actor, 'p-1', {
       channel: 'internal',
       type: 'IN',
       quantity: 3,
       reason: 'Import',
     } as never);
     expect(result.message).toBe('Inventory adjusted successfully');
+    expect(inventoryService.adjustInventory).toHaveBeenCalledWith(
+      'p-1',
+      expect.any(Object),
+      actor,
+    );
   });
 
   it('POST sync delegates and returns message', async () => {
     inventoryService.requestSync.mockResolvedValue(undefined);
-    const result = await controller.syncInventory({
+    const result = await controller.syncInventory(actor, {
       product_id: 'p-1',
       channel: 'shopee',
     } as never);
+    expect(inventoryService.requestSync).toHaveBeenCalledWith(
+      { product_id: 'p-1', channel: 'shopee' },
+      actor,
+    );
     expect(result).toEqual({
       success: true,
       message: 'Inventory synced successfully',

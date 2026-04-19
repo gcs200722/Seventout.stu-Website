@@ -7,6 +7,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import {
+  AuditAction,
+  AuditEntityType,
+  type AuditActionCode,
+} from '../audit/audit.constants';
+import { AuditWriterService } from '../audit/audit-writer.service';
 import { ProductEntity } from '../products/product.entity';
 import { QUEUE_PORT } from '../queue/queue.constants';
 import type { QueuePort } from '../queue/queue.port';
@@ -29,6 +36,8 @@ type StockDeltaResult = {
   availableStock: number;
   reservedStock: number;
 };
+
+type InventoryAuditReason = 'order' | 'manual' | 'system';
 
 @Injectable()
 export class InventoryService {
@@ -55,6 +64,7 @@ export class InventoryService {
     @Inject(QUEUE_PORT)
     private readonly queuePort: QueuePort,
     private readonly dataSource: DataSource,
+    private readonly auditWriter: AuditWriterService,
   ) {}
 
   async listInventory(query: ListInventoryQueryDto): Promise<{
@@ -136,8 +146,11 @@ export class InventoryService {
   async adjustInventory(
     productId: string,
     payload: AdjustInventoryDto,
+    actor: AuthenticatedUser,
   ): Promise<void> {
     await this.ensureProductExists(productId);
+    let quantityBefore = 0;
+    let quantityAfter = 0;
     await this.dataSource.transaction(async (manager) => {
       const stock = await this.getOrCreateInventoryForUpdate(
         manager.getRepository(InventoryEntity),
@@ -159,6 +172,9 @@ export class InventoryService {
       stock.reservedStock = result.reservedStock;
       await manager.save(stock);
 
+      quantityBefore = result.beforeStock;
+      quantityAfter = result.afterStock;
+
       await manager.save(
         manager.create(InventoryMovementEntity, {
           productId,
@@ -174,6 +190,25 @@ export class InventoryService {
     });
 
     this.invalidateListCache();
+
+    const entityLabel = await this.resolveProductAuditLabel(productId);
+    await this.auditWriter.log({
+      action: AuditAction.INVENTORY_ADJUST,
+      entityType: AuditEntityType.INVENTORY,
+      entityId: productId,
+      actor,
+      entityLabel,
+      metadata: {
+        source: 'http',
+        product_id: productId,
+        channel: payload.channel,
+        quantity_before: quantityBefore,
+        quantity_after: quantityAfter,
+        reason: 'manual' as InventoryAuditReason,
+        movement_type: payload.type,
+        note: payload.reason,
+      },
+    });
   }
 
   async listMovements(query: ListInventoryMovementsQueryDto): Promise<{
@@ -209,7 +244,10 @@ export class InventoryService {
     return { items, total };
   }
 
-  async requestSync(payload: SyncInventoryDto): Promise<void> {
+  async requestSync(
+    payload: SyncInventoryDto,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
     const mapping = await this.mappingsRepository.findOne({
       where: {
         productId: payload.product_id,
@@ -229,18 +267,37 @@ export class InventoryService {
       attempts: 5,
       backoffMs: 2000,
     });
+
+    const syncLabel = `${await this.resolveProductAuditLabel(payload.product_id)} · ${payload.channel}`;
+    await this.auditWriter.log({
+      action: AuditAction.INVENTORY_SYNC,
+      entityType: AuditEntityType.INVENTORY,
+      entityId: payload.product_id,
+      actor,
+      entityLabel: syncLabel,
+      metadata: {
+        source: 'http',
+        product_id: payload.product_id,
+        channel: payload.channel,
+        reason: 'manual' as InventoryAuditReason,
+      },
+    });
   }
 
   async reserveFromOrder(
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void> {
     await this.changeInternalStock(
       productId,
       InventoryMovementType.RESERVE,
       quantity,
       reason,
+      false,
+      'order',
+      orderId,
     );
   }
 
@@ -248,12 +305,16 @@ export class InventoryService {
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void> {
     await this.changeInternalStock(
       productId,
       InventoryMovementType.RELEASE,
       quantity,
       reason,
+      false,
+      'order',
+      orderId,
     );
   }
 
@@ -261,6 +322,7 @@ export class InventoryService {
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void> {
     await this.changeInternalStock(
       productId,
@@ -268,6 +330,8 @@ export class InventoryService {
       quantity,
       reason,
       true,
+      'order',
+      orderId,
     );
   }
 
@@ -277,8 +341,12 @@ export class InventoryService {
     quantity: number,
     reason: string,
     consumeReserved = false,
+    stockReason: InventoryAuditReason = 'order',
+    orderId?: string,
   ): Promise<void> {
     await this.ensureProductExists(productId);
+    let beforeAvailable = 0;
+    let afterAvailable = 0;
     await this.dataSource.transaction(async (manager) => {
       const stock = await this.getOrCreateInventoryForUpdate(
         manager.getRepository(InventoryEntity),
@@ -331,6 +399,8 @@ export class InventoryService {
       }
 
       await manager.save(stock);
+      beforeAvailable = beforeStock;
+      afterAvailable = stock.availableStock;
       await manager.save(
         manager.create(InventoryMovementEntity, {
           productId,
@@ -346,6 +416,38 @@ export class InventoryService {
     });
 
     this.invalidateListCache();
+
+    let action: AuditActionCode = AuditAction.INVENTORY_ADJUST;
+    if (type === InventoryMovementType.OUT) {
+      action = AuditAction.INVENTORY_DEDUCT;
+    } else if (type === InventoryMovementType.RELEASE) {
+      action = AuditAction.INVENTORY_RESTOCK;
+    }
+
+    const entityLabel = await this.resolveProductAuditLabel(productId);
+    const metaBase: Record<string, unknown> = {
+      product_id: productId,
+      channel: InventoryChannel.INTERNAL,
+      quantity_before: beforeAvailable,
+      quantity_after: afterAvailable,
+      reason: stockReason,
+      reason_detail: reason,
+      movement_type: type,
+    };
+    if (orderId) {
+      metaBase['order_id'] = orderId;
+    }
+
+    await this.auditWriter.log({
+      action,
+      entityType: AuditEntityType.INVENTORY,
+      entityId: productId,
+      actor: null,
+      entityLabel,
+      metadata: metaBase,
+      before: orderId ? { quantity: beforeAvailable, order_id: orderId } : null,
+      after: orderId ? { quantity: afterAvailable, order_id: orderId } : null,
+    });
   }
 
   private async getOrCreateInventoryForUpdate(
@@ -405,6 +507,17 @@ export class InventoryService {
     if (!product || product.deletedAt) {
       throw new NotFoundException('Product not found');
     }
+  }
+
+  private async resolveProductAuditLabel(productId: string): Promise<string> {
+    const product = await this.productsRepository.findOne({
+      where: { id: productId },
+      select: { id: true, name: true, deletedAt: true },
+    });
+    if (!product || product.deletedAt) {
+      return `Sản phẩm #${productId.slice(0, 8)}`;
+    }
+    return `${product.name} · #${productId.slice(0, 8)}`;
   }
 
   private invalidateListCache(): void {

@@ -20,6 +20,7 @@ import {
   FailedDeliveryAction,
   HandleFailedDeliveryDto,
 } from './dto/handle-failed-delivery.dto';
+import { AuditWriterService } from '../audit/audit-writer.service';
 import { FulfillmentEntity } from './entities/fulfillment.entity';
 import { FulfillmentService } from './fulfillment.service';
 import { FulfillmentShippingStatus } from './fulfillment.types';
@@ -33,6 +34,7 @@ describe('FulfillmentService', () => {
   let outboxRepository: jest.Mocked<Repository<OrderEventOutboxEntity>>;
   let dataSource: jest.Mocked<DataSource>;
   let notificationService: jest.Mocked<NotificationService>;
+  let auditWriter: { log: jest.Mock };
 
   const user: AuthenticatedUser = {
     id: 'u-1',
@@ -87,6 +89,7 @@ describe('FulfillmentService', () => {
     notificationService = {
       notifyFulfillmentStatus: jest.fn(),
     } as never;
+    auditWriter = { log: jest.fn().mockResolvedValue(undefined) };
 
     service = new FulfillmentService(
       fulfillmentRepository,
@@ -96,6 +99,7 @@ describe('FulfillmentService', () => {
       outboxRepository,
       dataSource,
       notificationService,
+      auditWriter as unknown as AuditWriterService,
     );
   });
 

@@ -1,7 +1,17 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { UserRole } from '../authorization/authorization.types';
+import { AuditWriterService } from '../audit/audit-writer.service';
 import { CategoryEntity } from './category.entity';
 import { CategoriesService } from './categories.service';
+
+const testActor: AuthenticatedUser = {
+  id: 'user-1',
+  email: 'staff@test.com',
+  role: UserRole.STAFF,
+  permissions: [],
+};
 
 type QueryBuilderMock = {
   where: jest.Mock;
@@ -47,6 +57,7 @@ describe('CategoriesService', () => {
   let service: CategoriesService;
   let categoriesRepository: jest.Mocked<Repository<CategoryEntity>>;
   let dataSource: jest.Mocked<DataSource>;
+  let auditWriter: { log: jest.Mock };
 
   beforeEach(() => {
     categoriesRepository = {
@@ -61,7 +72,12 @@ describe('CategoriesService', () => {
     dataSource = {
       query: jest.fn(),
     } as unknown as jest.Mocked<DataSource>;
-    service = new CategoriesService(categoriesRepository, dataSource);
+    auditWriter = { log: jest.fn().mockResolvedValue(undefined) };
+    service = new CategoriesService(
+      categoriesRepository,
+      dataSource,
+      auditWriter as unknown as AuditWriterService,
+    );
   });
 
   it('should_throw_invalid_parent_when_create_category_with_non_root_parent', async () => {
@@ -71,7 +87,10 @@ describe('CategoriesService', () => {
     } as CategoryEntity);
 
     await expect(
-      service.createCategory({ name: 'Hoodie', parent_id: 'parent-2' }),
+      service.createCategory(
+        { name: 'Hoodie', parent_id: 'parent-2' },
+        testActor,
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -89,9 +108,9 @@ describe('CategoriesService', () => {
     } as CategoryEntity);
     categoriesRepository.count.mockResolvedValue(2);
 
-    await expect(service.softDeleteCategory('cat-1')).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.softDeleteCategory('cat-1', testActor),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('should_throw_category_in_use_when_soft_delete_category_assigned_to_products', async () => {
@@ -103,9 +122,9 @@ describe('CategoriesService', () => {
       .mockResolvedValueOnce([{ column_name: 'category_id' }])
       .mockResolvedValueOnce([{ count: 1 }]);
 
-    await expect(service.softDeleteCategory('cat-2')).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.softDeleteCategory('cat-2', testActor),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('should_use_cache_when_list_category_tree_called_within_ttl', async () => {
@@ -210,7 +229,10 @@ describe('CategoriesService', () => {
     categoriesRepository.findOne.mockResolvedValue(null);
 
     await expect(
-      service.createCategory({ name: 'Child', parent_id: 'missing-parent' }),
+      service.createCategory(
+        { name: 'Child', parent_id: 'missing-parent' },
+        testActor,
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -228,9 +250,16 @@ describe('CategoriesService', () => {
     const { create: createMock, save: saveMock } =
       repoMocks(categoriesRepository);
     createMock.mockImplementation((partial) => partial as CategoryEntity);
-    saveMock.mockResolvedValue({} as CategoryEntity);
+    saveMock.mockResolvedValue({
+      id: 'new-cat',
+      name: 'Tee Basic',
+      slug: 'tee-basic',
+      isActive: true,
+      level: 1,
+      parentId: null,
+    } as CategoryEntity);
 
-    await service.createCategory({ name: 'Tee Basic' });
+    await service.createCategory({ name: 'Tee Basic' }, testActor);
 
     expect(saveMock).toHaveBeenCalled();
     const saved = (saveMock.mock.calls[0] as [CategoryEntity])[0];
@@ -256,12 +285,22 @@ describe('CategoriesService', () => {
     const { create: createMock, save: saveMock } =
       repoMocks(categoriesRepository);
     createMock.mockImplementation((partial) => partial as CategoryEntity);
-    saveMock.mockResolvedValue({} as CategoryEntity);
-
-    await service.createCategory({
+    saveMock.mockResolvedValue({
+      id: 'child-cat',
       name: 'Hoodie',
-      parent_id: 'parent-1',
-    });
+      slug: 'hoodie',
+      isActive: true,
+      level: 2,
+      parentId: 'parent-1',
+    } as CategoryEntity);
+
+    await service.createCategory(
+      {
+        name: 'Hoodie',
+        parent_id: 'parent-1',
+      },
+      testActor,
+    );
 
     const saved = (saveMock.mock.calls[0] as [CategoryEntity])[0];
     expect(saved.level).toBe(2);
@@ -285,7 +324,7 @@ describe('CategoriesService', () => {
     });
 
     await expect(
-      service.createCategory({ name: 'Unique Name' }),
+      service.createCategory({ name: 'Unique Name' }, testActor),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -293,7 +332,7 @@ describe('CategoriesService', () => {
     categoriesRepository.findOne.mockResolvedValue(null);
 
     await expect(
-      service.updateCategory('missing', { name: 'X' }),
+      service.updateCategory('missing', { name: 'X' }, testActor),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -320,11 +359,15 @@ describe('CategoriesService', () => {
     const { save: saveMock } = repoMocks(categoriesRepository);
     saveMock.mockResolvedValue({} as CategoryEntity);
 
-    await service.updateCategory('c1', {
-      name: 'New Label',
-      description: 'd',
-      is_active: false,
-    });
+    await service.updateCategory(
+      'c1',
+      {
+        name: 'New Label',
+        description: 'd',
+        is_active: false,
+      },
+      testActor,
+    );
 
     expect(saveMock).toHaveBeenCalled();
   });
@@ -332,9 +375,9 @@ describe('CategoriesService', () => {
   it('should_throw_not_found_when_soft_delete_missing', async () => {
     categoriesRepository.findOne.mockResolvedValue(null);
 
-    await expect(service.softDeleteCategory('missing')).rejects.toThrow(
-      NotFoundException,
-    );
+    await expect(
+      service.softDeleteCategory('missing', testActor),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('should_soft_delete_when_no_children_and_not_in_use', async () => {
@@ -344,7 +387,7 @@ describe('CategoriesService', () => {
     categoriesRepository.count.mockResolvedValue(0);
     dataSource.query.mockResolvedValueOnce([]);
 
-    await service.softDeleteCategory('leaf-1');
+    await service.softDeleteCategory('leaf-1', testActor);
 
     const { softDelete: softDeleteMock } = repoMocks(categoriesRepository);
     expect(softDeleteMock).toHaveBeenCalledWith('leaf-1');
@@ -369,9 +412,16 @@ describe('CategoriesService', () => {
     const { create: createMock, save: saveMock } =
       repoMocks(categoriesRepository);
     createMock.mockImplementation((partial) => partial as CategoryEntity);
-    saveMock.mockResolvedValue({} as CategoryEntity);
+    saveMock.mockResolvedValue({
+      id: 'dup-cat',
+      name: 'Dup',
+      slug: 'dup-x',
+      isActive: true,
+      level: 1,
+      parentId: null,
+    } as CategoryEntity);
 
-    await service.createCategory({ name: 'Dup' });
+    await service.createCategory({ name: 'Dup' }, testActor);
 
     const saved = (saveMock.mock.calls[0] as [CategoryEntity])[0];
     expect(saved.slug).toMatch(/dup-/);

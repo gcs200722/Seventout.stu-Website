@@ -19,6 +19,8 @@ import {
   RefreshTokenPayload,
 } from './auth.types';
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
+import { AuditAction, AuditEntityType } from '../audit/audit.constants';
+import { AuditWriterService } from '../audit/audit-writer.service';
 
 @Injectable()
 export class AuthService {
@@ -29,6 +31,7 @@ export class AuthService {
     private readonly refreshTokensRepository: Repository<RefreshTokenEntity>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly auditWriter: AuditWriterService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<{ user_id: string }> {
@@ -67,20 +70,55 @@ export class AuthService {
       loginDto.password,
     );
     const tokens = await this.issueTokenPair(user);
+    await this.auditWriter.log({
+      action: AuditAction.LOGIN,
+      entityType: AuditEntityType.AUTH,
+      entityId: user.id,
+      actor: this.toAuditActor(user),
+      entityLabel: user.email,
+      metadata: {
+        source: 'http',
+      },
+      before: null,
+      after: null,
+    });
     return {
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
     };
   }
 
-  async logout(userId: string): Promise<void> {
+  async logout(user: AuthenticatedUser): Promise<void> {
     await this.refreshTokensRepository
       .createQueryBuilder()
       .update(RefreshTokenEntity)
       .set({ revokedAt: new Date() })
-      .where('user_id = :userId', { userId })
+      .where('user_id = :userId', { userId: user.id })
       .andWhere('revoked_at IS NULL')
       .execute();
+
+    await this.auditWriter.log({
+      action: AuditAction.LOGOUT,
+      entityType: AuditEntityType.AUTH,
+      entityId: user.id,
+      actor: user,
+      entityLabel: user.email,
+      metadata: {
+        source: 'http',
+      },
+      before: null,
+      after: null,
+    });
+  }
+
+  private toAuditActor(user: UserEntity): AuthenticatedUser {
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      permissions:
+        user.permissions?.map((permission) => String(permission.code)) ?? [],
+    };
   }
 
   async getMe(user: AuthenticatedUser): Promise<{

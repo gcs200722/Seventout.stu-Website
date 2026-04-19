@@ -18,6 +18,7 @@ import { OrderCartPort } from './ports/order-cart.port';
 import { OrderPricingPort } from './ports/order-pricing.port';
 import { OrderFulfillmentPort } from './ports/order-fulfillment.port';
 import { OrderInventoryPort } from './ports/order-inventory.port';
+import type { AuditWriterService } from '../audit/audit-writer.service';
 import { OrdersService } from './orders.service';
 import { OrderEventType, OrderStatus, PaymentStatus } from './orders.types';
 
@@ -35,6 +36,7 @@ describe('OrdersService', () => {
   let eventDispatcher: jest.Mocked<OrderEventDispatcherService>;
   let statusPolicy: jest.Mocked<OrderStatusPolicy>;
   let orderQueryService: jest.Mocked<OrderQueryService>;
+  let auditWriter: jest.Mocked<Pick<AuditWriterService, 'log'>>;
 
   const user: AuthenticatedUser = {
     id: 'u-1',
@@ -94,6 +96,10 @@ describe('OrdersService', () => {
       sanitizeOrderNote: jest.fn((note) => (note ?? '') as never),
     } as never;
 
+    auditWriter = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
     service = new OrdersService(
       ordersRepository,
       orderItemsRepository,
@@ -107,6 +113,7 @@ describe('OrdersService', () => {
       eventDispatcher,
       statusPolicy,
       orderQueryService,
+      auditWriter as unknown as AuditWriterService,
     );
   });
 
@@ -289,8 +296,14 @@ describe('OrdersService', () => {
     statusPolicy.ensureValidTransition.mockImplementation(() => {
       throw new BadRequestException();
     });
+    const staff: AuthenticatedUser = {
+      id: 'staff-1',
+      email: 's@e.com',
+      role: UserRole.STAFF,
+      permissions: [],
+    };
     await expect(
-      service.updateStatus('o-1', { status: OrderStatus.SHIPPED }),
+      service.updateStatus('o-1', { status: OrderStatus.SHIPPED }, staff),
     ).rejects.toThrow(BadRequestException);
 
     const ensureValidTransitionMock =

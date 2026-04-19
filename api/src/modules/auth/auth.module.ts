@@ -11,9 +11,11 @@ import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenCleanupService } from './refresh-token-cleanup.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
+    AuditModule,
     JwtModule.register({}),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     TypeOrmModule.forFeature([

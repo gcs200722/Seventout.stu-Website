@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuditModule } from '../audit/audit.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { ProductEntity } from '../products/product.entity';
 import { QueueModule } from '../queue/queue.module';
@@ -25,6 +26,7 @@ import { InventoryWebhookEventEntity } from './entities/inventory-webhook-event.
       InventoryWebhookEventEntity,
     ]),
     AuthorizationModule,
+    AuditModule,
     QueueModule,
   ],
   controllers: [InventoryController],

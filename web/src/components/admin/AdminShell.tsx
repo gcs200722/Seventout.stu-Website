@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useNotificationsFeed } from "@/components/notifications/useNotificationsFeed";
 
-const navItems = [
+const baseNavItems = [
   { href: "/admin", label: "Tổng quan" },
   { href: "/admin/users", label: "Người dùng" },
   { href: "/admin/categories", label: "Danh mục" },
@@ -23,6 +23,10 @@ const navItems = [
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, role, permissions, logout } = useAuth();
+  const canReadAudit = role === "ADMIN" || permissions.includes("AUDIT_READ");
+  const navItems = canReadAudit
+    ? [...baseNavItems, { href: "/admin/activity", label: "Nhật ký hoạt động" }]
+    : baseNavItems;
   const canReadNotifications =
     role === "ADMIN" || role === "STAFF" || permissions.includes("NOTIFICATION_READ");
   const { total } = useNotificationsFeed({

@@ -1,11 +1,20 @@
 import { CanActivate } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { UserRole } from '../authorization/authorization.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthorizationGuard } from '../authorization/guards/authorization.guard';
 import { CategoriesController } from './categories.controller';
 import { CategoriesService } from './categories.service';
 
 const allowGuard: CanActivate = { canActivate: () => true };
+
+const actor: AuthenticatedUser = {
+  id: 'u1',
+  email: 'a@test.com',
+  role: UserRole.ADMIN,
+  permissions: [],
+};
 
 describe('CategoriesController', () => {
   let controller: CategoriesController;
@@ -75,34 +84,53 @@ describe('CategoriesController', () => {
 
   it('POST createCategory returns message', async () => {
     categoriesService.createCategory.mockResolvedValue(undefined);
-    const result = await controller.createCategory({
+    const result = await controller.createCategory(actor, {
       name: 'Cat',
     } as never);
     expect(result).toEqual({
       success: true,
       message: 'Category created successfully',
     });
+    expect(categoriesService.createCategory).toHaveBeenCalledWith(
+      { name: 'Cat' },
+      actor,
+    );
   });
 
   it('PUT updateCategory returns message', async () => {
     categoriesService.updateCategory.mockResolvedValue(undefined);
-    const result = await controller.updateCategory('id-1', {
+    const result = await controller.updateCategory(actor, 'id-1', {
       name: 'X',
     } as never);
     expect(result.message).toBe('Category updated successfully');
+    expect(categoriesService.updateCategory).toHaveBeenCalledWith(
+      'id-1',
+      { name: 'X' },
+      actor,
+    );
   });
 
   it('PATCH patchCategory delegates to updateCategory', async () => {
     categoriesService.updateCategory.mockResolvedValue(undefined);
-    await controller.patchCategory('id-1', { is_active: false } as never);
-    expect(categoriesService.updateCategory).toHaveBeenCalledWith('id-1', {
+    await controller.patchCategory(actor, 'id-1', {
       is_active: false,
-    });
+    } as never);
+    expect(categoriesService.updateCategory).toHaveBeenCalledWith(
+      'id-1',
+      {
+        is_active: false,
+      },
+      actor,
+    );
   });
 
   it('DELETE deleteCategory returns message', async () => {
     categoriesService.softDeleteCategory.mockResolvedValue(undefined);
-    const result = await controller.deleteCategory('id-1');
+    const result = await controller.deleteCategory(actor, 'id-1');
     expect(result.message).toBe('Category deleted successfully');
+    expect(categoriesService.softDeleteCategory).toHaveBeenCalledWith(
+      'id-1',
+      actor,
+    );
   });
 });
