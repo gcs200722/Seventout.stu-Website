@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
+import { ProductDetailWishlist } from "@/components/wishlist/ProductDetailWishlist";
 import { PromotionConditionsHint } from "@/components/promotions/PromotionConditionsHint";
 import { ProductImageGallery } from "@/components/products/ProductImageGallery";
 import { ProductReviewsSection } from "@/components/products/ProductReviewsSection";
@@ -105,8 +106,9 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
             {product.description?.trim().length > 0 ? product.description : "Sản phẩm chưa có mô tả chi tiết."}
           </p>
 
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <AddToCartButton productId={product.id} />
+            <ProductDetailWishlist productId={product.id} />
             <Link
               href={`/products?category_id=${product.category.id}`}
               className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCart } from "@/components/cart/CartProvider";
+import { useWishlist } from "@/components/wishlist/WishlistProvider";
 import {
   type NotificationItem,
 } from "@/lib/notifications-api";
@@ -15,6 +16,17 @@ import type { CategoryNavLink } from "@/lib/categories-api";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 15000;
 const NOTIFICATION_PANEL_POLL_INTERVAL_MS = 5000;
+
+function IconHeartOutline({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path
+        d="M12 21s-7-4.6-9.6-9.4C-.4 8.5 2.1 4 6.5 4c2.2 0 3.9 1.1 5.5 3C13.6 5.1 15.3 4 17.5 4 21.9 4 24.4 8.5 21.6 11.6 19 16.4 12 21 12 21Z"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function IconCart({ className }: { className?: string }) {
   return (
@@ -128,6 +140,7 @@ type HeaderProps = {
 export function Header({ categoryLinks = [] }: HeaderProps) {
   const { user, isAuthenticated, loading, logout } = useAuth();
   const { cartCount } = useCart();
+  const { wishlistCount } = useWishlist();
   const [showAuthPanel, setShowAuthPanel] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [openNotifications, setOpenNotifications] = useState(false);
@@ -238,6 +251,20 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
                 </span>
               ) : null}
             </Link>
+            {isAuthenticated ? (
+              <Link
+                href="/wishlist"
+                aria-label={wishlistCount > 0 ? `Yêu thích, ${wishlistCount} sản phẩm` : "Yêu thích"}
+                className="relative rounded-full border border-stone-300 p-2 text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700"
+              >
+                <IconHeartOutline className="h-5 w-5" />
+                {wishlistCount > 0 ? (
+                  <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-stone-900 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
+                    {wishlistCount > 99 ? "99+" : wishlistCount}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
             {isAuthenticated ? (
               <div className="relative">
                 <button
