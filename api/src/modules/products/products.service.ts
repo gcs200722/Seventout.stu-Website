@@ -19,6 +19,10 @@ import {
 } from './dto/list-products.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PromotionsApplicationService } from '../promotions/promotions.application.service';
+import {
+  extractS3ObjectKeyFromStoredImage,
+  resolveStoredProductImageUrl,
+} from '../storage/product-stored-image-url';
 import { STORAGE_PORT } from '../storage/storage.constants';
 import type { StoragePort } from '../storage/storage.port';
 
@@ -637,59 +641,21 @@ export class ProductsService {
   }
 
   private async resolveImageUrl(value: string): Promise<string> {
-    const key = this.extractS3ObjectKey(value);
-    if (!key) {
-      return value;
-    }
-    return this.storageService.getSignedDownloadUrl(
-      key,
+    return resolveStoredProductImageUrl(
+      this.storageService,
+      value,
       this.imageUrlTtlSeconds,
+      this.configService.get<string>('AWS_S3_BUCKET'),
     );
   }
 
-  private extractS3ObjectKey(value: string): string | null {
-    if (!value) {
-      return null;
-    }
-    if (!/^https?:\/\//i.test(value)) {
-      return value;
-    }
-
-    try {
-      const url = new URL(value);
-      if (!url.hostname.endsWith('amazonaws.com')) {
-        return null;
-      }
-
-      const rawPath = url.pathname.replace(/^\/+/, '');
-      if (!rawPath) {
-        return null;
-      }
-
-      const bucket = this.configService.get<string>('AWS_S3_BUCKET');
-      const host = url.hostname.toLowerCase();
-      const isPathStyleHost =
-        host === 's3.amazonaws.com' || host.startsWith('s3.');
-
-      let key = rawPath;
-      if (bucket && isPathStyleHost) {
-        const bucketPrefix = `${bucket}/`;
-        if (key === bucket) {
-          return null;
-        }
-        if (key.startsWith(bucketPrefix)) {
-          key = key.slice(bucketPrefix.length);
-        }
-      }
-
-      return key ? decodeURIComponent(key) : null;
-    } catch {
-      return null;
-    }
-  }
-
   private normalizeStoredImageValue(value: string): string {
-    return this.extractS3ObjectKey(value) ?? value;
+    return (
+      extractS3ObjectKeyFromStoredImage(
+        value,
+        this.configService.get<string>('AWS_S3_BUCKET'),
+      ) ?? value
+    );
   }
 
   private async getInternalStockMap(

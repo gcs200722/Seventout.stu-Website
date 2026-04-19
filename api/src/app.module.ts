@@ -23,6 +23,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { UsersModule } from './modules/users/users.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     StorageModule,
     CmsModule,
     ReviewsModule,
+    WishlistModule,
   ],
   controllers: [AppController],
   providers: [AppService],
