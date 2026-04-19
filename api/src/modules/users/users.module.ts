@@ -5,11 +5,13 @@ import { PermissionEntity } from '../authorization/entities/permission.entity';
 import { UserEntity } from './user.entity';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity, PermissionEntity]),
     AuthorizationModule,
+    AuditModule,
   ],
   controllers: [UsersController],
   providers: [UsersService],

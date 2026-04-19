@@ -65,9 +65,13 @@ describe('OrdersController', () => {
 
   it('PATCH /orders/:id/status returns data envelope', async () => {
     ordersService.updateStatus.mockResolvedValue({ status: 'COMPLETED' });
-    const result = await controller.updateOrderStatus('o-1', {
-      status: 'COMPLETED',
-    } as never);
+    const result = await controller.updateOrderStatus(
+      { id: 'staff-1' } as never,
+      'o-1',
+      {
+        status: 'COMPLETED',
+      } as never,
+    );
     expect(result).toEqual({ success: true, data: { status: 'COMPLETED' } });
   });
 });

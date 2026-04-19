@@ -5,15 +5,18 @@ export interface OrderInventoryPort {
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void>;
   releaseStock(
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void>;
   commitStockOut(
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void>;
 }

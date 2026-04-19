@@ -35,6 +35,7 @@ export class OrderEventDispatcherService {
           item.product_id,
           item.quantity,
           'Order created: reserve stock',
+          payload.order_id,
         );
       }
       await this.paymentPort.onOrderCreated(payload.order_id);
@@ -49,6 +50,7 @@ export class OrderEventDispatcherService {
           item.product_id,
           item.quantity,
           'Order canceled: release stock',
+          payload.order_id,
         );
       }
       await this.paymentPort.onOrderCanceled(payload.order_id);
@@ -62,6 +64,7 @@ export class OrderEventDispatcherService {
           item.product_id,
           item.quantity,
           'Order completed: commit stock out',
+          payload.order_id,
         );
       }
       await this.paymentPort.onOrderCompleted(payload.order_id);

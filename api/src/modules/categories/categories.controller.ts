@@ -11,6 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionCode, UserRole } from '../authorization/authorization.types';
 import { RequirePermissions } from '../authorization/decorators/require-permissions.decorator';
@@ -62,8 +64,11 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Create category' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.CATEGORY_MANAGE)
-  async createCategory(@Body() payload: CreateCategoryDto) {
-    await this.categoriesService.createCategory(payload);
+  async createCategory(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() payload: CreateCategoryDto,
+  ) {
+    await this.categoriesService.createCategory(payload, actor);
     return {
       success: true,
       message: 'Category created successfully',
@@ -77,10 +82,11 @@ export class CategoriesController {
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.CATEGORY_MANAGE)
   async updateCategory(
+    @CurrentUser() actor: AuthenticatedUser,
     @Param('id') id: string,
     @Body() payload: UpdateCategoryDto,
   ) {
-    await this.categoriesService.updateCategory(id, payload);
+    await this.categoriesService.updateCategory(id, payload, actor);
     return {
       success: true,
       message: 'Category updated successfully',
@@ -94,10 +100,11 @@ export class CategoriesController {
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.CATEGORY_MANAGE)
   async patchCategory(
+    @CurrentUser() actor: AuthenticatedUser,
     @Param('id') id: string,
     @Body() payload: UpdateCategoryDto,
   ) {
-    await this.categoriesService.updateCategory(id, payload);
+    await this.categoriesService.updateCategory(id, payload, actor);
     return {
       success: true,
       message: 'Category updated successfully',
@@ -110,8 +117,11 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Soft delete category' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.CATEGORY_MANAGE)
-  async deleteCategory(@Param('id') id: string) {
-    await this.categoriesService.softDeleteCategory(id);
+  async deleteCategory(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    await this.categoriesService.softDeleteCategory(id, actor);
     return {
       success: true,
       message: 'Category deleted successfully',

@@ -1,5 +1,8 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource, Repository, type EntityManager } from 'typeorm';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { UserRole } from '../authorization/authorization.types';
+import { AuditWriterService } from '../audit/audit-writer.service';
 import { ProductEntity } from '../products/product.entity';
 import { QueuePort } from '../queue/queue.port';
 import { InventoryService } from './inventory.service';
@@ -7,6 +10,13 @@ import { InventoryEntity } from './entities/inventory.entity';
 import { InventoryMovementEntity } from './entities/inventory-movement.entity';
 import { ProductChannelMappingEntity } from './entities/product-channel-mapping.entity';
 import { InventoryChannel, InventoryMovementType } from './inventory.types';
+
+const staffActor: AuthenticatedUser = {
+  id: 'staff-1',
+  email: 'staff@test.com',
+  role: UserRole.STAFF,
+  permissions: [],
+};
 
 describe('InventoryService', () => {
   let service: InventoryService;
@@ -16,6 +26,7 @@ describe('InventoryService', () => {
   let mappingsRepository: jest.Mocked<Repository<ProductChannelMappingEntity>>;
   let queuePort: jest.Mocked<QueuePort>;
   let dataSource: jest.Mocked<DataSource>;
+  let auditWriter: { log: jest.Mock };
 
   beforeEach(() => {
     productsRepository = {
@@ -40,6 +51,7 @@ describe('InventoryService', () => {
     dataSource = {
       transaction: jest.fn(),
     } as never;
+    auditWriter = { log: jest.fn().mockResolvedValue(undefined) };
 
     service = new InventoryService(
       productsRepository,
@@ -48,6 +60,7 @@ describe('InventoryService', () => {
       mappingsRepository,
       queuePort,
       dataSource,
+      auditWriter as unknown as AuditWriterService,
     );
   });
 
@@ -55,10 +68,13 @@ describe('InventoryService', () => {
     mappingsRepository.findOne.mockResolvedValue(null);
 
     await expect(
-      service.requestSync({
-        product_id: 'cbf6ccf8-b249-4a7c-ad5e-a4bc2f5909a4',
-        channel: InventoryChannel.SHOPEE,
-      }),
+      service.requestSync(
+        {
+          product_id: 'cbf6ccf8-b249-4a7c-ad5e-a4bc2f5909a4',
+          channel: InventoryChannel.SHOPEE,
+        },
+        staffActor,
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -72,10 +88,13 @@ describe('InventoryService', () => {
       isActive: true,
     } as ProductChannelMappingEntity);
 
-    await service.requestSync({
-      product_id: 'p-1',
-      channel: InventoryChannel.SHOPEE,
-    });
+    await service.requestSync(
+      {
+        product_id: 'p-1',
+        channel: InventoryChannel.SHOPEE,
+      },
+      staffActor,
+    );
 
     expect(queuePort.enqueue.mock.calls[0]).toEqual([
       'inventory.sync.stock',
@@ -217,12 +236,16 @@ describe('InventoryService', () => {
       },
     );
 
-    await service.adjustInventory('p-1', {
-      channel: InventoryChannel.INTERNAL,
-      type: InventoryMovementType.IN,
-      quantity: 5,
-      reason: 'Import',
-    });
+    await service.adjustInventory(
+      'p-1',
+      {
+        channel: InventoryChannel.INTERNAL,
+        type: InventoryMovementType.IN,
+        quantity: 5,
+        reason: 'Import',
+      },
+      staffActor,
+    );
 
     expect(dataSource.transaction.mock.calls.length).toBeGreaterThan(0);
   });
@@ -263,12 +286,16 @@ describe('InventoryService', () => {
     );
 
     await expect(
-      service.adjustInventory('p-1', {
-        channel: InventoryChannel.INTERNAL,
-        type: InventoryMovementType.OUT,
-        quantity: 5,
-        reason: 'Sell',
-      }),
+      service.adjustInventory(
+        'p-1',
+        {
+          channel: InventoryChannel.INTERNAL,
+          type: InventoryMovementType.OUT,
+          quantity: 5,
+          reason: 'Sell',
+        },
+        staffActor,
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 

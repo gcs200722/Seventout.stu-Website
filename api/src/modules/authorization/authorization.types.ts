@@ -40,6 +40,7 @@ export enum PermissionCode {
   REVIEW_READ = 'REVIEW_READ',
   REVIEW_MODERATE = 'REVIEW_MODERATE',
   WISHLIST_MANAGE = 'WISHLIST_MANAGE',
+  AUDIT_READ = 'AUDIT_READ',
 }
 
 export const AUTHZ_ROLES_KEY = 'authz_roles';

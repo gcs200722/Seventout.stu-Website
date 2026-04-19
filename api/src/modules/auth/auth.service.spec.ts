@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { UserRole } from '../authorization/authorization.types';
 import { UserEntity } from '../users/user.entity';
+import type { AuditWriterService } from '../audit/audit-writer.service';
 import { AuthService } from './auth.service';
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
 
@@ -18,6 +19,7 @@ describe('AuthService', () => {
   let usersRepository: jest.Mocked<Repository<UserEntity>>;
   let refreshTokensRepository: jest.Mocked<Repository<RefreshTokenEntity>>;
   let jwtService: jest.Mocked<JwtService>;
+  let auditWriter: jest.Mocked<Pick<AuditWriterService, 'log'>>;
   let usersCreateMock: jest.Mock;
   let refreshCreateQueryBuilderMock: jest.Mock;
   let jwtSignAsyncMock: jest.Mock;
@@ -61,6 +63,10 @@ describe('AuthService', () => {
       verifyAsync: jest.fn(),
     } as unknown as jest.Mocked<JwtService>;
 
+    auditWriter = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
     const envMap = {
       PASSWORD_SALT_ROUNDS: 10,
       JWT_ACCESS_SECRET: 'access-secret',
@@ -78,6 +84,7 @@ describe('AuthService', () => {
       refreshTokensRepository,
       jwtService,
       configService,
+      auditWriter as unknown as AuditWriterService,
     );
   });
 
@@ -173,10 +180,16 @@ describe('AuthService', () => {
       refresh_token: 'refresh-token',
     });
     expect(jwtSignAsyncMock).toHaveBeenCalledTimes(2);
+    expect(auditWriter.log).toHaveBeenCalled();
   });
 
   it('should_revoke_active_tokens_when_logout', async () => {
-    await service.logout('user-1');
+    await service.logout({
+      id: 'user-1',
+      email: 'u@e.com',
+      role: UserRole.USER,
+      permissions: [],
+    });
 
     expect(refreshCreateQueryBuilderMock).toHaveBeenCalled();
     expect(queryBuilderMock.where).toHaveBeenCalledWith('user_id = :userId', {

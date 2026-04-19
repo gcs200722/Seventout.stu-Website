@@ -10,23 +10,41 @@ export class OrderInventoryAdapter implements OrderInventoryPort {
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void> {
-    await this.inventoryService.reserveFromOrder(productId, quantity, reason);
+    await this.inventoryService.reserveFromOrder(
+      productId,
+      quantity,
+      reason,
+      orderId,
+    );
   }
 
   async releaseStock(
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void> {
-    await this.inventoryService.releaseFromOrder(productId, quantity, reason);
+    await this.inventoryService.releaseFromOrder(
+      productId,
+      quantity,
+      reason,
+      orderId,
+    );
   }
 
   async commitStockOut(
     productId: string,
     quantity: number,
     reason: string,
+    orderId?: string,
   ): Promise<void> {
-    await this.inventoryService.commitOutFromOrder(productId, quantity, reason);
+    await this.inventoryService.commitOutFromOrder(
+      productId,
+      quantity,
+      reason,
+      orderId,
+    );
   }
 }

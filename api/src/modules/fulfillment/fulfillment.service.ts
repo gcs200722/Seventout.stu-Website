@@ -8,6 +8,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
+import { AuditAction, AuditEntityType } from '../audit/audit.constants';
+import { AuditWriterService } from '../audit/audit-writer.service';
 import { NotificationService } from '../notification/notification.service';
 import { OrderEventOutboxEntity } from '../orders/entities/order-event-outbox.entity';
 import { OrderItemEntity } from '../orders/entities/order-item.entity';
@@ -77,6 +79,7 @@ export class FulfillmentService {
     private readonly outboxRepository: Repository<OrderEventOutboxEntity>,
     private readonly dataSource: DataSource,
     private readonly notificationService: NotificationService,
+    private readonly auditWriter: AuditWriterService,
   ) {}
 
   async createFulfillment(
@@ -335,6 +338,11 @@ export class FulfillmentService {
       });
     }
 
+    const beforeOrderCancel = {
+      status: order.status,
+      payment_status: order.paymentStatus,
+    };
+
     fulfillment.status = FulfillmentShippingStatus.CANCELLED;
     fulfillment.note = this.appendActionNote(
       fulfillment.note,
@@ -351,24 +359,46 @@ export class FulfillmentService {
       where: { orderId: order.id },
     });
 
-    return this.dataSource.transaction(async (manager) => {
-      const savedFulfillment = await manager.save(fulfillment);
-      await manager.save(order);
-      await manager.save(
-        manager.create(OrderEventOutboxEntity, {
-          orderId: order.id,
-          eventType: OrderEventType.ORDER_CANCELED,
-          payload: {
-            order_id: order.id,
-            items: orderItems.map((item) => ({
-              product_id: item.productId,
-              quantity: item.quantity,
-            })),
-          },
-        }),
-      );
-      return savedFulfillment;
+    const savedFulfillment = await this.dataSource.transaction(
+      async (manager) => {
+        const savedFf = await manager.save(fulfillment);
+        await manager.save(order);
+        await manager.save(
+          manager.create(OrderEventOutboxEntity, {
+            orderId: order.id,
+            eventType: OrderEventType.ORDER_CANCELED,
+            payload: {
+              order_id: order.id,
+              items: orderItems.map((item) => ({
+                product_id: item.productId,
+                quantity: item.quantity,
+              })),
+            },
+          }),
+        );
+        return savedFf;
+      },
+    );
+
+    await this.auditWriter.log({
+      action: AuditAction.CANCEL,
+      entityType: AuditEntityType.ORDER,
+      entityId: order.id,
+      actor: null,
+      entityLabel: this.orderAuditLabel(order),
+      metadata: {
+        source: 'system',
+        trigger: 'fulfillment_failed_delivery',
+        fulfillment_id: fulfillment.id,
+      },
+      before: beforeOrderCancel,
+      after: {
+        status: order.status,
+        payment_status: order.paymentStatus,
+      },
     });
+
+    return savedFulfillment;
   }
 
   private ensureValidTransition(
@@ -400,6 +430,12 @@ export class FulfillmentService {
       });
     }
 
+    const beforeSnapshot = {
+      status: order.status,
+      payment_status: order.paymentStatus,
+      fulfillment_status: order.fulfillmentStatus,
+    };
+
     order.fulfillmentStatus =
       FULFILLMENT_TO_ORDER_FULFILLMENT_STATUS_MAP[fulfillment.status];
     const mappedOrderStatus =
@@ -415,6 +451,43 @@ export class FulfillmentService {
     }
 
     await this.ordersRepository.save(order);
+
+    const afterSnapshot = {
+      status: order.status,
+      payment_status: order.paymentStatus,
+      fulfillment_status: order.fulfillmentStatus,
+    };
+
+    if (JSON.stringify(beforeSnapshot) === JSON.stringify(afterSnapshot)) {
+      return;
+    }
+
+    const orderStatusChanged = beforeSnapshot.status !== afterSnapshot.status;
+    await this.auditWriter.log({
+      action: orderStatusChanged
+        ? AuditAction.STATUS_CHANGE
+        : AuditAction.UPDATE,
+      entityType: AuditEntityType.ORDER,
+      entityId: order.id,
+      actor: null,
+      entityLabel: this.orderAuditLabel(order),
+      metadata: {
+        source: 'system',
+        trigger: 'fulfillment_sync',
+        fulfillment_id: fulfillment.id,
+        fulfillment_shipping_status: fulfillment.status,
+      },
+      before: beforeSnapshot,
+      after: afterSnapshot,
+    });
+  }
+
+  private orderAuditLabel(
+    order: Pick<OrderEntity, 'id' | 'totalAmount'>,
+  ): string {
+    const total = order.totalAmount ?? 0;
+    const money = `${Number(total).toLocaleString('vi-VN')} ₫`;
+    return `Đơn hàng ${money} · #${order.id.slice(0, 8)}`;
   }
 
   private ensureValidOrderTransition(

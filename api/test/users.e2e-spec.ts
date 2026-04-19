@@ -208,9 +208,11 @@ describe('UsersController (e2e)', () => {
         message: 'User updated successfully',
       });
 
-    expect(usersService.updateUser).toHaveBeenCalledWith('user-1', {
-      phone: '0326373527',
-    });
+    expect(usersService.updateUser).toHaveBeenCalledWith(
+      'user-1',
+      { phone: '0326373527' },
+      expect.objectContaining({ id: 'user-1', role: UserRole.USER }),
+    );
   });
 
   it('DELETE /users/:id should soft delete user for admin', async () => {

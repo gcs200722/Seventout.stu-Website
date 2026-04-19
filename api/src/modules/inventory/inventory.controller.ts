@@ -11,6 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionCode, UserRole } from '../authorization/authorization.types';
 import { RequirePermissions } from '../authorization/decorators/require-permissions.decorator';
@@ -87,10 +89,11 @@ export class InventoryController {
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.INVENTORY_MANAGE)
   async adjustInventory(
+    @CurrentUser() actor: AuthenticatedUser,
     @Param('product_id', ParseUUIDPipe) productId: string,
     @Body() payload: AdjustInventoryDto,
   ) {
-    await this.inventoryService.adjustInventory(productId, payload);
+    await this.inventoryService.adjustInventory(productId, payload, actor);
     return {
       success: true,
       message: 'Inventory adjusted successfully',
@@ -101,8 +104,11 @@ export class InventoryController {
   @ApiOperation({ summary: 'Enqueue inventory sync to external channel' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.INVENTORY_MANAGE)
-  async syncInventory(@Body() payload: SyncInventoryDto) {
-    await this.inventoryService.requestSync(payload);
+  async syncInventory(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() payload: SyncInventoryDto,
+  ) {
+    await this.inventoryService.requestSync(payload, actor);
     return {
       success: true,
       message: 'Inventory synced successfully',

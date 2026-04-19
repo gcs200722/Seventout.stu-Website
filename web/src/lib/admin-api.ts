@@ -47,7 +47,8 @@ export type PermissionCode =
   | "PROMOTION_READ"
   | "PROMOTION_MANAGE"
   | "REVIEW_READ"
-  | "REVIEW_MODERATE";
+  | "REVIEW_MODERATE"
+  | "AUDIT_READ";
 
 export type ListUsersQuery = {
   page?: number;
@@ -468,6 +469,61 @@ export async function moderateAdminReview(
   });
   if (!response.success || !response.data) {
     throw new Error(response.message ?? "Không cập nhật được trạng thái đánh giá.");
+  }
+  return response.data;
+}
+
+export type AdminAuditLogRow = {
+  id: string;
+  actor_id: string | null;
+  actor_role: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type AdminAuditLogDetail = AdminAuditLogRow & {
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+};
+
+export type ListAdminAuditLogsQuery = {
+  page?: number;
+  limit?: number;
+  actor_id?: string;
+  action?: string;
+  entity_type?: string;
+  entity_id?: string;
+  date_from?: string;
+  date_to?: string;
+};
+
+function toAdminAuditLogsQueryString(query: ListAdminAuditLogsQuery = {}) {
+  const params = new URLSearchParams();
+  if (query.page !== undefined) params.set("page", String(query.page));
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  if (query.actor_id) params.set("actor_id", query.actor_id);
+  if (query.action) params.set("action", query.action);
+  if (query.entity_type) params.set("entity_type", query.entity_type);
+  if (query.entity_id) params.set("entity_id", query.entity_id);
+  if (query.date_from) params.set("date_from", query.date_from);
+  if (query.date_to) params.set("date_to", query.date_to);
+  const qs = params.toString();
+  return qs.length > 0 ? `?${qs}` : "";
+}
+
+export async function listAdminAuditLogs(query: ListAdminAuditLogsQuery = {}) {
+  return adminFetchPaginated<AdminAuditLogRow[]>(
+    `/admin/audit-logs${toAdminAuditLogsQueryString(query)}`,
+  );
+}
+
+export async function getAdminAuditLogDetail(id: string): Promise<AdminAuditLogDetail> {
+  const response = await withRefresh<AdminAuditLogDetail>(`/admin/audit-logs/${id}`);
+  if (!response.success || !response.data) {
+    throw new Error(response.message ?? "Không tải được chi tiết nhật ký.");
   }
   return response.data;
 }

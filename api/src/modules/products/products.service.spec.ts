@@ -1,6 +1,9 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource, Repository } from 'typeorm';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { UserRole } from '../authorization/authorization.types';
+import { AuditWriterService } from '../audit/audit-writer.service';
 import { CategoryEntity } from '../categories/category.entity';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { StoragePort } from '../storage/storage.port';
@@ -56,6 +59,13 @@ function buildSlugQueryBuilderMock(): {
   return builder;
 }
 
+const testActor: AuthenticatedUser = {
+  id: 'admin-1',
+  email: 'admin@test.com',
+  role: UserRole.ADMIN,
+  permissions: [],
+};
+
 describe('ProductsService', () => {
   let service: ProductsService;
   let productsRepository: jest.Mocked<Repository<ProductEntity>>;
@@ -67,6 +77,7 @@ describe('ProductsService', () => {
   let promotionsApplication: jest.Mocked<
     Pick<PromotionsApplicationService, 'previewCatalogPromotionsForProducts'>
   >;
+  let auditWriter: { log: jest.Mock };
 
   beforeEach(() => {
     productsRepository = {
@@ -99,6 +110,7 @@ describe('ProductsService', () => {
     promotionsApplication = {
       previewCatalogPromotionsForProducts: jest.fn().mockResolvedValue({}),
     };
+    auditWriter = { log: jest.fn().mockResolvedValue(undefined) };
     service = new ProductsService(
       productsRepository,
       categoriesRepository,
@@ -107,6 +119,7 @@ describe('ProductsService', () => {
       configService,
       dataSource,
       promotionsApplication as unknown as PromotionsApplicationService,
+      auditWriter as unknown as AuditWriterService,
     );
   });
 
@@ -130,37 +143,49 @@ describe('ProductsService', () => {
     } as CategoryEntity);
 
     await expect(
-      service.createProduct({
-        name: 'X',
-        description: 'Y',
-        price: 1,
-        category_id: 'cat-1',
-        images: ['https://cdn.example.com/a.jpg'],
-      }),
+      service.createProduct(
+        {
+          name: 'X',
+          description: 'Y',
+          price: 1,
+          category_id: 'cat-1',
+          images: ['https://cdn.example.com/a.jpg'],
+        },
+        [],
+        testActor,
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('should_reject_create_when_images_missing', async () => {
     await expect(
-      service.createProduct({
-        name: 'X',
-        description: 'Y',
-        price: 1,
-        category_id: 'cat-1',
-      }),
+      service.createProduct(
+        {
+          name: 'X',
+          description: 'Y',
+          price: 1,
+          category_id: 'cat-1',
+        },
+        [],
+        testActor,
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('should_reject_create_when_category_not_found', async () => {
     categoriesRepository.findOne.mockResolvedValue(null);
     await expect(
-      service.createProduct({
-        name: 'X',
-        description: 'Y',
-        price: 1,
-        category_id: 'cat-1',
-        images: ['https://cdn.example.com/a.jpg'],
-      }),
+      service.createProduct(
+        {
+          name: 'X',
+          description: 'Y',
+          price: 1,
+          category_id: 'cat-1',
+          images: ['https://cdn.example.com/a.jpg'],
+        },
+        [],
+        testActor,
+      ),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -178,7 +203,7 @@ describe('ProductsService', () => {
     } as ProductEntity);
     dataSource.query.mockResolvedValue([{ count: 1 }]);
 
-    await expect(service.softDeleteProduct('p-1')).rejects.toThrow(
+    await expect(service.softDeleteProduct('p-1', testActor)).rejects.toThrow(
       BadRequestException,
     );
   });
@@ -190,16 +215,16 @@ describe('ProductsService', () => {
     dataSource.query.mockResolvedValue([{ count: 0 }]);
     productsRepository.softDelete.mockResolvedValue({ affected: 1 } as never);
 
-    await service.softDeleteProduct('p-1');
+    await service.softDeleteProduct('p-1', testActor);
 
     expect(productsRepository.softDelete.mock.calls[0]).toEqual(['p-1']);
   });
 
   it('should_throw_not_found_when_soft_delete_product_missing', async () => {
     productsRepository.findOne.mockResolvedValue(null);
-    await expect(service.softDeleteProduct('missing')).rejects.toThrow(
-      NotFoundException,
-    );
+    await expect(
+      service.softDeleteProduct('missing', testActor),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('should_use_list_cache_within_ttl', async () => {
@@ -345,16 +370,20 @@ describe('ProductsService', () => {
       return fn(manager);
     }) as never);
 
-    await service.createProduct({
-      name: 'Hoodie',
-      description: 'Nice',
-      price: 100000,
-      category_id: 'sub-1',
-      images: [
-        'https://cdn.example.com/1.jpg',
-        'https://cdn.example.com/2.jpg',
-      ],
-    });
+    await service.createProduct(
+      {
+        name: 'Hoodie',
+        description: 'Nice',
+        price: 100000,
+        category_id: 'sub-1',
+        images: [
+          'https://cdn.example.com/1.jpg',
+          'https://cdn.example.com/2.jpg',
+        ],
+      },
+      [],
+      testActor,
+    );
 
     expect(dataSource.transaction.mock.calls.length).toBeGreaterThan(0);
   });
@@ -401,6 +430,7 @@ describe('ProductsService', () => {
           buffer: Buffer.from('file'),
         },
       ],
+      testActor,
     );
 
     expect(storageService.putObject.mock.calls).toHaveLength(1);
@@ -438,6 +468,7 @@ describe('ProductsService', () => {
       'p-1',
       { images: ['https://a.test/1.jpg'] },
       [],
+      testActor,
     );
 
     expect(dataSource.transaction.mock.calls.length).toBeGreaterThan(0);

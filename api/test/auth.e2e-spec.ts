@@ -141,6 +141,7 @@ describe('AuthController (e2e)', () => {
         success: true,
         data: {
           access_token: 'new-access-token',
+          refresh_token: 'new-refresh-token',
         },
       });
   });

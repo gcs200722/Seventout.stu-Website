@@ -92,10 +92,11 @@ export class OrdersController {
   @RequireRoles(UserRole.STAFF, UserRole.ADMIN)
   @RequirePermissions(PermissionCode.ORDER_MANAGE)
   async updateOrderStatus(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) orderId: string,
     @Body() payload: UpdateOrderStatusDto,
   ) {
-    const data = await this.ordersService.updateStatus(orderId, payload);
+    const data = await this.ordersService.updateStatus(orderId, payload, user);
     return { success: true, data };
   }
 }

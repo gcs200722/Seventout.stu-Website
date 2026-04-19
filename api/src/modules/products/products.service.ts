@@ -7,6 +7,13 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import {
+  AuditAction,
+  AuditEntityType,
+  type AuditActionCode,
+} from '../audit/audit.constants';
+import { AuditWriterService } from '../audit/audit-writer.service';
 import { CategoryEntity } from '../categories/category.entity';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { InventoryChannel } from '../inventory/inventory.types';
@@ -113,6 +120,7 @@ export class ProductsService {
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
     private readonly promotionsApplication: PromotionsApplicationService,
+    private readonly auditWriter: AuditWriterService,
   ) {
     this.imageUrlTtlSeconds = this.configService.get<number>(
       'AWS_S3_PRESIGNED_EXPIRES_SECONDS',
@@ -363,6 +371,7 @@ export class ProductsService {
   async createProduct(
     payload: CreateProductDto,
     imageFiles: UploadedImageFile[] = [],
+    actor: AuthenticatedUser,
   ): Promise<void> {
     const uploadedKeys = await this.uploadImages(payload.name, imageFiles);
     const imageUrls = [
@@ -394,6 +403,7 @@ export class ProductsService {
     const slug = await this.ensureUniqueSlug(this.slugify(payload.name));
     const thumbnail = imageUrls[0];
 
+    let newProductId = '';
     await this.dataSource.transaction(async (manager) => {
       const product = manager.create(ProductEntity, {
         name: payload.name,
@@ -405,6 +415,7 @@ export class ProductsService {
         isActive: true,
       });
       const saved = await manager.save(product);
+      newProductId = saved.id;
 
       const imageEntities = imageUrls.map((url, index) =>
         manager.create(ProductImageEntity, {
@@ -418,12 +429,28 @@ export class ProductsService {
     });
 
     this.invalidateListCache();
+
+    await this.auditWriter.log({
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.PRODUCT,
+      entityId: newProductId,
+      actor,
+      entityLabel: payload.name,
+      metadata: { source: 'http' },
+      before: null,
+      after: {
+        name: payload.name,
+        price: payload.price,
+        is_active: true,
+      },
+    });
   }
 
   async updateProduct(
     id: string,
     payload: UpdateProductDto,
     imageFiles: UploadedImageFile[] = [],
+    actor: AuthenticatedUser,
   ): Promise<void> {
     const product = await this.productsRepository.findOne({
       where: { id },
@@ -432,6 +459,8 @@ export class ProductsService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
+
+    const beforeSnapshot = this.productAuditSnapshot(product);
 
     const resolvedName = payload.name ?? product.name;
     const uploadedKeys = await this.uploadImages(resolvedName, imageFiles);
@@ -494,9 +523,29 @@ export class ProductsService {
       await this.productsRepository.save(product);
     }
     this.invalidateListCache();
+
+    const afterSnapshot = this.productAuditSnapshot(product);
+    if (JSON.stringify(beforeSnapshot) !== JSON.stringify(afterSnapshot)) {
+      let action: AuditActionCode = AuditAction.UPDATE;
+      if (beforeSnapshot.price !== afterSnapshot.price) {
+        action = AuditAction.PRICE_CHANGE;
+      } else if (beforeSnapshot.is_active !== afterSnapshot.is_active) {
+        action = AuditAction.STATUS_CHANGE;
+      }
+      await this.auditWriter.log({
+        action,
+        entityType: AuditEntityType.PRODUCT,
+        entityId: id,
+        actor,
+        entityLabel: product.name,
+        metadata: { source: 'http' },
+        before: beforeSnapshot,
+        after: afterSnapshot,
+      });
+    }
   }
 
-  async softDeleteProduct(id: string): Promise<void> {
+  async softDeleteProduct(id: string, actor: AuthenticatedUser): Promise<void> {
     const product = await this.productsRepository.findOne({
       where: { id },
     });
@@ -514,6 +563,29 @@ export class ProductsService {
 
     await this.productsRepository.softDelete(id);
     this.invalidateListCache();
+
+    await this.auditWriter.log({
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.PRODUCT,
+      entityId: id,
+      actor,
+      entityLabel: product.name,
+      metadata: { source: 'http' },
+      before: this.productAuditSnapshot(product),
+      after: null,
+    });
+  }
+
+  private productAuditSnapshot(product: ProductEntity): {
+    name: string;
+    price: number;
+    is_active: boolean;
+  } {
+    return {
+      name: product.name,
+      price: product.price,
+      is_active: product.isActive,
+    };
   }
 
   private async countOrderItemsForProduct(productId: string): Promise<number> {

@@ -34,6 +34,8 @@ import {
   PaymentStatus,
   ShippingAddressSnapshot,
 } from './orders.types';
+import { AuditAction, AuditEntityType } from '../audit/audit.constants';
+import { AuditWriterService } from '../audit/audit-writer.service';
 
 @Injectable()
 export class OrdersService {
@@ -56,6 +58,7 @@ export class OrdersService {
     private readonly eventDispatcher: OrderEventDispatcherService,
     private readonly statusPolicy: OrderStatusPolicy,
     private readonly orderQueryService: OrderQueryService,
+    private readonly auditWriter: AuditWriterService,
   ) {}
 
   async createOrder(
@@ -175,6 +178,22 @@ export class OrdersService {
 
     await this.cartPort.clearCartAfterCheckout(user.id, payload.cart_id);
 
+    await this.auditWriter.log({
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.ORDER,
+      entityId: createdOrder.id,
+      actor: user,
+      entityLabel: this.orderAuditLabel(createdOrder),
+      metadata: { source: 'http' },
+      before: null,
+      after: {
+        status: createdOrder.status,
+        payment_status: createdOrder.paymentStatus,
+        total_amount: createdOrder.totalAmount,
+        idempotency_key: normalizedKey,
+      },
+    });
+
     return {
       order_id: createdOrder.id,
       status: createdOrder.status,
@@ -274,6 +293,10 @@ export class OrdersService {
       });
     }
     const items = await this.orderItemsRepository.find({ where: { orderId } });
+    const beforeSnapshot = {
+      status: order.status,
+      payment_status: order.paymentStatus,
+    };
     order.status = OrderStatus.CANCELED;
     order.canceledAt = new Date();
 
@@ -293,11 +316,26 @@ export class OrdersService {
         }),
       );
     });
+
+    await this.auditWriter.log({
+      action: AuditAction.CANCEL,
+      entityType: AuditEntityType.ORDER,
+      entityId: orderId,
+      actor: user,
+      entityLabel: this.orderAuditLabel(order),
+      metadata: { source: 'http' },
+      before: beforeSnapshot,
+      after: {
+        status: order.status,
+        payment_status: order.paymentStatus,
+      },
+    });
   }
 
   async updateStatus(
     orderId: string,
     payload: UpdateOrderStatusDto,
+    actor: AuthenticatedUser,
   ): Promise<{ status: OrderStatus }> {
     const order = await this.ordersRepository.findOne({
       where: { id: orderId },
@@ -308,12 +346,30 @@ export class OrdersService {
         details: { code: 'ORDER_NOT_FOUND' },
       });
     }
+    const beforeSnapshot = {
+      status: order.status,
+      payment_status: order.paymentStatus,
+    };
     this.statusPolicy.ensureValidTransition(order.status, payload.status);
     order.status = payload.status;
     if (payload.status === OrderStatus.COMPLETED) {
       order.completedAt = new Date();
     }
     await this.ordersRepository.save(order);
+
+    await this.auditWriter.log({
+      action: AuditAction.STATUS_CHANGE,
+      entityType: AuditEntityType.ORDER,
+      entityId: orderId,
+      actor,
+      entityLabel: this.orderAuditLabel(order),
+      metadata: { source: 'http' },
+      before: beforeSnapshot,
+      after: {
+        status: order.status,
+        payment_status: order.paymentStatus,
+      },
+    });
 
     if (payload.status === OrderStatus.COMPLETED) {
       const items = await this.orderItemsRepository.find({
@@ -359,6 +415,7 @@ export class OrdersService {
     if (paymentStatus === PaymentStatus.PAID) {
       await this.fulfillmentPort.onOrderPaymentSucceeded(orderId);
     }
+
     return { payment_status: order.paymentStatus };
   }
 
@@ -386,28 +443,50 @@ export class OrdersService {
     }
   }
 
-  async reserveStock(productId: string, quantity: number): Promise<void> {
+  async reserveStock(
+    productId: string,
+    quantity: number,
+    orderId?: string,
+  ): Promise<void> {
     await this.inventoryPort.reserveStock(
       productId,
       quantity,
       'Order created: reserve stock',
+      orderId,
     );
   }
 
-  async releaseStock(productId: string, quantity: number): Promise<void> {
+  async releaseStock(
+    productId: string,
+    quantity: number,
+    orderId?: string,
+  ): Promise<void> {
     await this.inventoryPort.releaseStock(
       productId,
       quantity,
       'Order canceled: release stock',
+      orderId,
     );
   }
 
-  async completeStockOut(productId: string, quantity: number): Promise<void> {
+  async completeStockOut(
+    productId: string,
+    quantity: number,
+    orderId?: string,
+  ): Promise<void> {
     await this.inventoryPort.commitStockOut(
       productId,
       quantity,
       'Order completed: commit stock out',
+      orderId,
     );
+  }
+
+  private orderAuditLabel(
+    order: Pick<OrderEntity, 'id' | 'totalAmount'>,
+  ): string {
+    const money = `${order.totalAmount.toLocaleString('vi-VN')} ₫`;
+    return `Đơn hàng ${money} · #${order.id.slice(0, 8)}`;
   }
 
   private async guardOrderAccess(

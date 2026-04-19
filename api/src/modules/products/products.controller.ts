@@ -20,6 +20,8 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionCode, UserRole } from '../authorization/authorization.types';
 import { RequirePermissions } from '../authorization/decorators/require-permissions.decorator';
@@ -115,10 +117,11 @@ export class ProductsController {
     },
   })
   async createProduct(
+    @CurrentUser() actor: AuthenticatedUser,
     @Body() payload: CreateProductDto,
     @UploadedFiles() files: UploadedImageFile[],
   ) {
-    await this.productsService.createProduct(payload, files ?? []);
+    await this.productsService.createProduct(payload, files ?? [], actor);
     return {
       success: true,
       message: 'Product created successfully',
@@ -159,11 +162,12 @@ export class ProductsController {
     },
   })
   async updateProduct(
+    @CurrentUser() actor: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() payload: UpdateProductDto,
     @UploadedFiles() files: UploadedImageFile[],
   ) {
-    await this.productsService.updateProduct(id, payload, files ?? []);
+    await this.productsService.updateProduct(id, payload, files ?? [], actor);
     return {
       success: true,
       message: 'Product updated successfully',
@@ -176,8 +180,11 @@ export class ProductsController {
   @ApiOperation({ summary: 'Soft delete product' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
-  async softDeleteProduct(@Param('id', ParseUUIDPipe) id: string) {
-    await this.productsService.softDeleteProduct(id);
+  async softDeleteProduct(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.productsService.softDeleteProduct(id, actor);
     return {
       success: true,
       message: 'Product deleted successfully',

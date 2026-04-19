@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuditModule } from '../audit/audit.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { NotificationModule } from '../notification/notification.module';
 import { OrderEventOutboxEntity } from '../orders/entities/order-event-outbox.entity';
@@ -21,6 +22,7 @@ import { FulfillmentEntity } from './entities/fulfillment.entity';
     ]),
     AuthorizationModule,
     NotificationModule,
+    AuditModule,
   ],
   controllers: [FulfillmentController],
   providers: [FulfillmentService],

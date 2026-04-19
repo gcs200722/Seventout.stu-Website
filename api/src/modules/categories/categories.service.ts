@@ -5,6 +5,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, IsNull, Repository } from 'typeorm';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import {
+  AuditAction,
+  AuditEntityType,
+  type AuditActionCode,
+} from '../audit/audit.constants';
+import { AuditWriterService } from '../audit/audit-writer.service';
 import { CategoryEntity } from './category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { ListCategoriesQueryDto } from './dto/list-categories.query.dto';
@@ -49,6 +56,7 @@ export class CategoriesService {
     @InjectRepository(CategoryEntity)
     private readonly categoriesRepository: Repository<CategoryEntity>,
     private readonly dataSource: DataSource,
+    private readonly auditWriter: AuditWriterService,
   ) {}
 
   async listCategories(
@@ -121,7 +129,10 @@ export class CategoriesService {
     return this.toDetailResponse(category);
   }
 
-  async createCategory(payload: CreateCategoryDto): Promise<void> {
+  async createCategory(
+    payload: CreateCategoryDto,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
     const parent = await this.resolveParent(payload.parent_id);
     const level: 1 | 2 = parent ? 2 : 1;
     const slug = await this.ensureUniqueSlug(this.slugify(payload.name));
@@ -137,15 +148,32 @@ export class CategoriesService {
       isActive: true,
     });
 
-    await this.categoriesRepository.save(category);
+    const saved = await this.categoriesRepository.save(category);
     this.invalidateTreeCache();
+
+    await this.auditWriter.log({
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.CATEGORY,
+      entityId: saved.id,
+      actor,
+      entityLabel: saved.name,
+      metadata: { source: 'http' },
+      before: null,
+      after: this.categoryAuditSnapshot(saved),
+    });
   }
 
-  async updateCategory(id: string, payload: UpdateCategoryDto): Promise<void> {
+  async updateCategory(
+    id: string,
+    payload: UpdateCategoryDto,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
     const category = await this.categoriesRepository.findOne({ where: { id } });
     if (!category) {
       throw new NotFoundException('Category not found');
     }
+
+    const beforeSnapshot = this.categoryAuditSnapshot(category);
 
     if (payload.name !== undefined && payload.name !== category.name) {
       await this.ensureUniqueName(payload.name, category.parentId, category.id);
@@ -167,9 +195,30 @@ export class CategoriesService {
 
     await this.categoriesRepository.save(category);
     this.invalidateTreeCache();
+
+    const afterSnapshot = this.categoryAuditSnapshot(category);
+    if (JSON.stringify(beforeSnapshot) !== JSON.stringify(afterSnapshot)) {
+      let action: AuditActionCode = AuditAction.UPDATE;
+      if (beforeSnapshot.is_active !== afterSnapshot.is_active) {
+        action = AuditAction.STATUS_CHANGE;
+      }
+      await this.auditWriter.log({
+        action,
+        entityType: AuditEntityType.CATEGORY,
+        entityId: id,
+        actor,
+        entityLabel: category.name,
+        metadata: { source: 'http' },
+        before: beforeSnapshot,
+        after: afterSnapshot,
+      });
+    }
   }
 
-  async softDeleteCategory(id: string): Promise<void> {
+  async softDeleteCategory(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
     const category = await this.categoriesRepository.findOne({ where: { id } });
     if (!category) {
       throw new NotFoundException('Category not found');
@@ -195,6 +244,33 @@ export class CategoriesService {
 
     await this.categoriesRepository.softDelete(category.id);
     this.invalidateTreeCache();
+
+    await this.auditWriter.log({
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.CATEGORY,
+      entityId: id,
+      actor,
+      entityLabel: category.name,
+      metadata: { source: 'http' },
+      before: this.categoryAuditSnapshot(category),
+      after: null,
+    });
+  }
+
+  private categoryAuditSnapshot(category: CategoryEntity): {
+    name: string;
+    slug: string;
+    is_active: boolean;
+    level: number;
+    parent_id: string | null;
+  } {
+    return {
+      name: category.name,
+      slug: category.slug,
+      is_active: category.isActive,
+      level: category.level,
+      parent_id: category.parentId,
+    };
   }
 
   private async resolveParent(

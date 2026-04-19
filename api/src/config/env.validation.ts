@@ -86,6 +86,11 @@ class EnvironmentVariables {
   @IsOptional()
   JWT_REFRESH_EXPIRES_IN = '7d';
 
+  /** Set to 1 or true behind reverse proxy so req.ip / X-Forwarded-For work for audit. */
+  @IsString()
+  @IsOptional()
+  TRUST_PROXY?: string;
+
   @Transform(({ value }) => Number(value))
   @IsInt()
   @Min(4)
