@@ -48,16 +48,6 @@ jobs:
           docker build -f api/Dockerfile -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
-      - name: Copy compose file to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          source: docker-compose.ec2.yml
-          target: ${{ env.REMOTE_APP_DIR }}
-          overwrite: true
-
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -65,13 +55,15 @@ jobs:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           REMOTE_APP_DIR: ${{ env.REMOTE_APP_DIR }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          envs: AWS_REGION,AWS_ACCOUNT_ID,IMAGE_TAG,REMOTE_APP_DIR
+          envs: AWS_REGION,AWS_ACCOUNT_ID,IMAGE_TAG,REMOTE_APP_DIR,ECR_REPOSITORY
           script: |
             set -e
+            REMOTE_APP_DIR="${REMOTE_APP_DIR/#\~/$HOME}"
             mkdir -p "$REMOTE_APP_DIR"
             cd "$REMOTE_APP_DIR"
 
@@ -90,7 +82,21 @@ jobs:
             sed -i "s/^AWS_REGION=.*/AWS_REGION=$AWS_REGION/" .env || echo "AWS_REGION=$AWS_REGION" >> .env
 
             aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+            IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG"
 
+            if [ ! -f "docker-compose.ec2.yml" ]; then
+              echo "Missing $REMOTE_APP_DIR/docker-compose.ec2.yml on EC2."
+              exit 1
+            fi
+
+            docker pull "$IMAGE_URI"
             docker compose -f docker-compose.ec2.yml pull api
-            docker compose -f docker-compose.ec2.yml up -d api postgres redis
-            docker exec seventout_api sh -lc "cd /app/api && npm run migration:run"
+            docker compose -f docker-compose.ec2.yml up -d --no-deps --force-recreate api
+            docker exec seventout_api sh -lc "cd /app/api && npm run migration:run:prod"
+
+            echo "Cleaning up old local API images..."
+            docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
+              | awk -v repo="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY" -v keep="$IMAGE_URI" \
+                '$1 ~ ("^" repo ":") && $1 != keep { print $2 }' \
+              | xargs -r docker rmi -f || true
+            docker image prune -f || true
