@@ -92,7 +92,7 @@ jobs:
             docker pull "$IMAGE_URI"
             docker compose -f docker-compose.ec2.yml pull api
             docker compose -f docker-compose.ec2.yml up -d --no-deps --force-recreate api
-            docker exec seventout_api sh -lc "cd /app/api && npm run migration:run"
+            docker exec seventout_api sh -lc "cd /app/api && npm run migration:run:prod"
 
             echo "Cleaning up old local API images..."
             docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
