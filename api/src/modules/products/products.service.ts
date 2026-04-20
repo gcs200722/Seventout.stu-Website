@@ -350,6 +350,23 @@ export class ProductsService {
     return base;
   }
 
+  async getProductsByIdsPublic(
+    ids: string[],
+  ): Promise<ProductDetailResponse[]> {
+    const unique = [...new Set(ids)].filter(Boolean).slice(0, 48);
+    const out: ProductDetailResponse[] = [];
+    for (const id of unique) {
+      try {
+        // Sequential keeps code small; batch size capped for CMS home.
+
+        out.push(await this.getProductById(id));
+      } catch {
+        /* skip missing */
+      }
+    }
+    return out;
+  }
+
   async getProductStockById(productId: string): Promise<ProductStockResponse> {
     const stockByProductId = await this.getInternalStockMap([productId]);
     return {

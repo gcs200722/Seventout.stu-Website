@@ -15,6 +15,8 @@ export class BullMqQueueAdapter implements QueuePort {
   ): Promise<void> {
     await this.queue.add(jobName, payload, {
       attempts: options?.attempts ?? 1,
+      delay:
+        options?.delayMs && options.delayMs > 0 ? options.delayMs : undefined,
       backoff:
         options?.backoffMs && options.backoffMs > 0
           ? {

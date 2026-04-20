@@ -59,4 +59,20 @@ export class S3StorageService implements StoragePort {
       { expiresIn: expiresInSeconds },
     );
   }
+
+  async getSignedPutUrl(
+    key: string,
+    contentType: string,
+    expiresInSeconds = 900,
+  ): Promise<string> {
+    return getSignedUrl(
+      this.s3Client,
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ContentType: contentType,
+      }),
+      { expiresIn: expiresInSeconds },
+    );
+  }
 }

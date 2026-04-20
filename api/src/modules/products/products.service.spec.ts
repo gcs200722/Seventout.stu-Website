@@ -99,6 +99,9 @@ describe('ProductsService', () => {
       getSignedDownloadUrl: jest
         .fn()
         .mockResolvedValue('https://signed.example.com/img'),
+      getSignedPutUrl: jest
+        .fn()
+        .mockResolvedValue('https://signed-put.example.com/object'),
     } as unknown as jest.Mocked<StoragePort>;
     configService = {
       get: jest.fn((_key: string, defaultValue?: number) => defaultValue),

@@ -1,8 +1,7 @@
 import { getApiErrorMessage } from "@/lib/api-error";
+import { apiFetch } from "@/lib/api-fetch";
 import { refreshToken } from "@/lib/auth-api";
 import { getStoredTokens, setStoredTokens } from "@/lib/auth-storage";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -28,7 +27,7 @@ async function requestWithToken<T>(
   accessToken: string,
   request: AuthorizedRequest = {},
 ): Promise<ApiEnvelope<T>> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await apiFetch(path, {
     method: request.method ?? "GET",
     headers: {
       "Content-Type": "application/json",

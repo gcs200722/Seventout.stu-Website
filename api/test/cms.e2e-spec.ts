@@ -89,6 +89,11 @@ describe('CmsController (e2e)', () => {
     updateBlock: jest.fn(),
     deleteSection: jest.fn(),
     deleteBlock: jest.fn(),
+    getPageByPreviewToken: jest.fn(),
+    mintCmsPreviewToken: jest.fn(),
+    publishPageInvalidateCache: jest.fn(),
+    reorderSectionBlocks: jest.fn(),
+    schedulePublishPage: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -128,6 +133,7 @@ describe('CmsController (e2e)', () => {
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      theme: null,
       sections: [],
     });
 

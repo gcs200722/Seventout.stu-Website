@@ -1,7 +1,6 @@
 import { getApiErrorMessage } from "@/lib/api-error";
+import { apiFetch } from "@/lib/api-fetch";
 import { withAuth } from "@/lib/http-client";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export type ActivePromotionCampaign = {
   id: string;
@@ -87,7 +86,7 @@ async function parsePublicEnvelope<T>(response: Response): Promise<T> {
 
 /** Public: active auto campaigns (no auth). */
 export async function getActivePromotions(): Promise<ActivePromotionsPayload> {
-  const response = await fetch(`${API_URL}/promotions/active`, { cache: "no-store" });
+  const response = await apiFetch("/promotions/active", { cache: "no-store" });
   return parsePublicEnvelope<ActivePromotionsPayload>(response);
 }
 

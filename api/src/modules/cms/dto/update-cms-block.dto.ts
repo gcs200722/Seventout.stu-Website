@@ -32,4 +32,9 @@ export class UpdateCmsBlockDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  appearance?: Record<string, unknown>;
 }

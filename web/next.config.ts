@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
         hostname: "s3.ap-southeast-1.amazonaws.com",
         pathname: "/sevenout.stu-product/**",
       },
+      {
+        protocol: "https",
+        hostname: "sevenout-banner-public.s3.us-east-1.amazonaws.com",
+        pathname: "/**",
+      },
     ],
   },
 };

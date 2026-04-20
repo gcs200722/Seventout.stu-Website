@@ -40,6 +40,13 @@ export class CmsSectionEntity {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  layout: Record<string, unknown>;
+
+  /** Device / audience targeting stub (e.g. `{ "device": "mobile" }`). */
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  targeting: Record<string, unknown>;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

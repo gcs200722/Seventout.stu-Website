@@ -4,11 +4,14 @@ import {
   DeleteDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { CmsSectionEntity } from './cms-section.entity';
+import { CmsThemeEntity } from './cms-theme.entity';
 
 @Entity({ name: 'cms_pages' })
 @Index('uq_cms_pages_page_key', ['pageKey'], { unique: true })
@@ -24,6 +27,16 @@ export class CmsPageEntity {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({ name: 'theme_id', type: 'uuid', nullable: true })
+  themeId: string | null;
+
+  @ManyToOne(() => CmsThemeEntity, (theme) => theme.pages, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'theme_id' })
+  theme: CmsThemeEntity | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

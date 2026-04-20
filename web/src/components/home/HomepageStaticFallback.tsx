@@ -1,10 +1,15 @@
-import { CollectionCard } from "@/components/home/CollectionCard";
+import { BrandStorySection } from "@/components/home/BrandStorySection";
+import { EditorialFeaturedCollections } from "@/components/home/EditorialFeaturedCollections";
 import { HeroBanner } from "@/components/home/HeroBanner";
+import { LookbookGrid } from "@/components/home/LookbookGrid";
 import { ProductSection } from "@/components/home/ProductSection";
 import { PromotionBanner } from "@/components/home/PromotionBanner";
+import { Reveal } from "@/components/home/Reveal";
 import {
   bestSellingProducts,
+  brandStoryContent,
   heroContent,
+  lookbookImages,
   newArrivals,
   promotion,
 } from "@/data/home-merchandising";
@@ -18,45 +23,63 @@ export async function HomepageStaticFallback() {
     <>
       <HeroBanner {...heroContent} />
 
-      <section className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">
-              Featured Collections
-            </h2>
-            <p className="mt-2 text-sm text-stone-600">
-              Những bộ sưu tập nổi bật theo cảm hứng local streetwear.
-            </p>
+      <Reveal>
+        <BrandStorySection {...brandStoryContent} />
+      </Reveal>
+
+      <Reveal>
+        <LookbookGrid images={lookbookImages} />
+      </Reveal>
+
+      <Reveal>
+        <section className="w-full bg-sevenout-white px-4 py-16 sm:px-8 lg:px-12 lg:py-24">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-10 max-w-2xl">
+              <h2 className="font-sevenout-serif text-3xl font-semibold tracking-wide text-sevenout-black sm:text-4xl">
+                Featured Collections
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed tracking-wide text-neutral-600 sm:text-base">
+                Bộ sưu tập theo mood — hover để xem tên và điều hướng.
+              </p>
+            </div>
+            {featuredCollections.length === 0 ? (
+              <p className="rounded-2xl border border-neutral-200 bg-sevenout-muted p-8 text-sm text-neutral-600">
+                Chưa có danh mục trên hệ thống. Vui lòng quản trị viên thêm danh mục (level 1) để hiển thị tại
+                đây.
+              </p>
+            ) : (
+              <EditorialFeaturedCollections collections={featuredCollections} />
+            )}
           </div>
-        </div>
-        {featuredCollections.length === 0 ? (
-          <p className="rounded-xl border border-stone-200 bg-white p-6 text-sm text-stone-600">
-            Chưa có danh mục trên hệ thống. Vui lòng quản trị viên thêm danh mục (level 1) để hiển thị tại
-            đây.
-          </p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {featuredCollections.map((collection) => (
-              <CollectionCard key={collection.id} collection={collection} />
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
+      </Reveal>
 
-      <ProductSection
-        id="best-selling"
-        title="Best Selling Products"
-        subtitle="Các sản phẩm bán chạy nhất tuần này."
-        products={bestSellingProducts}
-      />
+      <Reveal>
+        <ProductSection
+          id="best-selling"
+          title="Best Selling"
+          subtitle="Những món được chọn nhiều — thông tin giá và CTA chỉ hiện khi bạn hover."
+          products={bestSellingProducts}
+          cardVariant="editorial"
+          viewMoreHref="/products"
+          viewMoreLabel="Xem tất cả sản phẩm"
+        />
+      </Reveal>
 
-      <ProductSection
-        title="New Arrivals"
-        subtitle="Drop mới cập nhật mỗi tuần, số lượng giới hạn."
-        products={newArrivals}
-      />
+      <Reveal>
+        <ProductSection
+          title="New Arrivals"
+          subtitle="Drop mới — số lượng giới hạn, cập nhật thường xuyên."
+          products={newArrivals}
+          cardVariant="editorial"
+          viewMoreHref="/products"
+          viewMoreLabel="Xem tất cả sản phẩm"
+        />
+      </Reveal>
 
-      <PromotionBanner {...promotion} />
+      <Reveal>
+        <PromotionBanner {...promotion} />
+      </Reveal>
     </>
   );
 }

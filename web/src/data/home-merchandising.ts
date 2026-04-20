@@ -1,16 +1,37 @@
+import type { LookbookImage } from "@/components/home/LookbookGrid";
 import type { Product } from "@/components/home/ProductCard";
 
 /** Hero + promotion: nội dung marketing tạm cho đến khi có CMS/API. */
 export const heroContent = {
-  title: "Nang cap tu do voi tinh than local brand",
-  subtitle:
-    "Khám phá BST streetwear tối giản, form dễ mặc và phối đồ linh hoạt cho mọi hoạt động hằng ngày.",
-  ctaLabel: "Shop Now",
-  /** CTA hero: cửa hàng theo danh mục API */
+  title: "Nâng cấp tủ đồ",
+  subtitle: "Streetwear tối giản — form dễ mặc, cảm hứng local, giọng điệu editorial.",
+  ctaLabel: "Khám phá bộ sưu tập",
   ctaHref: "/collections",
   image:
-    "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=2000&q=80",
 };
+
+export const brandStoryContent = {
+  image:
+    "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1600&q=80",
+  line1: "LOCAL STREETWEAR REDEFINED",
+  line2: "Minimal. Bold. Identity-driven.",
+};
+
+export const lookbookImages: [LookbookImage, LookbookImage, LookbookImage] = [
+  {
+    src: "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1600&q=80",
+    alt: "Lookbook — full scene",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1532453288672-3a27e9be9efd?auto=format&fit=crop&w=900&q=80",
+    alt: "Lookbook — detail one",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80",
+    alt: "Lookbook — detail two",
+  },
+];
 
 /** Dữ liệu sản phẩm demo — thay bằng API khi backend có listing. */
 export const bestSellingProducts: Product[] = [
@@ -125,9 +146,9 @@ export const newArrivals: Product[] = [
 ];
 
 export const promotion = {
-  title: "Mid Season Sale - Up to 40% Off",
+  title: "Mid Season — lên đến 40%",
   description:
-    "Áp dụng cho selected items trong 72 giờ. Số lượng giới hạn, ưu đãi kết thúc khi hết hàng.",
-  ctaLabel: "Shop Deals",
+    "Chọn món trong 72 giờ. Số lượng giới hạn — ưu đãi kết thúc khi hết hàng.",
+  ctaLabel: "Mua ngay",
   ctaHref: "/collections",
 };

@@ -14,9 +14,13 @@ import {
   deleteAdminCmsSection,
   getAdminCmsPage,
   listAdminCmsPages,
+  mintCmsPreviewToken,
   patchAdminCmsBlock,
   patchAdminCmsSection,
+  publishAdminCmsPage,
+  reorderAdminCmsBlocks,
   reorderAdminCmsSections,
+  scheduleAdminCmsPublish,
   type CmsAdminBlock,
   type CmsAdminPage,
   type CmsAdminSection,
@@ -28,9 +32,28 @@ const SECTION_TYPES = [
   "CATEGORY_GRID",
   "BANNER",
   "FEATURED_COLLECTIONS",
+  "STORY_CHAPTER",
+  "LOOKBOOK_MOSAIC",
+  "EDITORIAL",
+  "SHOP_THE_LOOK",
+  "JOURNAL_ROW",
+  "PRESS_MARQUEE",
 ] as const;
 
-const BLOCK_TYPES = ["BANNER", "PRODUCT", "CATEGORY", "HTML"] as const;
+const BLOCK_TYPES = [
+  "BANNER",
+  "PRODUCT",
+  "CATEGORY",
+  "HTML",
+  "BRAND_STORY",
+  "LOOKBOOK",
+  "VIDEO",
+  "QUOTE",
+  "RICH_TEXT",
+  "HOTSPOTS",
+  "JOURNAL_LIST",
+  "MARQUEE_LOGOS",
+] as const;
 
 function sortedSections(page: CmsAdminPage | null): CmsAdminSection[] {
   if (!page) return [];
@@ -47,6 +70,10 @@ function canCmsRead(role: string | null | undefined, permissions: string[]): boo
 
 function canCmsEdit(role: string | null | undefined, permissions: string[]): boolean {
   return role === "ADMIN" || permissions.includes("CMS_EDIT");
+}
+
+function canCmsPublish(role: string | null | undefined, permissions: string[]): boolean {
+  return role === "ADMIN" || permissions.includes("CMS_PUBLISH");
 }
 
 function StatusBadge({ active, children }: { active: boolean; children: ReactNode }) {
@@ -74,6 +101,7 @@ export default function AdminCmsPage() {
   const permList = permissions ?? [];
   const readOk = canCmsRead(role, permList);
   const editOk = canCmsEdit(role, permList);
+  const publishOk = canCmsPublish(role, permList);
 
   const [pages, setPages] = useState<CmsAdminPage[]>([]);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -83,6 +111,7 @@ export default function AdminCmsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [scheduleRunAt, setScheduleRunAt] = useState("");
 
   const [newPageKey, setNewPageKey] = useState("");
   const [newPageTitle, setNewPageTitle] = useState("");
@@ -199,6 +228,59 @@ export default function AdminCmsPage() {
     });
   }, [sectionsOrdered, sectionQuery, sectionStatusFilter]);
 
+  async function handleOpenPreview() {
+    if (!pageDetail) return;
+    try {
+      setError(null);
+      setSuccess(null);
+      const { token } = await mintCmsPreviewToken(pageDetail.id);
+      const path =
+        pageDetail.key === "homepage" ? "/" : `/p/${encodeURIComponent(pageDetail.key)}`;
+      const sep = path.includes("?") ? "&" : "?";
+      const url = `${typeof window !== "undefined" ? window.location.origin : ""}${path}${sep}cms_preview_token=${encodeURIComponent(token)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không tạo được preview token.");
+    }
+  }
+
+  async function handlePublish() {
+    if (!editOk || !publishOk || !pageDetail) return;
+    if (!window.confirm("Xác nhận publish: xóa cache Redis CMS cho trang này?")) return;
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccess(null);
+      await publishAdminCmsPage(pageDetail.id);
+      setSuccess("Đã publish (cache Redis đã xóa).");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Publish thất bại.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleSchedulePublish() {
+    if (!editOk || !publishOk || !pageDetail || !scheduleRunAt) return;
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccess(null);
+      const d = new Date(scheduleRunAt);
+      if (Number.isNaN(d.getTime())) {
+        setError("Thời điểm lịch không hợp lệ.");
+        return;
+      }
+      const { delay_ms } = await scheduleAdminCmsPublish(pageDetail.id, d.toISOString());
+      setSuccess(`Đã xếp hàng publish (delay ~${Math.round(delay_ms / 1000)}s).`);
+      setScheduleRunAt("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không lên lịch được.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function handleToolbarRefresh() {
     try {
       setError(null);
@@ -306,16 +388,71 @@ export default function AdminCmsPage() {
     }
   }
 
-  async function saveSectionMeta(s: CmsAdminSection, title: string, type: string) {
+  async function saveSectionMeta(
+    s: CmsAdminSection,
+    title: string,
+    type: string,
+    layoutJson: string,
+    targetingJson: string,
+  ) {
     if (!editOk) return;
+    let layout: Record<string, unknown> | undefined;
+    try {
+      const parsed = JSON.parse(layoutJson) as unknown;
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        layout = parsed as Record<string, unknown>;
+      } else {
+        setError("Layout phải là một object JSON.");
+        return;
+      }
+    } catch {
+      setError("JSON layout không hợp lệ.");
+      return;
+    }
+    let targeting: Record<string, unknown> | undefined;
+    try {
+      const parsed = JSON.parse(targetingJson) as unknown;
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        targeting = parsed as Record<string, unknown>;
+      } else {
+        setError("Targeting phải là một object JSON.");
+        return;
+      }
+    } catch {
+      setError("JSON targeting không hợp lệ.");
+      return;
+    }
     try {
       setActionLoading(true);
       setError(null);
-      await patchAdminCmsSection(s.id, { title: title.trim(), type });
+      await patchAdminCmsSection(s.id, { title: title.trim(), type, layout, targeting });
       setSuccess("Đã lưu section.");
       await refreshAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không lưu được section.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function moveBlock(section: CmsAdminSection, block: CmsAdminBlock, dir: "up" | "down") {
+    if (!editOk || !pageDetail) return;
+    const blocks = sortedBlocks(section);
+    const i = blocks.findIndex((b) => b.id === block.id);
+    if (i < 0) return;
+    const j = dir === "up" ? i - 1 : i + 1;
+    if (j < 0 || j >= blocks.length) return;
+    const next = [...blocks];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccess(null);
+      await reorderAdminCmsBlocks(section.id, next.map((b) => b.id));
+      setSuccess("Đã cập nhật thứ tự block.");
+      await refreshAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không reorder block được.");
     } finally {
       setActionLoading(false);
     }
@@ -337,13 +474,33 @@ export default function AdminCmsPage() {
     }
   }
 
-  async function saveBlock(block: CmsAdminBlock, jsonText: string, type: string, sortOrder: number, isActive: boolean) {
+  async function saveBlock(
+    block: CmsAdminBlock,
+    jsonText: string,
+    type: string,
+    sortOrder: number,
+    isActive: boolean,
+    appearanceJson: string,
+  ) {
     if (!editOk) return;
     let data: Record<string, unknown>;
     try {
       data = JSON.parse(jsonText) as Record<string, unknown>;
     } catch {
       setError("JSON block không hợp lệ.");
+      return;
+    }
+    let appearance: Record<string, unknown> | undefined;
+    try {
+      const parsed = JSON.parse(appearanceJson) as unknown;
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        appearance = parsed as Record<string, unknown>;
+      } else {
+        setError("Appearance phải là một object JSON.");
+        return;
+      }
+    } catch {
+      setError("JSON appearance không hợp lệ.");
       return;
     }
     try {
@@ -354,6 +511,7 @@ export default function AdminCmsPage() {
         data,
         sort_order: sortOrder,
         is_active: isActive,
+        appearance,
       });
       setSuccess("Đã lưu block.");
       await refreshAll();
@@ -515,6 +673,48 @@ export default function AdminCmsPage() {
                 Xem site
               </a>
             ) : null}
+            {readOk && pageDetail ? (
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => void handleOpenPreview()}
+                className="inline-flex items-center justify-center rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-950 shadow-sm transition hover:bg-violet-100 disabled:opacity-50"
+              >
+                Preview (JWT)
+              </button>
+            ) : null}
+            {editOk && publishOk && pageDetail ? (
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => void handlePublish()}
+                className="inline-flex items-center justify-center rounded-xl bg-stone-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-stone-800 disabled:opacity-50"
+              >
+                Publish cache
+              </button>
+            ) : null}
+            {editOk && publishOk && pageDetail ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2">
+                <label className="flex flex-col gap-1 text-xs font-semibold text-stone-600">
+                  Lịch publish
+                  <input
+                    type="datetime-local"
+                    className="rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-xs shadow-sm"
+                    value={scheduleRunAt}
+                    onChange={(e) => setScheduleRunAt(e.target.value)}
+                    disabled={actionLoading}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={actionLoading || !scheduleRunAt}
+                  onClick={() => void handleSchedulePublish()}
+                  className="mt-4 inline-flex items-center justify-center rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-800 disabled:opacity-50 sm:mt-0"
+                >
+                  Hẹn publish
+                </button>
+              </div>
+            ) : null}
             <button
               type="button"
               disabled={actionLoading || !readOk}
@@ -665,8 +865,13 @@ export default function AdminCmsPage() {
                   onMoveDown={() => void moveSection(s.id, "down")}
                   onToggleActive={() => void toggleSectionActive(s)}
                   onDelete={() => void removeSection(s)}
-                  onSaveMeta={(title, type) => void saveSectionMeta(s, title, type)}
-                  onSaveBlock={(b, json, type, sort, active) => void saveBlock(b, json, type, sort, active)}
+                  onSaveMeta={(title, type, layoutJson, targetingJson) =>
+                    void saveSectionMeta(s, title, type, layoutJson, targetingJson)
+                  }
+                  onSaveBlock={(b, json, type, sort, active, appearanceJson) =>
+                    void saveBlock(b, json, type, sort, active, appearanceJson)
+                  }
+                  onMoveBlock={(b, dir) => void moveBlock(s, b, dir)}
                   onToggleBlockActive={(b) => void toggleBlockActive(b)}
                   onDeleteBlock={(b) => void removeBlock(b)}
                   addBlockOpen={addBlockSectionId === s.id}
@@ -690,7 +895,7 @@ export default function AdminCmsPage() {
 }
 
 function sectionEditorKey(s: CmsAdminSection): string {
-  return JSON.stringify([s.id, s.title, s.type]);
+  return JSON.stringify([s.id, s.title, s.type, s.layout ?? {}, s.targeting ?? {}]);
 }
 
 type SectionCardProps = {
@@ -703,13 +908,15 @@ type SectionCardProps = {
   onMoveDown: () => void;
   onToggleActive: () => void;
   onDelete: () => void;
-  onSaveMeta: (title: string, type: string) => void;
+  onSaveMeta: (title: string, type: string, layoutJson: string, targetingJson: string) => void;
+  onMoveBlock: (b: CmsAdminBlock, dir: "up" | "down") => void;
   onSaveBlock: (
     b: CmsAdminBlock,
     json: string,
     type: string,
     sortOrder: number,
     isActive: boolean,
+    appearanceJson: string,
   ) => void;
   onToggleBlockActive: (b: CmsAdminBlock) => void;
   onDeleteBlock: (b: CmsAdminBlock) => void;
@@ -732,6 +939,7 @@ function SectionCard({
   onToggleActive,
   onDelete,
   onSaveMeta,
+  onMoveBlock,
   onSaveBlock,
   onToggleBlockActive,
   onDeleteBlock,
@@ -744,6 +952,8 @@ function SectionCard({
 }: SectionCardProps) {
   const [editTitle, setEditTitle] = useState(s.title);
   const [editType, setEditType] = useState(s.type);
+  const [layoutJson, setLayoutJson] = useState(() => JSON.stringify(s.layout ?? {}, null, 2));
+  const [targetingJson, setTargetingJson] = useState(() => JSON.stringify(s.targeting ?? {}, null, 2));
 
   const blocks = sortedBlocks(s);
 
@@ -851,7 +1061,7 @@ function SectionCard({
               <button
                 type="button"
                 disabled={actionLoading}
-                onClick={() => onSaveMeta(editTitle, editType)}
+                onClick={() => onSaveMeta(editTitle, editType, layoutJson, targetingJson)}
                 className="inline-flex min-h-[48px] min-w-[140px] items-center justify-center rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-md transition hover:bg-emerald-700 disabled:opacity-50"
               >
                 Lưu section
@@ -860,6 +1070,29 @@ function SectionCard({
           ) : (
             <p className="mt-2 text-sm text-stone-600">Chỉ xem — không có quyền CMS_EDIT.</p>
           )}
+          {editOk ? (
+            <div className="mt-6 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                Layout (JSON) — padding_top/bottom: none|sm|md|lg, max_width: narrow|standard|wide|full, anchor_id,
+                background_color, theme: light|dark
+              </p>
+              <CmsJsonEditor value={layoutJson} onChange={setLayoutJson} disabled={actionLoading} aria-label="Layout section JSON" />
+            </div>
+          ) : null}
+          {editOk ? (
+            <div className="mt-6 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                Targeting (JSON) — ví dụ: <code className="rounded bg-stone-200/80 px-1">{`{ "device": "mobile" }`}</code> hoặc{" "}
+                <code className="rounded bg-stone-200/80 px-1">{`{ "device": "desktop" }`}</code>
+              </p>
+              <CmsJsonEditor
+                value={targetingJson}
+                onChange={setTargetingJson}
+                disabled={actionLoading}
+                aria-label="Targeting section JSON"
+              />
+            </div>
+          ) : null}
           <p className="mt-3 font-mono text-xs text-stone-500">id={s.id}</p>
         </div>
 
@@ -924,12 +1157,16 @@ function SectionCard({
             </p>
           ) : (
             <div className="space-y-5">
-              {blocks.map((b) => (
+              {blocks.map((b, bi) => (
                 <BlockRow
                   key={cmsBlockServerSignature(b)}
                   block={b}
                   editOk={editOk}
                   actionLoading={actionLoading}
+                  canMoveUp={bi > 0}
+                  canMoveDown={bi < blocks.length - 1}
+                  onMoveUp={() => onMoveBlock(b, "up")}
+                  onMoveDown={() => onMoveBlock(b, "down")}
                   onSave={onSaveBlock}
                   onToggleActive={onToggleBlockActive}
                   onDelete={onDeleteBlock}
@@ -947,7 +1184,18 @@ type BlockRowProps = {
   block: CmsAdminBlock;
   editOk: boolean;
   actionLoading: boolean;
-  onSave: (b: CmsAdminBlock, json: string, type: string, sortOrder: number, isActive: boolean) => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onSave: (
+    b: CmsAdminBlock,
+    json: string,
+    type: string,
+    sortOrder: number,
+    isActive: boolean,
+    appearanceJson: string,
+  ) => void;
   onToggleActive: (b: CmsAdminBlock) => void;
   onDelete: (b: CmsAdminBlock) => void;
 };
@@ -963,16 +1211,40 @@ function cmsBlockServerSignature(block: CmsAdminBlock): string {
     String(block.sort_order),
     block.is_active ? "1" : "0",
     JSON.stringify(block.data),
+    JSON.stringify(block.appearance ?? {}),
   ].join("\u001e");
 }
 
-function BlockRow({ block: b, editOk, actionLoading, onSave, onToggleActive, onDelete }: BlockRowProps) {
+function BlockRow({
+  block: b,
+  editOk,
+  actionLoading,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  onSave,
+  onToggleActive,
+  onDelete,
+}: BlockRowProps) {
   const [type, setType] = useState(b.type);
   const [sortOrder, setSortOrder] = useState(b.sort_order);
   const [isActive, setIsActive] = useState(b.is_active);
   const [formData, setFormData] = useState<Record<string, unknown>>(() => mergeBlockFormState(b.type, b.data));
   const [jsonDraft, setJsonDraft] = useState(() => JSON.stringify(mergeBlockFormState(b.type, b.data), null, 2));
+  const [appearanceJson, setAppearanceJson] = useState(() => JSON.stringify(b.appearance ?? {}, null, 2));
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const blockSyncKey = cmsBlockServerSignature(b);
+  useEffect(() => {
+    setType(b.type);
+    setSortOrder(b.sort_order);
+    setIsActive(b.is_active);
+    setFormData(mergeBlockFormState(b.type, b.data));
+    setJsonDraft(JSON.stringify(mergeBlockFormState(b.type, b.data), null, 2));
+    setAppearanceJson(JSON.stringify(b.appearance ?? {}, null, 2));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when server payload signature changes
+  }, [blockSyncKey]);
 
   function handleTypeChange(nextType: string) {
     setType(nextType);
@@ -989,7 +1261,7 @@ function BlockRow({ block: b, editOk, actionLoading, onSave, onToggleActive, onD
       return;
     }
     setErrors({});
-    onSave(b, JSON.stringify(result.data, null, 2), type, sortOrder, isActive);
+    onSave(b, JSON.stringify(result.data, null, 2), type, sortOrder, isActive, appearanceJson);
   }
 
   function applyJsonDraftToForm() {
@@ -1025,6 +1297,28 @@ function BlockRow({ block: b, editOk, actionLoading, onSave, onToggleActive, onD
         </div>
         {editOk ? (
           <div className="flex flex-wrap gap-2" onClick={(e) => e.preventDefault()}>
+            <button
+              type="button"
+              disabled={actionLoading || !canMoveUp}
+              onClick={(e) => {
+                e.preventDefault();
+                onMoveUp();
+              }}
+              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-stone-800 disabled:opacity-40"
+            >
+              Block ↑
+            </button>
+            <button
+              type="button"
+              disabled={actionLoading || !canMoveDown}
+              onClick={(e) => {
+                e.preventDefault();
+                onMoveDown();
+              }}
+              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-stone-800 disabled:opacity-40"
+            >
+              Block ↓
+            </button>
             <button
               type="button"
               disabled={actionLoading}
@@ -1138,6 +1432,21 @@ function BlockRow({ block: b, editOk, actionLoading, onSave, onToggleActive, onD
                 >
                   Áp dụng JSON vào form
                 </button>
+              </div>
+            </details>
+
+            <details className="rounded-2xl border border-stone-200 bg-stone-50/90">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-stone-800 marker:content-none [&::-webkit-details-marker]:hidden">
+                <span className="mr-2 text-stone-400">▶</span> Appearance (JSON)
+              </summary>
+              <div className="space-y-2 border-t border-stone-200 px-4 py-4">
+                <p className="text-xs text-stone-600">Tuỳ chọn: ratio, rounded, shadow — dùng cùng lúc với Lưu block.</p>
+                <CmsJsonEditor
+                  value={appearanceJson}
+                  onChange={setAppearanceJson}
+                  disabled={actionLoading}
+                  aria-label="Appearance block JSON"
+                />
               </div>
             </details>
 

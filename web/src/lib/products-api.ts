@@ -1,6 +1,5 @@
 import { getApiErrorMessage } from "@/lib/api-error";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { apiFetch } from "@/lib/api-fetch";
 
 type ApiEnvelope<T> = {
   success: boolean;
@@ -106,8 +105,8 @@ function toQueryString(params: ProductListQuery): string {
 export async function listProductsPublic(
   params: ProductListQuery = {},
 ): Promise<{ items: ProductListItem[]; pagination: { page: number; limit: number; total: number } }> {
-  const response = await fetch(
-    `${API_URL}/products${toQueryString({
+  const response = await apiFetch(
+    `/products${toQueryString({
       page: params.page ?? 1,
       limit: params.limit ?? 12,
       category_id: params.category_id,
@@ -135,7 +134,7 @@ export async function listProductsPublic(
 }
 
 export async function getProductByIdPublic(id: string): Promise<ProductDetail> {
-  const response = await fetch(`${API_URL}/products/${id}`, defaultFetchInit);
+  const response = await apiFetch(`/products/${id}`, defaultFetchInit);
   const json = (await response.json()) as ApiEnvelope<ProductDetail>;
   if (!response.ok) {
     throw new Error(getApiErrorMessage(json, "Không tải được chi tiết sản phẩm."));
@@ -146,8 +145,28 @@ export async function getProductByIdPublic(id: string): Promise<ProductDetail> {
   return json.data;
 }
 
+export async function getProductsByIdsPublic(ids: string[]): Promise<ProductDetail[]> {
+  const unique = [...new Set(ids)].filter((id) => id && id.length > 0);
+  if (unique.length === 0) {
+    return [];
+  }
+  const response = await apiFetch(`/products/by-ids`, {
+    ...defaultFetchInit,
+    method: "POST",
+    body: JSON.stringify({ ids: unique.slice(0, 48) }),
+  });
+  const json = (await response.json()) as ApiEnvelope<ProductDetail[]>;
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(json, "Không tải được danh sách sản phẩm."));
+  }
+  if (!json.success || !json.data) {
+    throw new Error("Unexpected API response format");
+  }
+  return json.data;
+}
+
 export async function getProductStockPublic(id: string): Promise<ProductStock> {
-  const response = await fetch(`${API_URL}/products/${id}/stock`, noStoreFetchInit);
+  const response = await apiFetch(`/products/${id}/stock`, noStoreFetchInit);
   const json = (await response.json()) as ApiEnvelope<ProductStock>;
   if (!response.ok) {
     throw new Error(getApiErrorMessage(json, "Không tải được tồn kho sản phẩm."));
@@ -164,7 +183,7 @@ export async function listProductStocksPublic(ids: string[]): Promise<ProductSto
   }
   const uniqueIds = [...new Set(ids)];
   const query = new URLSearchParams({ ids: uniqueIds.join(",") });
-  const response = await fetch(`${API_URL}/products/stocks?${query.toString()}`, noStoreFetchInit);
+  const response = await apiFetch(`/products/stocks?${query.toString()}`, noStoreFetchInit);
   const json = (await response.json()) as ApiEnvelope<ProductStock[]>;
   if (!response.ok) {
     throw new Error(getApiErrorMessage(json, "Không tải được tồn kho sản phẩm."));

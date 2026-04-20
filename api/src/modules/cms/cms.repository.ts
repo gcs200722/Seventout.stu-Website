@@ -34,6 +34,7 @@ export class CmsRepository {
   ): Promise<CmsPageEntity | null> {
     const qb = this.pages
       .createQueryBuilder('page')
+      .leftJoinAndSelect('page.theme', 'theme')
       .leftJoinAndSelect('page.sections', 'section')
       .leftJoinAndSelect('section.blocks', 'block')
       .where('page.page_key = :pageKey', { pageKey })
@@ -58,6 +59,7 @@ export class CmsRepository {
   ): Promise<CmsPageEntity | null> {
     const qb = this.pages
       .createQueryBuilder('page')
+      .leftJoinAndSelect('page.theme', 'theme')
       .leftJoinAndSelect('page.sections', 'section')
       .leftJoinAndSelect('section.blocks', 'block')
       .where('page.id = :pageId', { pageId })
@@ -101,6 +103,8 @@ export class CmsRepository {
     title: string;
     sortOrder?: number;
     isActive?: boolean;
+    layout?: Record<string, unknown>;
+    targeting?: Record<string, unknown>;
   }): Promise<CmsSectionEntity> {
     const entity = this.sections.create({
       pageId: payload.pageId,
@@ -108,6 +112,8 @@ export class CmsRepository {
       title: payload.title,
       sortOrder: payload.sortOrder ?? 0,
       isActive: payload.isActive ?? true,
+      layout: payload.layout ?? {},
+      targeting: payload.targeting ?? {},
     });
     return this.sections.save(entity);
   }
@@ -118,6 +124,7 @@ export class CmsRepository {
     data: Record<string, unknown>;
     sortOrder?: number;
     isActive?: boolean;
+    appearance?: Record<string, unknown>;
   }): Promise<CmsBlockEntity> {
     const entity = this.blocks.create({
       sectionId: payload.sectionId,
@@ -125,6 +132,7 @@ export class CmsRepository {
       data: payload.data,
       sortOrder: payload.sortOrder ?? 0,
       isActive: payload.isActive ?? true,
+      appearance: payload.appearance ?? {},
     });
     return this.blocks.save(entity);
   }
@@ -132,7 +140,10 @@ export class CmsRepository {
   async updateSection(
     sectionId: string,
     patch: Partial<
-      Pick<CmsSectionEntity, 'title' | 'sortOrder' | 'isActive' | 'type'>
+      Pick<
+        CmsSectionEntity,
+        'title' | 'sortOrder' | 'isActive' | 'type' | 'layout' | 'targeting'
+      >
     >,
   ): Promise<CmsSectionEntity | null> {
     const section = await this.sections.findOne({
@@ -145,13 +156,18 @@ export class CmsRepository {
     if (patch.sortOrder !== undefined) section.sortOrder = patch.sortOrder;
     if (patch.isActive !== undefined) section.isActive = patch.isActive;
     if (patch.type !== undefined) section.type = patch.type;
+    if (patch.layout !== undefined) section.layout = patch.layout;
+    if (patch.targeting !== undefined) section.targeting = patch.targeting;
     return this.sections.save(section);
   }
 
   async updateBlock(
     blockId: string,
     patch: Partial<
-      Pick<CmsBlockEntity, 'data' | 'sortOrder' | 'isActive' | 'type'>
+      Pick<
+        CmsBlockEntity,
+        'data' | 'sortOrder' | 'isActive' | 'type' | 'appearance'
+      >
     >,
   ): Promise<CmsBlockEntity | null> {
     const block = await this.blocks.findOne({
@@ -164,6 +180,7 @@ export class CmsRepository {
     if (patch.sortOrder !== undefined) block.sortOrder = patch.sortOrder;
     if (patch.isActive !== undefined) block.isActive = patch.isActive;
     if (patch.type !== undefined) block.type = patch.type;
+    if (patch.appearance !== undefined) block.appearance = patch.appearance;
     return this.blocks.save(block);
   }
 
@@ -209,6 +226,36 @@ export class CmsRepository {
       return null;
     }
     return { section, pageKey: section.page.pageKey };
+  }
+
+  async listBlockIdsForSection(sectionId: string): Promise<string[]> {
+    const rows = await this.blocks.find({
+      where: { sectionId, deletedAt: IsNull() },
+      select: ['id'],
+      order: { sortOrder: 'ASC' },
+    });
+    return rows.map((r) => r.id);
+  }
+
+  async reorderBlocks(
+    sectionId: string,
+    orderedBlockIds: string[],
+  ): Promise<void> {
+    for (let i = 0; i < orderedBlockIds.length; i += 1) {
+      await this.blocks.update(
+        { id: orderedBlockIds[i], sectionId, deletedAt: IsNull() },
+        { sortOrder: (i + 1) * 10 },
+      );
+    }
+  }
+
+  async findSectionWithBlocks(
+    sectionId: string,
+  ): Promise<CmsSectionEntity | null> {
+    return this.sections.findOne({
+      where: { id: sectionId },
+      relations: { blocks: true },
+    });
   }
 
   async getBlockWithPageKey(

@@ -1,6 +1,7 @@
+import { getApiErrorMessage } from "@/lib/api-error";
+import { apiFetch } from "@/lib/api-fetch";
 import { refreshToken } from "@/lib/auth-api";
 import { getStoredTokens, setStoredTokens } from "@/lib/auth-storage";
-import { getApiErrorMessage } from "@/lib/api-error";
 
 export type ApiEnvelope<T> = {
   success: boolean;
@@ -20,8 +21,6 @@ type ApiPaginatedEnvelope<T> = {
   pagination?: AdminPagination;
   message?: string;
 };
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export type AdminUser = {
   id: string;
@@ -44,6 +43,7 @@ export type PermissionCode =
   | "INVENTORY_MANAGE"
   | "CMS_READ"
   | "CMS_EDIT"
+  | "CMS_PUBLISH"
   | "PROMOTION_READ"
   | "PROMOTION_MANAGE"
   | "REVIEW_READ"
@@ -77,7 +77,7 @@ async function requestWithToken<T>(
   request: AdminAuthorizedRequest = {},
 ): Promise<ApiEnvelope<T>> {
   const isFormData = request.body instanceof FormData;
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await apiFetch(path, {
     method: request.method ?? "GET",
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
@@ -110,7 +110,7 @@ async function requestWithTokenPaginated<T>(
   request: AdminAuthorizedRequest = {},
 ): Promise<{ data: T; pagination: AdminPagination }> {
   const isFormData = request.body instanceof FormData;
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await apiFetch(path, {
     method: request.method ?? "GET",
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),

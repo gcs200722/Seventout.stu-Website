@@ -1,4 +1,5 @@
 import { getApiErrorMessage } from "@/lib/api-error";
+import { apiFetch } from "@/lib/api-fetch";
 
 export type LoginPayload = {
   email: string;
@@ -32,10 +33,8 @@ type ApiEnvelope<T> = {
   message?: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await apiFetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",

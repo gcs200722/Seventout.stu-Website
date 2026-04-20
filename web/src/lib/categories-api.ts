@@ -1,8 +1,7 @@
 import type { Collection } from "@/components/home/CollectionCard";
 
 import { getApiErrorMessage } from "@/lib/api-error";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { apiFetch } from "@/lib/api-fetch";
 
 type ApiEnvelope<T> = {
   success: boolean;
@@ -88,7 +87,7 @@ export async function listCategoriesPublic(params: {
     limit: params.limit ?? 50,
     parent_id: params.parent_id,
   })}`;
-  const response = await fetch(`${API_URL}${path}`, defaultFetchInit);
+  const response = await apiFetch(path, defaultFetchInit);
   const envelope = await readEnvelope<CategoryListItem[]>(response);
   if (!envelope.data) {
     throw new Error("Unexpected API response format");
@@ -97,7 +96,7 @@ export async function listCategoriesPublic(params: {
 }
 
 export async function getCategoryByIdPublic(id: string): Promise<CategoryDetail> {
-  const response = await fetch(`${API_URL}/categories/${id}`, defaultFetchInit);
+  const response = await apiFetch(`/categories/${id}`, defaultFetchInit);
   const envelope = await readEnvelope<CategoryDetail>(response);
   if (!envelope.data) {
     throw new Error("Unexpected API response format");
@@ -106,7 +105,7 @@ export async function getCategoryByIdPublic(id: string): Promise<CategoryDetail>
 }
 
 export async function listCategoryTreePublic(): Promise<CategoryTreeItem[]> {
-  const response = await fetch(`${API_URL}/categories/tree`, defaultFetchInit);
+  const response = await apiFetch("/categories/tree", defaultFetchInit);
   const envelope = await readEnvelope<CategoryTreeItem[]>(response);
   if (!envelope.data) {
     throw new Error("Unexpected API response format");

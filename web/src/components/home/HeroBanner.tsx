@@ -12,34 +12,37 @@ type HeroBannerProps = {
 
 export function HeroBanner({ title, subtitle, ctaLabel, ctaHref = "#best-selling", image }: HeroBannerProps) {
   return (
-    <section className="mx-auto mt-6 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div className="animate-fade-in grid overflow-hidden rounded-3xl bg-stone-100 md:grid-cols-2">
-        <div className="flex flex-col justify-center gap-5 px-6 py-10 sm:px-10 sm:py-14">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-600">
-            Local Brand Edition
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight text-stone-900 sm:text-4xl lg:text-5xl">
-            {title}
-          </h1>
-          <p className="max-w-lg text-sm text-stone-600 sm:text-base">{subtitle}</p>
-          <div>
-            <Link
-              href={ctaHref}
-              className="inline-flex items-center rounded-full bg-stone-900 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-stone-700"
-            >
-              {ctaLabel}
-            </Link>
-          </div>
-        </div>
-        <div className="relative min-h-72">
-          <Image
-            src={image}
-            alt="Hero fashion collection"
-            fill
-            priority
-            sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover"
-          />
+    <section className="relative isolate flex min-h-[100dvh] w-full items-center justify-center overflow-hidden bg-sevenout-black pt-[env(safe-area-inset-top)]">
+      <Image
+        src={image}
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover brightness-[0.85]"
+        role="presentation"
+      />
+      <div
+        className="absolute inset-0 bg-gradient-to-b from-sevenout-black/50 via-sevenout-black/35 to-sevenout-black/70"
+        aria-hidden
+      />
+      <div className="animate-fade-in relative z-10 mx-auto flex max-w-4xl flex-col items-center px-6 pb-24 text-center sm:px-10">
+        <p className="font-sevenout-serif text-sm font-medium uppercase tracking-[0.35em] text-sevenout-gold sm:text-base">
+          Sevenout
+        </p>
+        <h1 className="mt-6 font-sevenout-serif text-4xl font-semibold leading-[1.05] tracking-tight text-sevenout-white sm:text-6xl md:text-7xl">
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="mt-6 max-w-xl text-sm leading-relaxed tracking-wide text-white/85 sm:text-base">{subtitle}</p>
+        ) : null}
+        <div className="mt-10">
+          <Link
+            href={ctaHref}
+            className="inline-flex items-center rounded-full bg-sevenout-black px-8 py-3.5 text-sm font-semibold tracking-wide text-sevenout-white ring-1 ring-white/20 transition hover:scale-[1.02] hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sevenout-gold"
+          >
+            {ctaLabel}
+          </Link>
         </div>
       </div>
     </section>
