@@ -258,9 +258,16 @@ describe('CategoriesController (e2e)', () => {
         message: 'Category updated successfully',
       });
 
-    expect(categoriesService.updateCategory).toHaveBeenCalledWith('cat-1', {
-      name: 'Hoodie Oversize',
-    });
+    expect(categoriesService.updateCategory).toHaveBeenCalledWith(
+      'cat-1',
+      expect.objectContaining({
+        name: 'Hoodie Oversize',
+      }),
+      expect.objectContaining({
+        id: 'user-default',
+        role: UserRole.ADMIN,
+      }),
+    );
   });
 
   it('DELETE /categories/:id should return 403 for staff without CATEGORY_MANAGE', async () => {
