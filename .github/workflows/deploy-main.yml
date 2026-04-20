@@ -1,0 +1,96 @@
+name: Deploy API to EC2 (main)
+
+on:
+  pull_request:
+    branches: ["main"]
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REPOSITORY: seventout-api
+  REMOTE_APP_DIR: ~/seventout-deploy
+
+jobs:
+  build-push-deploy:
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'staging'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout merged main commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push API image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -f api/Dockerfile -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Copy compose file to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          source: docker-compose.ec2.yml
+          target: ${{ env.REMOTE_APP_DIR }}
+          overwrite: true
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          REMOTE_APP_DIR: ${{ env.REMOTE_APP_DIR }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          envs: AWS_REGION,AWS_ACCOUNT_ID,IMAGE_TAG,REMOTE_APP_DIR
+          script: |
+            set -e
+            mkdir -p "$REMOTE_APP_DIR"
+            cd "$REMOTE_APP_DIR"
+
+            if [ ! -f ".env" ]; then
+              echo "Missing $REMOTE_APP_DIR/.env on EC2. Please create it before running deploy."
+              exit 1
+            fi
+
+            if ! command -v aws >/dev/null 2>&1; then
+              echo "AWS CLI is required on EC2 for ECR login."
+              exit 1
+            fi
+
+            sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/" .env || echo "IMAGE_TAG=$IMAGE_TAG" >> .env
+            sed -i "s/^ACCOUNT_ID=.*/ACCOUNT_ID=$AWS_ACCOUNT_ID/" .env || echo "ACCOUNT_ID=$AWS_ACCOUNT_ID" >> .env
+            sed -i "s/^AWS_REGION=.*/AWS_REGION=$AWS_REGION/" .env || echo "AWS_REGION=$AWS_REGION" >> .env
+
+            aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+
+            docker compose -f docker-compose.ec2.yml pull api
+            docker compose -f docker-compose.ec2.yml up -d api postgres redis
+            docker exec seventout_api sh -lc "cd /app/api && npm run migration:run"

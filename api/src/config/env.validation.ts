@@ -1,6 +1,7 @@
 import { plainToInstance, Transform } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -54,6 +55,11 @@ class EnvironmentVariables {
   @IsString()
   AWS_S3_BUCKET = 'seventout-dev-bucket';
 
+  /** Optional public origin for object keys (e.g. CloudFront). If unset, virtual-hosted S3 URL is used. */
+  @IsString()
+  @IsOptional()
+  AWS_S3_PUBLIC_BASE_URL?: string;
+
   @IsString()
   @IsOptional()
   AWS_ACCESS_KEY_ID?: string;
@@ -62,8 +68,118 @@ class EnvironmentVariables {
   @IsOptional()
   AWS_SECRET_ACCESS_KEY?: string;
 
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(60)
+  @IsOptional()
+  AWS_S3_PRESIGNED_EXPIRES_SECONDS = 900;
+
   @IsString()
   BULLMQ_DEFAULT_QUEUE = 'default';
+
+  @IsString()
+  JWT_ACCESS_SECRET = 'access-secret';
+
+  @IsString()
+  JWT_REFRESH_SECRET = 'refresh-secret';
+
+  @IsString()
+  @IsOptional()
+  JWT_ACCESS_EXPIRES_IN = '10m';
+
+  @IsString()
+  @IsOptional()
+  JWT_REFRESH_EXPIRES_IN = '7d';
+
+  /** Set to 1 or true behind reverse proxy so req.ip / X-Forwarded-For work for audit. */
+  @IsString()
+  @IsOptional()
+  TRUST_PROXY?: string;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(4)
+  @IsOptional()
+  PASSWORD_SALT_ROUNDS = 10;
+
+  @IsString()
+  DEFAULT_ADMIN_EMAIL: string;
+
+  @IsString()
+  DEFAULT_ADMIN_PASSWORD: string;
+
+  @IsString()
+  @IsOptional()
+  DEFAULT_ADMIN_FIRST_NAME = 'System';
+
+  @IsString()
+  @IsOptional()
+  DEFAULT_ADMIN_LAST_NAME = 'Admin';
+
+  @IsString()
+  @IsOptional()
+  DEFAULT_ADMIN_PHONE = '0000000000';
+
+  @IsString()
+  @IsOptional()
+  SMTP_HOST?: string;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  SMTP_PORT?: number;
+
+  @IsString()
+  @IsOptional()
+  SMTP_USER?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_PASS?: string;
+
+  @IsString()
+  @IsOptional()
+  EMAIL_FROM?: string;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(60)
+  @IsOptional()
+  CMS_CACHE_TTL_SECONDS = 600;
+
+  /** Optional; defaults to JWT_ACCESS_SECRET for CMS preview token signing. */
+  @IsString()
+  @IsOptional()
+  CMS_PREVIEW_SECRET?: string;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(30)
+  @IsOptional()
+  PROMOTION_CACHE_TTL_SECONDS = 120;
+
+  @IsIn(['PENDING', 'APPROVED'])
+  @IsOptional()
+  REVIEWS_DEFAULT_STATUS: 'PENDING' | 'APPROVED' = 'APPROVED';
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  REVIEWS_EDIT_WINDOW_DAYS = 14;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(30)
+  @IsOptional()
+  REVIEWS_CACHE_TTL_SECONDS = 120;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  REVIEWS_MAX_MEDIA_URLS = 5;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
@@ -77,6 +193,37 @@ export function validateEnv(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+
+  const isProduction = validatedConfig.NODE_ENV === 'production';
+  if (isProduction) {
+    const requiredSecrets: Array<[string, string | undefined]> = [
+      ['JWT_ACCESS_SECRET', validatedConfig.JWT_ACCESS_SECRET],
+      ['JWT_REFRESH_SECRET', validatedConfig.JWT_REFRESH_SECRET],
+      ['DB_PASSWORD', validatedConfig.DB_PASSWORD],
+      ['DEFAULT_ADMIN_PASSWORD', validatedConfig.DEFAULT_ADMIN_PASSWORD],
+    ];
+
+    for (const [key, value] of requiredSecrets) {
+      if (!value || value.trim().length < 12) {
+        throw new Error(`${key} must be set and strong in production.`);
+      }
+    }
+
+    const forbiddenDefaults: Array<[string, string | undefined, string]> = [
+      ['JWT_ACCESS_SECRET', validatedConfig.JWT_ACCESS_SECRET, 'access-secret'],
+      [
+        'JWT_REFRESH_SECRET',
+        validatedConfig.JWT_REFRESH_SECRET,
+        'refresh-secret',
+      ],
+      ['DB_PASSWORD', validatedConfig.DB_PASSWORD, 'postgres'],
+    ];
+    for (const [key, currentValue, defaultValue] of forbiddenDefaults) {
+      if (currentValue?.trim() === defaultValue) {
+        throw new Error(`${key} cannot use default value in production.`);
+      }
+    }
   }
 
   return validatedConfig;

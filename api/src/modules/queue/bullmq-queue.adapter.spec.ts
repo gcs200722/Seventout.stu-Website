@@ -10,6 +10,13 @@ describe('BullMqQueueAdapter', () => {
 
     await adapter.enqueue('send-email', payload);
 
-    expect(add).toHaveBeenCalledWith('send-email', payload);
+    expect(add).toHaveBeenCalledWith(
+      'send-email',
+      payload,
+      expect.objectContaining({
+        attempts: 1,
+        removeOnComplete: true,
+      }),
+    );
   });
 });

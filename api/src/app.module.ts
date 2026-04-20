@@ -1,12 +1,36 @@
-import { Module } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
+import { AuthModule } from './modules/auth/auth.module';
+import { AddressModule } from './modules/address/address.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { CartModule } from './modules/cart/cart.module';
+import { FulfillmentModule } from './modules/fulfillment/fulfillment.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { ProductsModule } from './modules/products/products.module';
 import { QueueModule } from './modules/queue/queue.module';
+import { RefundsModule } from './modules/refunds/refunds.module';
+import { ReturnsModule } from './modules/returns/returns.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { UsersModule } from './modules/users/users.module';
+import { CmsModule } from './modules/cms/cms.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
+import { AuditHttpContextMiddleware } from './modules/audit/audit-http-context.middleware';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -14,6 +38,7 @@ import { StorageModule } from './modules/storage/storage.module';
       isGlobal: true,
       validate: validateEnv,
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -37,10 +62,34 @@ import { StorageModule } from './modules/storage/storage.module';
         },
       }),
     }),
+    AuthModule,
+    AddressModule,
+    CategoriesModule,
+    CartModule,
+    UsersModule,
+    ProductsModule,
+    InventoryModule,
+    NotificationModule,
+    FulfillmentModule,
+    OrdersModule,
+    PaymentsModule,
+    ReturnsModule,
+    RefundsModule,
     QueueModule,
     StorageModule,
+    CmsModule,
+    ReviewsModule,
+    WishlistModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(AuditHttpContextMiddleware).forRoutes({
+      path: '*',
+      method: RequestMethod.ALL,
+    });
+  }
+}
