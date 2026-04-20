@@ -1,7 +1,6 @@
 import { getApiErrorMessage } from "@/lib/api-error";
+import { apiFetch } from "@/lib/api-fetch";
 import { withAuth } from "@/lib/http-client";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 type ApiEnvelope<T> = {
   success: boolean;
@@ -41,7 +40,7 @@ export type ProductReview = {
 };
 
 export async function getProductReviewStatsPublic(productId: string): Promise<ProductReviewStats> {
-  const response = await fetch(`${API_URL}/products/${productId}/review-stats`, defaultFetchInit);
+  const response = await apiFetch(`/products/${productId}/review-stats`, defaultFetchInit);
   const json = (await response.json()) as ApiEnvelope<ProductReviewStats>;
   if (!response.ok) {
     throw new Error(getApiErrorMessage(json, "Không tải được thống kê đánh giá."));
@@ -62,10 +61,7 @@ export async function listProductReviewsPublic(
   if (params.sort) {
     query.set("sort", params.sort);
   }
-  const response = await fetch(
-    `${API_URL}/products/${productId}/reviews?${query.toString()}`,
-    defaultFetchInit,
-  );
+  const response = await apiFetch(`/products/${productId}/reviews?${query.toString()}`, defaultFetchInit);
   const json = (await response.json()) as ApiEnvelope<ProductReview[]>;
   if (!response.ok) {
     throw new Error(getApiErrorMessage(json, "Không tải được đánh giá."));

@@ -15,6 +15,7 @@ import { RequirePermissions } from '../authorization/decorators/require-permissi
 import { AuthorizationGuard } from '../authorization/guards/authorization.guard';
 import { CmsApplicationService } from './cms.application.service';
 import { CreateCmsBlockDto } from './dto/create-cms-block.dto';
+import { ReorderCmsBlocksDto } from './dto/reorder-cms-blocks.dto';
 import { UpdateCmsBlockDto } from './dto/update-cms-block.dto';
 import { UpdateCmsSectionDto } from './dto/update-cms-section.dto';
 
@@ -37,6 +38,7 @@ export class CmsSectionsController {
       data: body.data,
       sort_order: body.sort_order,
       is_active: body.is_active,
+      appearance: body.appearance,
     });
     return { success: true, data };
   }
@@ -65,7 +67,24 @@ export class CmsSectionsController {
       data: body.data,
       sort_order: body.sort_order,
       is_active: body.is_active,
+      appearance: body.appearance,
     });
+    return { success: true, data };
+  }
+
+  @Patch(':sectionId/blocks/reorder')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @RequirePermissions(PermissionCode.CMS_EDIT)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Reorder blocks in section (admin)' })
+  async reorderBlocks(
+    @Param('sectionId', ParseUUIDPipe) sectionId: string,
+    @Body() body: ReorderCmsBlocksDto,
+  ) {
+    const data = await this.cmsApplication.reorderSectionBlocks(
+      sectionId,
+      body.block_ids,
+    );
     return { success: true, data };
   }
 
@@ -83,6 +102,8 @@ export class CmsSectionsController {
       type: body.type,
       sort_order: body.sort_order,
       is_active: body.is_active,
+      layout: body.layout,
+      targeting: body.targeting,
     });
     return { success: true, data };
   }

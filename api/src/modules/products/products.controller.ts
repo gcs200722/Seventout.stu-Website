@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -30,6 +31,7 @@ import { AuthorizationGuard } from '../authorization/guards/authorization.guard'
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductStocksQueryDto } from './dto/list-product-stocks.query.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
+import { ProductsByIdsDto } from './dto/products-by-ids.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
@@ -66,6 +68,14 @@ export class ProductsController {
       success: true,
       data: await this.productsService.getProductStocks(query.ids),
     };
+  }
+
+  @Post('by-ids')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get multiple product details by id (public)' })
+  async getProductsByIds(@Body() body: ProductsByIdsDto) {
+    const data = await this.productsService.getProductsByIdsPublic(body.ids);
+    return { success: true, data };
   }
 
   @Get(':id/stock')

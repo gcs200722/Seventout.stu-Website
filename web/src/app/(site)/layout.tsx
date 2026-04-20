@@ -7,7 +7,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const categoryLinks = await getCategoryNavLinks(4);
 
   return (
-    <div className="flex min-h-screen flex-col bg-stone-50">
+    <div className="flex min-h-screen flex-col bg-sevenout-muted text-neutral-900">
       <Header categoryLinks={categoryLinks} />
       <ActivePromotionsBanner />
       <main className="flex-1">{children}</main>

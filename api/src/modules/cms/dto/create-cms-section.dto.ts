@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -32,4 +33,19 @@ export class CreateCmsSectionDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional presentation JSON (padding, max_width, anchor_id, background_color, …)',
+  })
+  @IsOptional()
+  @IsObject()
+  layout?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: 'Optional targeting stub (e.g. `{ "device": "mobile" }`)',
+  })
+  @IsOptional()
+  @IsObject()
+  targeting?: Record<string, unknown>;
 }

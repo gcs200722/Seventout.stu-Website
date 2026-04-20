@@ -42,6 +42,9 @@ describe('WishlistApplicationService', () => {
       getSignedDownloadUrl: jest
         .fn()
         .mockResolvedValue('https://signed.example/x.jpg'),
+      getSignedPutUrl: jest
+        .fn()
+        .mockResolvedValue('https://signed-put.example/x.jpg'),
     } as never;
 
     configService = {

@@ -55,6 +55,11 @@ class EnvironmentVariables {
   @IsString()
   AWS_S3_BUCKET = 'seventout-dev-bucket';
 
+  /** Optional public origin for object keys (e.g. CloudFront). If unset, virtual-hosted S3 URL is used. */
+  @IsString()
+  @IsOptional()
+  AWS_S3_PUBLIC_BASE_URL?: string;
+
   @IsString()
   @IsOptional()
   AWS_ACCESS_KEY_ID?: string;
@@ -142,6 +147,11 @@ class EnvironmentVariables {
   @Min(60)
   @IsOptional()
   CMS_CACHE_TTL_SECONDS = 600;
+
+  /** Optional; defaults to JWT_ACCESS_SECRET for CMS preview token signing. */
+  @IsString()
+  @IsOptional()
+  CMS_PREVIEW_SECRET?: string;
 
   @Transform(({ value }) => Number(value))
   @IsInt()

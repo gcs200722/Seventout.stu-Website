@@ -33,4 +33,11 @@ export class CreateCmsBlockDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Optional per-block presentation JSON (ratio, rounded, …)',
+  })
+  @IsOptional()
+  @IsObject()
+  appearance?: Record<string, unknown>;
 }

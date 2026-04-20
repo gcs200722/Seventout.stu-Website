@@ -32,6 +32,9 @@ export class CmsBlockEntity {
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   data: Record<string, unknown>;
 
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  appearance: Record<string, unknown>;
+
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder: number;
 
