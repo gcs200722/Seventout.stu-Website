@@ -96,4 +96,6 @@ jobs:
           AWS_REGION: ap-southeast-1
           AWS_S3_BUCKET: test-bucket
           BULLMQ_DEFAULT_QUEUE: default
+          DEFAULT_ADMIN_EMAIL: admin@example.com
+          DEFAULT_ADMIN_PASSWORD: admin-password-for-test-only
         run: pnpm --filter @apps/api test:e2e
