@@ -2,6 +2,13 @@ import { config as loadEnv } from 'dotenv';
 import { DataSource } from 'typeorm';
 
 loadEnv();
+const isTypeScriptRuntime = __filename.endsWith('.ts');
+const entitiesPath = isTypeScriptRuntime
+  ? 'src/**/*.entity.ts'
+  : 'dist/**/*.entity.js';
+const migrationsPath = isTypeScriptRuntime
+  ? 'src/infra/database/migrations/*.ts'
+  : 'dist/infra/database/migrations/*.js';
 
 export default new DataSource({
   type: 'postgres',
@@ -10,7 +17,7 @@ export default new DataSource({
   username: process.env.DB_USER ?? 'postgres',
   password: process.env.DB_PASSWORD ?? 'postgres',
   database: process.env.DB_NAME ?? 'seventout',
-  entities: ['src/**/*.entity.ts'],
-  migrations: ['src/infra/database/migrations/*.ts'],
+  entities: [entitiesPath],
+  migrations: [migrationsPath],
   synchronize: false,
 });
