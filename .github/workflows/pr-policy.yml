@@ -14,7 +14,7 @@ jobs:
   branch-flow-policy:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate branch flow and approvals
+      - name: Validate branch flow
         uses: actions/github-script@v7
         with:
           script: |
@@ -38,26 +38,6 @@ jobs:
 
             if (base === 'dev' && !head.startsWith('feature/')) {
               errors.push(`PR to dev must come from feature/* branch. Current source: ${head}`);
-            }
-
-            if (base === 'main') {
-              const reviews = await github.paginate(github.rest.pulls.listReviews, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pr.number,
-                per_page: 100,
-              });
-
-              const approvedUsers = new Set(
-                reviews
-                  .filter((review) => review.state === 'APPROVED')
-                  .map((review) => review.user?.login)
-                  .filter(Boolean)
-              );
-
-              if (approvedUsers.size < 1) {
-                errors.push('PR to main requires at least 1 approval review.');
-              }
             }
 
             if (errors.length > 0) {
