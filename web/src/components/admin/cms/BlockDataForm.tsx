@@ -313,7 +313,7 @@ function BannerForm({
           disabled={disabled}
           value={cta_link}
           onChange={(e) => onChange({ ...value, cta_link: e.target.value })}
-          placeholder="/collections hoặc https://…"
+          placeholder="/products hoặc https://…"
         />
         {errors.cta_link ? <p className="text-sm text-red-600">{errors.cta_link}</p> : null}
       </label>

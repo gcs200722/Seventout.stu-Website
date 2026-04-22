@@ -1,6 +1,11 @@
 import Link from "next/link";
 
-const quickLinks = ["About", "Shipping", "Returns", "Contact"];
+const quickLinks = [
+  { label: "About", href: "/about" },
+  { label: "Shipping", href: "/shipping" },
+  { label: "Returns", href: "/returns" },
+  { label: "Contact", href: "/contact" },
+];
 
 export function Footer() {
   return (
@@ -16,9 +21,9 @@ export function Footer() {
           <h4 className="text-sm font-semibold text-stone-900">Quick Links</h4>
           <ul className="mt-3 space-y-2">
             {quickLinks.map((item) => (
-              <li key={item}>
-                <Link href="#" className="text-sm text-stone-600 transition-colors hover:text-stone-900">
-                  {item}
+              <li key={item.href}>
+                <Link href={item.href} className="text-sm text-stone-600 transition-colors hover:text-stone-900">
+                  {item.label}
                 </Link>
               </li>
             ))}

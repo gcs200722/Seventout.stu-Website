@@ -33,6 +33,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { AuditHttpContextMiddleware } from './modules/audit/audit-http-context.middleware';
 import { AuditModule } from './modules/audit/audit.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { AuditModule } from './modules/audit/audit.module';
     ReviewsModule,
     WishlistModule,
     AuditModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [
