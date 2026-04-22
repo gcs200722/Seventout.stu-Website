@@ -23,6 +23,7 @@ import type { AuthenticatedUser } from './auth.types';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -121,6 +122,29 @@ export class AuthController {
     return {
       success: true,
       message: 'Logout successful',
+    };
+  }
+
+  @Post('change-password')
+  @ApiOperation({ summary: 'Đổi mật khẩu tài khoản hiện tại' })
+  @ApiOkResponse({
+    description: 'Password changed successfully',
+    example: {
+      success: true,
+      message: 'Password changed successfully',
+    },
+  })
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() payload: ChangePasswordDto,
+  ) {
+    await this.authService.changePassword(user, payload);
+    return {
+      success: true,
+      message: 'Password changed successfully',
     };
   }
 

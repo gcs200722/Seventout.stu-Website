@@ -20,7 +20,7 @@ import {
   type MeResponse,
   type RegisterPayload,
 } from "@/lib/auth-api";
-import { patchMyProfile } from "@/lib/users-api";
+import { changeMyPassword, patchMyProfile } from "@/lib/users-api";
 import {
   AUTH_TOKENS_CHANGED_EVENT,
   clearStoredTokens,
@@ -43,6 +43,10 @@ type AuthContextValue = {
     first_name?: string;
     last_name?: string;
     phone?: string;
+  }) => Promise<void>;
+  changePassword: (payload: {
+    current_password: string;
+    new_password: string;
   }) => Promise<void>;
 };
 
@@ -182,6 +186,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user?.id, loadProfile],
   );
 
+  const changePassword = useCallback(
+    async (payload: { current_password: string; new_password: string }) => {
+      await changeMyPassword(payload);
+    },
+    [],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -194,8 +205,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       updateProfile,
+      changePassword,
     }),
-    [user, role, permissions, loading, login, register, logout, updateProfile],
+    [user, role, permissions, loading, login, register, logout, updateProfile, changePassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

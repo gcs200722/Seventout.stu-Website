@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { AuthPanel } from "@/components/auth/AuthPanel";
@@ -72,6 +72,28 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
   const [showAuthPanel, setShowAuthPanel] = useState(false);
   const [openSearch, setOpenSearch] = useState(false);
   const [openMobileMenu, setOpenMobileMenu] = useState(false);
+  const [openAccountMenu, setOpenAccountMenu] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!openAccountMenu) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setOpenAccountMenu(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenAccountMenu(false);
+      }
+    }
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [openAccountMenu]);
 
   return (
     <>
@@ -105,12 +127,12 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
             </Link>
           </nav>
 
-          <div className="flex items-center justify-end gap-2 md:flex-1">
+          <div className="flex items-center justify-end gap-1 sm:gap-2 md:flex-1">
             <div className="relative">
               <Link
                 href="/products"
                 aria-label="Search products"
-                className="rounded-full border border-transparent p-2 text-[#2f2a24] transition-colors hover:bg-[#eadfcd] md:hidden"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-transparent text-[#2f2a24] transition-colors hover:bg-[#eadfcd] md:hidden"
               >
                 <IconSearch className="h-5 w-5" />
               </Link>
@@ -118,7 +140,7 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
                 type="button"
                 aria-label="Search"
                 onClick={() => setOpenSearch((prev) => !prev)}
-                className="hidden rounded-full border border-transparent p-2 text-[#2f2a24] transition-colors hover:bg-[#eadfcd] md:inline-flex"
+                className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-transparent text-[#2f2a24] transition-colors hover:bg-[#eadfcd] md:inline-flex"
               >
                 <IconSearch className="h-5 w-5" />
               </button>
@@ -131,11 +153,11 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
               <Link
                 href="/cart"
                 aria-label="Cart"
-                className="relative rounded-full border border-transparent p-2 text-[#2f2a24] transition-colors hover:bg-[#eadfcd]"
+                className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-transparent text-[#2f2a24] transition-colors hover:bg-[#eadfcd]"
               >
                 <IconCart className="h-5 w-5" />
                 {isAuthenticated && cartCount > 0 ? (
-                  <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-[#3d3228] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
+                  <span className="absolute right-0 top-0 min-w-5 translate-x-1/3 -translate-y-1/3 rounded-full bg-[#3d3228] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
                     {cartCount}
                   </span>
                 ) : null}
@@ -146,11 +168,11 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
               <Link
                 href="/wishlist"
                 aria-label={wishlistCount > 0 ? `Wishlist ${wishlistCount} items` : "Wishlist"}
-                className="relative rounded-full border border-[#d9ccb6] p-2 text-[#2f2a24] transition-colors hover:bg-[#eadfcd]"
+                className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d9ccb6] text-[#2f2a24] transition-colors hover:bg-[#eadfcd]"
               >
                 <IconHeartOutline className="h-5 w-5" />
                 {wishlistCount > 0 ? (
-                  <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-[#3d3228] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
+                  <span className="absolute right-0 top-0 min-w-5 translate-x-1/3 -translate-y-1/3 rounded-full bg-[#3d3228] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
                     {wishlistCount > 99 ? "99+" : wishlistCount}
                   </span>
                 ) : null}
@@ -164,18 +186,49 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
                 <Link
                   href="/profile"
                   aria-label="Account"
-                  className="inline-flex rounded-full border border-[#d9ccb6] p-2 text-[#2f2a24] transition-colors hover:bg-[#eadfcd] md:hidden"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d9ccb6] text-[#2f2a24] transition-colors hover:bg-[#eadfcd] md:hidden"
                 >
                   <IconUser className="h-5 w-5" />
                 </Link>
-                <Link
-                  href="/profile"
-                  aria-label="Account"
-                  className="hidden items-center gap-1 rounded-full border border-[#d9ccb6] px-3 py-1.5 text-sm font-medium text-[#2f2a24] transition-colors hover:bg-[#eadfcd] md:inline-flex"
-                >
-                  <IconUser className="h-4.5 w-4.5" />
-                  <span>Account</span>
-                </Link>
+                <div className="relative hidden md:block" ref={accountMenuRef}>
+                  <button
+                    type="button"
+                    aria-label="Account menu"
+                    aria-expanded={openAccountMenu}
+                    onClick={() => setOpenAccountMenu((prev) => !prev)}
+                    className="inline-flex items-center gap-1 rounded-full border border-[#d9ccb6] px-3 py-1.5 text-sm font-medium text-[#2f2a24] transition-colors hover:bg-[#eadfcd]"
+                  >
+                    <IconUser className="h-4.5 w-4.5" />
+                    <span>Account</span>
+                  </button>
+                  {openAccountMenu ? (
+                    <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-[#e2d5bf] bg-[#fffdf9] p-2 shadow-xl">
+                      <Link
+                        href="/profile"
+                        onClick={() => setOpenAccountMenu(false)}
+                        className="block rounded-md px-3 py-2 text-sm text-[#2f2a24] transition hover:bg-[#f3eadc]"
+                      >
+                        Tài khoản
+                      </Link>
+                      <Link
+                        href="/orders"
+                        onClick={() => setOpenAccountMenu(false)}
+                        className="block rounded-md px-3 py-2 text-sm text-[#2f2a24] transition hover:bg-[#f3eadc]"
+                      >
+                        Đơn hàng
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void logout().finally(() => setOpenAccountMenu(false));
+                        }}
+                        className="mt-1 block w-full rounded-md border border-[#d9ccb6] px-3 py-2 text-left text-sm font-semibold text-[#2f2a24] transition hover:bg-[#f3eadc]"
+                      >
+                        Đăng xuất
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </>
             ) : null}
             {!loading && !isAuthenticated ? (
