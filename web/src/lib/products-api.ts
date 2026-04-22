@@ -39,6 +39,8 @@ export type ProductListItem = {
   category: {
     id: string;
     name: string;
+    slug: string;
+    parent: { id: string; name: string; slug: string } | null;
   };
   available_stock: number;
   is_active: boolean;
@@ -55,7 +57,8 @@ export type ProductDetail = {
   category: {
     id: string;
     name: string;
-    parent: { id: string; name: string } | null;
+    slug: string;
+    parent: { id: string; name: string; slug: string } | null;
   };
   available_stock: number;
   images: string[];
@@ -145,6 +148,18 @@ export async function getProductByIdPublic(id: string): Promise<ProductDetail> {
   return json.data;
 }
 
+export async function getProductBySlugPublic(slug: string): Promise<ProductDetail> {
+  const response = await apiFetch(`/products/slug/${encodeURIComponent(slug)}`, defaultFetchInit);
+  const json = (await response.json()) as ApiEnvelope<ProductDetail>;
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(json, "Không tải được chi tiết sản phẩm."));
+  }
+  if (!json.success || !json.data) {
+    throw new Error("Unexpected API response format");
+  }
+  return json.data;
+}
+
 export async function getProductsByIdsPublic(ids: string[]): Promise<ProductDetail[]> {
   const unique = [...new Set(ids)].filter((id) => id && id.length > 0);
   if (unique.length === 0) {
@@ -200,4 +215,17 @@ export function formatVnd(value: number) {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+export function buildProductHref(product: {
+  slug?: string;
+  category?: { slug?: string; parent?: { slug?: string } | null } | null;
+}): string {
+  const parentSlug = product.category?.parent?.slug?.trim();
+  const subCategorySlug = product.category?.slug?.trim();
+  const productSlug = product.slug?.trim();
+  if (!parentSlug || !subCategorySlug || !productSlug) {
+    return "/products";
+  }
+  return `/categories/${encodeURIComponent(parentSlug)}/${encodeURIComponent(subCategorySlug)}/${encodeURIComponent(productSlug)}`;
 }
