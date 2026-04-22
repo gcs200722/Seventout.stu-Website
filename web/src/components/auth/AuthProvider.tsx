@@ -22,6 +22,7 @@ import {
 } from "@/lib/auth-api";
 import { patchMyProfile } from "@/lib/users-api";
 import {
+  AUTH_TOKENS_CHANGED_EVENT,
   clearStoredTokens,
   getStoredTokens,
   setStoredTokens,
@@ -118,6 +119,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void loadProfile();
+  }, [loadProfile]);
+
+  useEffect(() => {
+    const reloadProfile = () => {
+      setLoading(true);
+      void loadProfile();
+    };
+
+    window.addEventListener(AUTH_TOKENS_CHANGED_EVENT, reloadProfile);
+    window.addEventListener("storage", reloadProfile);
+    return () => {
+      window.removeEventListener(AUTH_TOKENS_CHANGED_EVENT, reloadProfile);
+      window.removeEventListener("storage", reloadProfile);
+    };
   }, [loadProfile]);
 
   const login = useCallback(async (payload: LoginPayload) => {

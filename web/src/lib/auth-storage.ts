@@ -2,6 +2,14 @@ import type { AuthTokens } from "./auth-api";
 
 const ACCESS_TOKEN_KEY = "s7_access_token";
 const REFRESH_TOKEN_KEY = "s7_refresh_token";
+export const AUTH_TOKENS_CHANGED_EVENT = "auth:tokens-changed";
+
+function dispatchAuthTokensChanged() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new Event(AUTH_TOKENS_CHANGED_EVENT));
+}
 
 export function getStoredTokens(): AuthTokens | null {
   if (typeof window === "undefined") {
@@ -25,6 +33,7 @@ export function setStoredTokens(tokens: AuthTokens) {
 
   localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
   localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
+  dispatchAuthTokensChanged();
 }
 
 export function setStoredAccessToken(access_token: string) {
@@ -33,6 +42,7 @@ export function setStoredAccessToken(access_token: string) {
   }
 
   localStorage.setItem(ACCESS_TOKEN_KEY, access_token);
+  dispatchAuthTokensChanged();
 }
 
 export function clearStoredTokens() {
@@ -42,4 +52,5 @@ export function clearStoredTokens() {
 
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+  dispatchAuthTokensChanged();
 }

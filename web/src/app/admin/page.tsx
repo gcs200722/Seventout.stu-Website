@@ -1,65 +1,73 @@
-import Link from "next/link";
+"use client";
 
-const cards = [
-  {
-    title: "Người dùng",
-    description: "Theo dõi danh sách tài khoản đã đăng ký.",
-    href: "/admin/users",
-  },
-  {
-    title: "Danh mục",
-    description: "Tạo và cập nhật danh mục sản phẩm (CATEGORY_MANAGER).",
-    href: "/admin/categories",
-  },
-  {
-    title: "CMS / Trang chủ",
-    description: "Merchandising: hero, section sản phẩm, banner (CMS_READ / CMS_EDIT).",
-    href: "/admin/cms",
-  },
-  {
-    title: "Khuyến mãi",
-    description: "Coupon và chiến dịch (PROMOTION_READ / PROMOTION_MANAGE).",
-    href: "/admin/promotions",
-  },
-  {
-    title: "Đơn hàng",
-    description: "Kiểm tra trạng thái endpoint phân quyền ORDER_MANAGE.",
-    href: "/admin/orders",
-  },
-  {
-    title: "Đơn hoàn",
-    description: "Xử lý quy trình return, kiểm tra hàng và nhập kho/loại bỏ.",
-    href: "/admin/returns",
-  },
-  {
-    title: "Sản phẩm",
-    description: "Khu vực placeholder cho module quản lý sản phẩm.",
-    href: "/admin/products",
-  },
+import { useEffect, useState } from "react";
+
+import DashboardOverview from "@/components/admin/dashboard/DashboardOverview";
+import {
+  getAdminDashboardSummary,
+  type DashboardComparePreset,
+  type DashboardSummary,
+} from "@/lib/admin-dashboard-api";
+
+const compareOptions: Array<{ value: DashboardComparePreset; label: string }> = [
+  { value: "YESTERDAY", label: "So voi hom qua" },
+  { value: "LAST_WEEK_SAME_DAY", label: "So voi cung tuan truoc" },
+  { value: "AVG_LAST_7_DAYS", label: "So voi TB 7 ngay" },
 ];
 
 export default function AdminDashboardPage() {
+  const [compare, setCompare] = useState<DashboardComparePreset>("YESTERDAY");
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadSummary() {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await getAdminDashboardSummary(compare);
+        setSummary(response);
+      } catch (requestError) {
+        setError(requestError instanceof Error ? requestError.message : "Khong tai duoc dashboard.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    void loadSummary();
+  }, [compare]);
+
   return (
     <section className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-        <p className="mt-1 text-sm text-stone-600">
-          Khu vực quản trị nội bộ cho tài khoản ADMIN và STAFF.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
+          <p className="mt-1 text-sm text-stone-600">
+            Dashboard van hanh chuyen nghiep cho tai khoan ADMIN va STAFF.
+          </p>
+        </div>
+
+        <label className="text-sm text-stone-700">
+          Muc so sanh
+          <select
+            value={compare}
+            onChange={(event) => setCompare(event.target.value as DashboardComparePreset)}
+            className="mt-1 block rounded-md border border-stone-300 px-3 py-2 text-sm"
+          >
+            {compareOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => (
-          <Link
-            key={card.href}
-            href={card.href}
-            className="rounded-xl border border-stone-200 bg-stone-50 p-4 hover:border-stone-300 hover:bg-white"
-          >
-            <h2 className="text-base font-semibold">{card.title}</h2>
-            <p className="mt-2 text-sm text-stone-600">{card.description}</p>
-          </Link>
-        ))}
-      </div>
+      {error ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
+      ) : null}
+      {loading ? <p className="text-sm text-stone-500">Dang tai dashboard...</p> : null}
+      {!loading && summary ? <DashboardOverview summary={summary} /> : null}
     </section>
   );
 }

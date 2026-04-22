@@ -7,13 +7,19 @@ import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { PromotionConditionsHint } from "@/components/promotions/PromotionConditionsHint";
 import { WishlistHeartButton } from "@/components/wishlist/WishlistHeartButton";
 import type { ProductPromotionPreview } from "@/lib/products-api";
+import { buildProductHref } from "@/lib/products-api";
 
 export type Product = {
   id: string;
   name: string;
+  slug?: string;
   price: number;
   originalPrice?: number;
   image: string;
+  category?: {
+    slug?: string;
+    parent?: { slug?: string } | null;
+  };
   /** Active catalog campaign preview from API (CMS-driven home sections). */
   promotion?: ProductPromotionPreview;
 };
@@ -34,7 +40,7 @@ function formatPrice(value: number) {
 
 export function ProductCard({ product, variant = "retail" }: ProductCardProps) {
   const promo = product.promotion;
-  const detailHref = `/products/${product.id}`;
+  const detailHref = buildProductHref(product);
   const hasLegacyDiscount = Boolean(
     !promo && product.originalPrice && product.originalPrice > product.price,
   );
