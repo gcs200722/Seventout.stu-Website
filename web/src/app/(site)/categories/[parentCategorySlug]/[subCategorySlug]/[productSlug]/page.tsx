@@ -6,7 +6,12 @@ import { ProductDetailWishlist } from "@/components/wishlist/ProductDetailWishli
 import { PromotionConditionsHint } from "@/components/promotions/PromotionConditionsHint";
 import { ProductImageGallery } from "@/components/products/ProductImageGallery";
 import { ProductReviewsSection } from "@/components/products/ProductReviewsSection";
-import { formatVnd, getProductByIdPublic, getProductStockPublic } from "@/lib/products-api";
+import {
+  buildProductHref,
+  formatVnd,
+  getProductBySlugPublic,
+  getProductStockPublic,
+} from "@/lib/products-api";
 import {
   getProductReviewStatsPublic,
   listProductReviewsPublic,
@@ -15,7 +20,11 @@ import {
 } from "@/lib/reviews-api";
 
 type PageProps = {
-  params: Promise<{ id: string }>;
+  params: Promise<{
+    parentCategorySlug: string;
+    subCategorySlug: string;
+    productSlug: string;
+  }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
@@ -28,21 +37,34 @@ const emptyStats: ProductReviewStats = {
   rating_distribution: { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 },
 };
 
-export default async function ProductDetailPage({ params, searchParams }: PageProps) {
-  const { id } = await params;
+export default async function ProductDetailCanonicalPage({ params, searchParams }: PageProps) {
+  const { parentCategorySlug, subCategorySlug, productSlug } = await params;
   const sp = (await searchParams) ?? {};
   const rawOrder = sp.order_id;
   const orderIdForReview =
     typeof rawOrder === "string" && rawOrder.trim().length > 0 ? rawOrder.trim() : undefined;
 
-  let product: Awaited<ReturnType<typeof getProductByIdPublic>> | null = null;
+  let product: Awaited<ReturnType<typeof getProductBySlugPublic>> | null = null;
   try {
-    product = await getProductByIdPublic(id);
+    product = await getProductBySlugPublic(productSlug);
   } catch {
     product = null;
   }
-
   if (!product) {
+    notFound();
+  }
+
+  if (
+    product.category.parent?.slug !== parentCategorySlug ||
+    product.category.slug !== subCategorySlug
+  ) {
+    notFound();
+  }
+
+  const canonicalPath = buildProductHref(product);
+  if (
+    canonicalPath !== `/categories/${parentCategorySlug}/${subCategorySlug}/${productSlug}`
+  ) {
     notFound();
   }
 
@@ -57,8 +79,8 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
   };
   try {
     const [stats, list] = await Promise.all([
-      getProductReviewStatsPublic(id),
-      listProductReviewsPublic(id, { page: 1, limit: 10, sort: "latest" }),
+      getProductReviewStatsPublic(product.id),
+      listProductReviewsPublic(product.id, { page: 1, limit: 10, sort: "latest" }),
     ]);
     reviewStats = stats;
     reviewList = list;
@@ -74,7 +96,19 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
           Sản phẩm
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-stone-800">{product.name}</span>
+        <Link
+          href={`/categories/${encodeURIComponent(parentCategorySlug)}`}
+          className="hover:text-stone-800"
+        >
+          {product.category.parent?.name}
+        </Link>
+        <span className="mx-2">/</span>
+        <Link
+          href={`/categories/${encodeURIComponent(parentCategorySlug)}/${encodeURIComponent(subCategorySlug)}`}
+          className="hover:text-stone-800"
+        >
+          {product.category.name}
+        </Link>
       </nav>
 
       <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
@@ -110,7 +144,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
             <AddToCartButton productId={product.id} />
             <ProductDetailWishlist productId={product.id} />
             <Link
-              href={`/products?category_id=${product.category.id}`}
+              href={`/categories/${encodeURIComponent(parentCategorySlug)}/${encodeURIComponent(subCategorySlug)}`}
               className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
             >
               Xem cùng danh mục

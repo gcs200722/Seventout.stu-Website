@@ -6,7 +6,7 @@ import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { WishlistHeartButton } from "@/components/wishlist/WishlistHeartButton";
 import { PromotionConditionsHint } from "@/components/promotions/PromotionConditionsHint";
 import type { ProductListItem } from "@/lib/products-api";
-import { formatVnd } from "@/lib/products-api";
+import { buildProductHref, formatVnd } from "@/lib/products-api";
 
 type ProductGridCardProps = {
   product: ProductListItem;
@@ -14,7 +14,7 @@ type ProductGridCardProps = {
 
 export function ProductGridCard({ product }: ProductGridCardProps) {
   const promo = product.promotion;
-  const detailHref = `/products/${product.id}`;
+  const detailHref = buildProductHref(product);
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">

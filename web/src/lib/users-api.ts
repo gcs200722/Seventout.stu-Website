@@ -15,6 +15,11 @@ export type UpdateProfilePayload = {
   phone?: string;
 };
 
+export type ChangePasswordPayload = {
+  current_password: string;
+  new_password: string;
+};
+
 type AuthorizedRequest = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: string;
@@ -79,4 +84,12 @@ export async function patchMyProfile(userId: string, payload: UpdateProfilePaylo
     body: JSON.stringify(payload),
   });
   return response.message ?? "User updated successfully";
+}
+
+export async function changeMyPassword(payload: ChangePasswordPayload) {
+  const response = await withRefresh<unknown>("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return response.message ?? "Password changed successfully";
 }

@@ -1,4 +1,8 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -234,6 +238,62 @@ describe('AuthService', () => {
         permissions: [],
       }),
     ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('should_change_password_and_revoke_tokens_when_valid', async () => {
+    usersRepository.findOne.mockResolvedValue({
+      id: 'user-1',
+      email: 'john@example.com',
+      passwordHash: 'old-hash',
+    } as UserEntity);
+    (bcrypt.compare as jest.Mock)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    (bcrypt.hash as jest.Mock).mockResolvedValue('new-hash');
+    usersRepository.save.mockResolvedValue({} as UserEntity);
+
+    await service.changePassword(
+      {
+        id: 'user-1',
+        email: 'john@example.com',
+        role: UserRole.USER,
+        permissions: [],
+      },
+      {
+        current_password: 'oldPassword123',
+        new_password: 'newPassword123',
+      },
+    );
+
+    expect(bcrypt.hash).toHaveBeenCalledWith('newPassword123', 10);
+    expect(refreshCreateQueryBuilderMock).toHaveBeenCalled();
+    expect(auditWriter.log).toHaveBeenCalled();
+  });
+
+  it('should_throw_error_when_new_password_same_as_current', async () => {
+    usersRepository.findOne.mockResolvedValue({
+      id: 'user-1',
+      email: 'john@example.com',
+      passwordHash: 'old-hash',
+    } as UserEntity);
+    (bcrypt.compare as jest.Mock)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true);
+
+    await expect(
+      service.changePassword(
+        {
+          id: 'user-1',
+          email: 'john@example.com',
+          role: UserRole.USER,
+          permissions: [],
+        },
+        {
+          current_password: 'oldPassword123',
+          new_password: 'oldPassword123',
+        },
+      ),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('should_throw_error_when_refresh_token_revoked', async () => {

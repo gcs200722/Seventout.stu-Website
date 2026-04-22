@@ -87,6 +87,16 @@ export class ProductsController {
     };
   }
 
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Get product detail by slug (public)' })
+  async getProductBySlug(@Param('slug') slug: string) {
+    const data = await this.productsService.getProductBySlug(slug);
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get product detail (public)' })
   async getProductById(@Param('id', ParseUUIDPipe) id: string) {

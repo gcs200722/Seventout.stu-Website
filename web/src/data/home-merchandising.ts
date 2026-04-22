@@ -6,7 +6,7 @@ export const heroContent = {
   title: "Nâng cấp tủ đồ",
   subtitle: "Streetwear tối giản — form dễ mặc, cảm hứng local, giọng điệu editorial.",
   ctaLabel: "Khám phá bộ sưu tập",
-  ctaHref: "/collections",
+  ctaHref: "/products",
   image:
     "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=2000&q=80",
 };
@@ -150,5 +150,5 @@ export const promotion = {
   description:
     "Chọn món trong 72 giờ. Số lượng giới hạn — ưu đãi kết thúc khi hết hàng.",
   ctaLabel: "Mua ngay",
-  ctaHref: "/collections",
+  ctaHref: "/products",
 };

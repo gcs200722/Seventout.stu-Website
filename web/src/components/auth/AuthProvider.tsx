@@ -20,8 +20,9 @@ import {
   type MeResponse,
   type RegisterPayload,
 } from "@/lib/auth-api";
-import { patchMyProfile } from "@/lib/users-api";
+import { changeMyPassword, patchMyProfile } from "@/lib/users-api";
 import {
+  AUTH_TOKENS_CHANGED_EVENT,
   clearStoredTokens,
   getStoredTokens,
   setStoredTokens,
@@ -42,6 +43,10 @@ type AuthContextValue = {
     first_name?: string;
     last_name?: string;
     phone?: string;
+  }) => Promise<void>;
+  changePassword: (payload: {
+    current_password: string;
+    new_password: string;
   }) => Promise<void>;
 };
 
@@ -120,6 +125,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void loadProfile();
   }, [loadProfile]);
 
+  useEffect(() => {
+    const reloadProfile = () => {
+      setLoading(true);
+      void loadProfile();
+    };
+
+    window.addEventListener(AUTH_TOKENS_CHANGED_EVENT, reloadProfile);
+    window.addEventListener("storage", reloadProfile);
+    return () => {
+      window.removeEventListener(AUTH_TOKENS_CHANGED_EVENT, reloadProfile);
+      window.removeEventListener("storage", reloadProfile);
+    };
+  }, [loadProfile]);
+
   const login = useCallback(async (payload: LoginPayload) => {
     const tokens = await loginRequest(payload);
     setStoredTokens(tokens);
@@ -167,6 +186,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user?.id, loadProfile],
   );
 
+  const changePassword = useCallback(
+    async (payload: { current_password: string; new_password: string }) => {
+      await changeMyPassword(payload);
+    },
+    [],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -179,8 +205,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       updateProfile,
+      changePassword,
     }),
-    [user, role, permissions, loading, login, register, logout, updateProfile],
+    [user, role, permissions, loading, login, register, logout, updateProfile, changePassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

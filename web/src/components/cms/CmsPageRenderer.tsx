@@ -28,7 +28,7 @@ import {
 import type { CmsPublishedPage, CmsPublishedSection } from "@/lib/cms-api";
 import { featuredCollectionsFromApi } from "@/lib/categories-api";
 import type { ProductDetail } from "@/lib/products-api";
-import { getProductsByIdsPublic } from "@/lib/products-api";
+import { buildProductHref, getProductsByIdsPublic } from "@/lib/products-api";
 
 const CMS_CATEGORY_PLACEHOLDER_IMAGE =
   "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80";
@@ -67,8 +67,13 @@ async function loadProductsByIds(ids: string[]): Promise<Map<string, Product>> {
       map.set(p.id, {
         id: p.id,
         name: p.name,
+        slug: p.slug,
         price: p.price,
         image,
+        category: {
+          slug: p.category.slug,
+          parent: p.category.parent ? { slug: p.category.parent.slug } : null,
+        },
         promotion: p.promotion,
       });
     }
@@ -164,7 +169,7 @@ export async function CmsPageRenderer({
           const title = typeof d.title === "string" ? d.title : "";
           const subtitle = typeof d.subtitle === "string" ? d.subtitle : "";
           const ctaLabel = typeof d.cta_text === "string" ? d.cta_text : "Shop";
-          const ctaHref = typeof d.cta_link === "string" ? d.cta_link : "/collections";
+          const ctaHref = typeof d.cta_link === "string" ? d.cta_link : "/products";
           if (title) {
             elements.push(
               <SectionShell
@@ -178,7 +183,7 @@ export async function CmsPageRenderer({
                   title={title}
                   subtitle={subtitle}
                   ctaLabel={ctaLabel}
-                  ctaHref={ctaHref || "/collections"}
+                  ctaHref={ctaHref || "/products"}
                   image={
                     imageUrl ||
                     "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=2000&q=80"
@@ -265,7 +270,7 @@ export async function CmsPageRenderer({
           const title = typeof d.title === "string" ? d.title : "";
           const description = typeof d.subtitle === "string" ? d.subtitle : "";
           const ctaLabel = typeof d.cta_text === "string" ? d.cta_text : "Shop";
-          const ctaHref = typeof d.cta_link === "string" ? d.cta_link : "/collections";
+          const ctaHref = typeof d.cta_link === "string" ? d.cta_link : "/products";
           if (title) {
             elements.push(
               <Reveal key={section.id}>
@@ -279,7 +284,7 @@ export async function CmsPageRenderer({
                     title={title}
                     description={description}
                     ctaLabel={ctaLabel}
-                    ctaHref={ctaHref || "/collections"}
+                    ctaHref={ctaHref || "/products"}
                   />
                 </SectionShell>
               </Reveal>,
@@ -441,7 +446,8 @@ export async function CmsPageRenderer({
           if (image && hotspots.length > 0) {
             const productLinks: Record<string, string> = {};
             for (const h of hotspots) {
-              productLinks[h.product_id] = `/products/${h.product_id}`;
+              const product = productMap.get(h.product_id);
+              productLinks[h.product_id] = product ? buildProductHref(product) : "/products";
             }
             elements.push(
               <Reveal key={section.id}>
@@ -538,7 +544,9 @@ export async function CmsPageRenderer({
             : section.title;
         const mapped: Collection[] = categories.map((c, idx) => {
           const slug =
-            typeof c.slug === "string" && c.slug.trim().length > 0 ? `/collections/${c.slug}` : "/collections";
+            typeof c.slug === "string" && c.slug.trim().length > 0
+              ? `/categories/${encodeURIComponent(c.slug)}`
+              : "/products";
           return {
             id: String(c.id ?? c.name ?? idx),
             title: c.name ?? "Danh mục",
