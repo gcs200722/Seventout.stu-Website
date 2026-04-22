@@ -10,7 +10,9 @@ import { AuthService } from './auth.service';
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenCleanupService } from './refresh-token-cleanup.service';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
@@ -28,7 +30,9 @@ import { AuditModule } from '../audit/audit.module';
   providers: [
     AuthService,
     JwtStrategy,
+    GoogleStrategy,
     JwtAuthGuard,
+    GoogleAuthGuard,
     RefreshTokenCleanupService,
     AdminBootstrapService,
   ],

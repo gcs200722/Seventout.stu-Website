@@ -4,9 +4,14 @@ import {
   Get,
   Header,
   HttpCode,
+  Req,
+  Res,
   Post,
+  Query,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -21,6 +26,18 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
+import type { GoogleOAuthProfile } from './google-auth.types';
+import type { Request, Response } from 'express';
+
+const AUTH_THROTTLE_LIMIT = Number.parseInt(
+  process.env.THROTTLE_AUTH_LIMIT ?? '10',
+  10,
+);
+const AUTH_THROTTLE_TTL_MS = Number.parseInt(
+  process.env.THROTTLE_AUTH_TTL_MS ?? '60000',
+  10,
+);
 
 @ApiTags('auth')
 @Controller('auth')
@@ -28,6 +45,12 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @Throttle({
+    default: {
+      limit: Number.isFinite(AUTH_THROTTLE_LIMIT) ? AUTH_THROTTLE_LIMIT : 10,
+      ttl: Number.isFinite(AUTH_THROTTLE_TTL_MS) ? AUTH_THROTTLE_TTL_MS : 60000,
+    },
+  })
   @ApiOperation({ summary: 'Đăng nhập hệ thống' })
   @ApiOkResponse({
     description: 'Login successful',
@@ -54,6 +77,12 @@ export class AuthController {
   }
 
   @Post('register')
+  @Throttle({
+    default: {
+      limit: Number.isFinite(AUTH_THROTTLE_LIMIT) ? AUTH_THROTTLE_LIMIT : 10,
+      ttl: Number.isFinite(AUTH_THROTTLE_TTL_MS) ? AUTH_THROTTLE_TTL_MS : 60000,
+    },
+  })
   @ApiOperation({ summary: 'Đăng ký tài khoản mới' })
   @ApiCreatedResponse({
     description: 'User registered successfully',
@@ -121,6 +150,12 @@ export class AuthController {
   }
 
   @Post('refresh-token')
+  @Throttle({
+    default: {
+      limit: Number.isFinite(AUTH_THROTTLE_LIMIT) ? AUTH_THROTTLE_LIMIT : 10,
+      ttl: Number.isFinite(AUTH_THROTTLE_TTL_MS) ? AUTH_THROTTLE_TTL_MS : 60000,
+    },
+  })
   @ApiOperation({ summary: 'Cấp lại access token từ refresh token' })
   @ApiOkResponse({
     description: 'Access token refreshed',
@@ -143,5 +178,40 @@ export class AuthController {
         refresh_token: tokens.refresh_token,
       },
     };
+  }
+
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  googleAuth(@Query('state') state?: string) {
+    // Passport handles redirect to Google when this endpoint is hit.
+    return {
+      success: true,
+      data: {
+        state,
+      },
+    };
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  async googleAuthCallback(
+    @Req() req: Request & { user?: GoogleOAuthProfile },
+    @Query('state') state: string | undefined,
+    @Res() res: Response,
+  ) {
+    try {
+      this.authService.assertGoogleState(state);
+      const profile = req.user;
+      if (!profile) {
+        throw new UnauthorizedException('Google profile is unavailable');
+      }
+
+      const tokens = await this.authService.loginWithGoogle(profile);
+      return res.redirect(this.authService.buildGoogleSuccessRedirect(tokens));
+    } catch {
+      return res.redirect(
+        this.authService.buildGoogleFailureRedirect('oauth_failed'),
+      );
+    }
   }
 }

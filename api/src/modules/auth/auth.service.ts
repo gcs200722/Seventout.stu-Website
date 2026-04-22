@@ -1,12 +1,14 @@
 import {
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'node:crypto';
 import { Repository } from 'typeorm';
 import { UserRole } from '../authorization/authorization.types';
 import { UserEntity } from '../users/user.entity';
@@ -21,6 +23,10 @@ import {
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { AuditAction, AuditEntityType } from '../audit/audit.constants';
 import { AuditWriterService } from '../audit/audit-writer.service';
+import {
+  GoogleOAuthProfile,
+  GoogleOAuthStatePayload,
+} from './google-auth.types';
 
 @Injectable()
 export class AuthService {
@@ -82,6 +88,65 @@ export class AuthService {
       before: null,
       after: null,
     });
+    return {
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    };
+  }
+
+  async loginWithGoogle(profile: GoogleOAuthProfile): Promise<{
+    access_token: string;
+    refresh_token: string;
+  }> {
+    const normalizedEmail = profile.email.trim().toLowerCase();
+    const normalizedGoogleId = profile.googleId.trim();
+    if (!normalizedGoogleId) {
+      throw new UnauthorizedException('Invalid Google account');
+    }
+
+    let user = await this.usersRepository.findOne({
+      where: { googleId: normalizedGoogleId },
+    });
+
+    if (!user) {
+      user = await this.usersRepository.findOne({
+        where: { email: normalizedEmail },
+      });
+    }
+
+    if (!user) {
+      user = this.usersRepository.create({
+        email: normalizedEmail,
+        firstName: profile.firstName.trim(),
+        lastName: profile.lastName.trim(),
+        phone: '0000000000',
+        role: UserRole.USER,
+        permissions: [],
+      });
+    }
+
+    user.email = normalizedEmail;
+    user.googleId = normalizedGoogleId;
+    user.authProvider = 'google';
+    user.firstName = user.firstName?.trim() || profile.firstName.trim();
+    user.lastName = user.lastName?.trim() || profile.lastName.trim();
+
+    const persistedUser = await this.usersRepository.save(user);
+    const tokens = await this.issueTokenPair(persistedUser);
+
+    await this.auditWriter.log({
+      action: AuditAction.LOGIN,
+      entityType: AuditEntityType.AUTH,
+      entityId: persistedUser.id,
+      actor: this.toAuditActor(persistedUser),
+      entityLabel: persistedUser.email,
+      metadata: {
+        source: 'google_oauth',
+      },
+      before: null,
+      after: null,
+    });
+
     return {
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
@@ -198,12 +263,83 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
     return user;
+  }
+
+  createGoogleState(): string {
+    const payload: GoogleOAuthStatePayload = {
+      nonce: crypto.randomUUID(),
+      type: 'google_oauth_state',
+    };
+    return this.jwtService.sign(payload, {
+      secret: this.getGoogleStateSecret(),
+      expiresIn: '5m',
+    });
+  }
+
+  assertGoogleState(state: string | undefined): void {
+    if (!state || state.trim().length === 0) {
+      throw new UnauthorizedException('Missing OAuth state');
+    }
+
+    try {
+      const payload = this.jwtService.verify<GoogleOAuthStatePayload>(state, {
+        secret: this.getGoogleStateSecret(),
+      });
+      if (payload.type !== 'google_oauth_state') {
+        throw new UnauthorizedException('Invalid OAuth state');
+      }
+    } catch {
+      throw new UnauthorizedException('Invalid OAuth state');
+    }
+  }
+
+  buildGoogleSuccessRedirect(tokens: {
+    access_token: string;
+    refresh_token: string;
+  }): string {
+    const target = this.configService.getOrThrow<string>(
+      'GOOGLE_SUCCESS_REDIRECT_URL',
+    );
+    return this.buildRedirectUrl(target, {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+    });
+  }
+
+  buildGoogleFailureRedirect(errorCode: string): string {
+    const target = this.configService.getOrThrow<string>(
+      'GOOGLE_FAILURE_REDIRECT_URL',
+    );
+    return this.buildRedirectUrl(target, {
+      error: errorCode,
+    });
+  }
+
+  private buildRedirectUrl(
+    base: string,
+    query: Record<string, string>,
+  ): string {
+    try {
+      const url = new URL(base);
+      Object.entries(query).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+      });
+      return url.toString();
+    } catch {
+      throw new InternalServerErrorException(
+        'Invalid OAuth redirect URL configuration',
+      );
+    }
   }
 
   private async issueTokenPair(user: UserEntity): Promise<{
@@ -297,5 +433,14 @@ export class AuthService {
       d: 86400,
     };
     return value * factorMap[unit];
+  }
+
+  private getGoogleStateSecret(): string {
+    const configuredSecret =
+      this.configService.get<string>('GOOGLE_STATE_SECRET')?.trim() ?? '';
+    if (configuredSecret.length > 0) {
+      return configuredSecret;
+    }
+    return this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
   }
 }

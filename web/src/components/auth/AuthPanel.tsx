@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { toApiUrl } from "@/lib/api-fetch";
 import { useAuth } from "./AuthProvider";
 
 type AuthMode = "login" | "register";
@@ -52,6 +53,10 @@ export function AuthPanel() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleGoogleLogin() {
+    window.location.href = toApiUrl("/auth/google");
   }
 
   return (
@@ -129,6 +134,15 @@ export function AuthPanel() {
           className="mt-1 w-full rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "Đang xử lý..." : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
+        </button>
+
+        <button
+          type="button"
+          disabled={loading}
+          onClick={handleGoogleLogin}
+          className="w-full rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:border-stone-500 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Tiếp tục với Google
         </button>
       </form>
 
