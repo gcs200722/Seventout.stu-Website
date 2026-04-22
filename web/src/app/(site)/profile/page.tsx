@@ -7,13 +7,19 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { AddressManager } from "@/components/profile/AddressManager";
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, loading, updateProfile } = useAuth();
+  const { user, isAuthenticated, loading, updateProfile, changePassword } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -41,6 +47,34 @@ export default function ProfilePage() {
       setError(submitError instanceof Error ? submitError.message : "Cập nhật hồ sơ thất bại.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleChangePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordSubmitting(true);
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    try {
+      if (newPassword.length < 8) {
+        throw new Error("Mật khẩu mới phải có tối thiểu 8 ký tự.");
+      }
+      if (newPassword !== confirmPassword) {
+        throw new Error("Xác nhận mật khẩu mới không khớp.");
+      }
+      await changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordSuccess("Đổi mật khẩu thành công.");
+    } catch (submitError) {
+      setPasswordError(submitError instanceof Error ? submitError.message : "Đổi mật khẩu thất bại.");
+    } finally {
+      setPasswordSubmitting(false);
     }
   }
 
@@ -112,6 +146,61 @@ export default function ProfilePage() {
         {error ? <p className="mt-3 whitespace-pre-line text-xs text-rose-600">{error}</p> : null}
         {success ? <p className="mt-3 text-xs text-emerald-600">{success}</p> : null}
       </section>
+
+      {!loading && isAuthenticated ? (
+        <section className="mx-auto mt-6 w-full max-w-xl rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-semibold text-stone-900">Đổi mật khẩu</h2>
+          <p className="mt-1 text-sm text-stone-600">Để an toàn, hãy dùng mật khẩu mới mạnh hơn và khác mật khẩu cũ.</p>
+
+          <form className="mt-4 space-y-3" onSubmit={handleChangePassword}>
+            <label className="block text-sm text-stone-700">
+              <span className="mb-1 block font-medium">Mật khẩu hiện tại</span>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+                className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 outline-none focus:border-stone-800"
+              />
+            </label>
+            <label className="block text-sm text-stone-700">
+              <span className="mb-1 block font-medium">Mật khẩu mới</span>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                required
+                className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 outline-none focus:border-stone-800"
+              />
+            </label>
+            <label className="block text-sm text-stone-700">
+              <span className="mb-1 block font-medium">Xác nhận mật khẩu mới</span>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                required
+                className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 outline-none focus:border-stone-800"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={passwordSubmitting}
+              className="w-full rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {passwordSubmitting ? "Đang đổi mật khẩu..." : "Đổi mật khẩu"}
+            </button>
+          </form>
+
+          {passwordError ? <p className="mt-3 whitespace-pre-line text-xs text-rose-600">{passwordError}</p> : null}
+          {passwordSuccess ? <p className="mt-3 text-xs text-emerald-600">{passwordSuccess}</p> : null}
+        </section>
+      ) : null}
 
       {!loading && isAuthenticated ? (
         <div className="mx-auto mt-6 w-full max-w-5xl">

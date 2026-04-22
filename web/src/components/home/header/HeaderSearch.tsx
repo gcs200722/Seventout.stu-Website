@@ -68,7 +68,7 @@ export function HeaderSearch({ open, onClose }: HeaderSearchProps) {
   if (!open) return null;
 
   return (
-    <div className="absolute left-0 top-[calc(100%+12px)] z-50 w-[min(96vw,560px)] rounded-2xl border border-stone-200 bg-white p-4 shadow-2xl">
+    <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-[min(92vw,560px)] max-h-[70vh] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-4 shadow-2xl">
       <form
         className="flex items-center gap-2 rounded-xl border border-stone-300 px-3 py-2"
         onSubmit={(event) => {

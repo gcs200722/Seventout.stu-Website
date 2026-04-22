@@ -5,6 +5,7 @@ const quickLinks = [
   { label: "Shipping", href: "/shipping" },
   { label: "Returns", href: "/returns" },
   { label: "Contact", href: "/contact" },
+  { label: "FAQ", href: "/faq" },
 ];
 
 export function Footer() {
@@ -33,7 +34,7 @@ export function Footer() {
           <h4 className="text-sm font-semibold text-stone-900">Customer Care</h4>
           <ul className="mt-3 space-y-2 text-sm text-stone-600">
             <li>Email: support@s7local.vn</li>
-            <li>Phone: +84 909 123 456</li>
+            <li>Phone: +84 856 906 401</li>
             <li>Mon - Sat: 9:00 - 21:00</li>
           </ul>
         </div>
@@ -56,7 +57,14 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-stone-200 py-4 text-center text-xs text-stone-500">
-        © {new Date().getFullYear()} Sevenout. All rights reserved.
+        © 2026 Sevenout. All rights reserved. |{" "}
+        <Link href="/privacy-policy" className="transition-colors hover:text-stone-900">
+          Privacy Policy
+        </Link>{" "}
+        |{" "}
+        <Link href="/terms-and-conditions" className="transition-colors hover:text-stone-900">
+          Terms & Conditions
+        </Link>
       </div>
     </footer>
   );
