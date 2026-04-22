@@ -144,7 +144,7 @@ function toCollectionCard(c: CategoryListItem): Collection {
     id: c.id,
     title: c.name,
     cta: "Xem bộ sưu tập",
-    slug: `/collections/${c.slug}`,
+    slug: `/categories/${encodeURIComponent(c.slug)}`,
     image,
   };
 }
@@ -181,7 +181,7 @@ export async function getCategoryNavLinks(max = 4): Promise<CategoryNavLink[]> {
       .slice(0, max)
       .map((c) => ({
         label: c.name,
-        href: `/collections/${c.slug}`,
+        href: `/categories/${encodeURIComponent(c.slug)}`,
       }));
   } catch {
     return [];

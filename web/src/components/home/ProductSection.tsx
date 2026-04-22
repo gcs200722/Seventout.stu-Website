@@ -19,7 +19,7 @@ export function ProductSection({
   subtitle,
   products,
   cardVariant = "retail",
-  viewMoreHref = "/collections",
+  viewMoreHref = "/products",
   viewMoreLabel = "Xem thêm",
 }: ProductSectionProps) {
   const gridClass =

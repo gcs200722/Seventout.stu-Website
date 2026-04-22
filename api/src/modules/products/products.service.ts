@@ -45,7 +45,12 @@ export interface ProductListItemResponse {
   slug: string;
   price: number;
   thumbnail: string;
-  category: { id: string; name: string };
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+    parent: { id: string; name: string; slug: string } | null;
+  };
   available_stock: number;
   is_active: boolean;
   created_at: string;
@@ -71,7 +76,8 @@ export interface ProductDetailResponse {
   category: {
     id: string;
     name: string;
-    parent: { id: string; name: string } | null;
+    slug: string;
+    parent: { id: string; name: string; slug: string } | null;
   };
   available_stock: number;
   images: string[];
@@ -152,6 +158,7 @@ export class ProductsService {
     const qb = this.productsRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
+      .leftJoinAndSelect('category.parent', 'parentCategory')
       .where('product.deletedAt IS NULL')
       .andWhere('category.deletedAt IS NULL');
 
@@ -222,6 +229,14 @@ export class ProductsService {
         category: {
           id: product.category.id,
           name: product.category.name,
+          slug: product.category.slug,
+          parent: product.category.parent
+            ? {
+                id: product.category.parent.id,
+                name: product.category.parent.name,
+                slug: product.category.parent.slug,
+              }
+            : null,
         },
         available_stock: stockByProductId[product.id] ?? 0,
         is_active: product.isActive,
@@ -304,10 +319,12 @@ export class ProductsService {
       category: {
         id: product.category.id,
         name: product.category.name,
+        slug: product.category.slug,
         parent: product.category.parent
           ? {
               id: product.category.parent.id,
               name: product.category.parent.name,
+              slug: product.category.parent.slug,
             }
           : null,
       },
@@ -365,6 +382,18 @@ export class ProductsService {
       }
     }
     return out;
+  }
+
+  async getProductBySlug(slug: string): Promise<ProductDetailResponse> {
+    const normalizedSlug = slug.trim().toLowerCase();
+    const product = await this.productsRepository.findOne({
+      where: { slug: normalizedSlug },
+      select: { id: true },
+    });
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+    return this.getProductById(product.id);
   }
 
   async getProductStockById(productId: string): Promise<ProductStockResponse> {

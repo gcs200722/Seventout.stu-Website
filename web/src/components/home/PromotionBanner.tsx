@@ -11,7 +11,7 @@ export function PromotionBanner({
   title,
   description,
   ctaLabel,
-  ctaHref = "/collections",
+  ctaHref = "/products",
 }: PromotionBannerProps) {
   return (
     <section className="w-full bg-sevenout-muted px-0 py-10 sm:py-14">

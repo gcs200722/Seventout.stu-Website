@@ -360,10 +360,10 @@ export default function OrderDetailPage() {
                   </p>
                   {order.status === "COMPLETED" ? (
                     <Link
-                      href={`/products/${item.product_id}?order_id=${order.id}`}
+                      href={`/products?keyword=${encodeURIComponent(item.product_name)}&page=1`}
                       className="mt-3 inline-flex rounded-full border border-stone-900 bg-white px-4 py-2 text-xs font-semibold text-stone-900 hover:bg-stone-900 hover:text-white"
                     >
-                      Đánh giá sản phẩm
+                      Tìm lại sản phẩm
                     </Link>
                   ) : null}
                 </article>

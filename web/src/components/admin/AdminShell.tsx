@@ -41,7 +41,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-stone-100 text-stone-900">
       <div className="mx-auto flex w-full max-w-7xl gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <aside className="hidden w-64 shrink-0 rounded-2xl border border-stone-200 bg-white p-4 md:block">
+        <aside className="hidden w-64 shrink-0 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm shadow-stone-200/60 md:block">
           <h1 className="text-lg font-semibold">Sevenout Admin</h1>
           <p className="mt-1 text-xs text-stone-500">Dashboard quản trị nội bộ</p>
 
@@ -55,10 +55,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
+                  className={`relative flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm ${
                     active ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100"
                   }`}
                 >
+                  {active ? <span className="absolute left-0 top-1/2 h-5 -translate-y-1/2 rounded-r bg-cyan-300 px-[2px]" /> : null}
                   <span>{item.label}</span>
                   {item.href === "/admin/notifications" && unreadCount > 0 ? (
                     <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-stone-900">
