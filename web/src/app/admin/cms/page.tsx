@@ -235,7 +235,7 @@ export default function AdminCmsPage() {
       setSuccess(null);
       const { token } = await mintCmsPreviewToken(pageDetail.id);
       const path =
-        pageDetail.key === "homepage" ? "/" : `/p/${encodeURIComponent(pageDetail.key)}`;
+        pageDetail.key === "homepage" ? "/" : `/${encodeURIComponent(pageDetail.key)}`;
       const sep = path.includes("?") ? "&" : "?";
       const url = `${typeof window !== "undefined" ? window.location.origin : ""}${path}${sep}cms_preview_token=${encodeURIComponent(token)}`;
       window.open(url, "_blank", "noopener,noreferrer");
