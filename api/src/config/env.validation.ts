@@ -91,10 +91,67 @@ class EnvironmentVariables {
   @IsOptional()
   JWT_REFRESH_EXPIRES_IN = '7d';
 
+  @IsString()
+  @IsOptional()
+  GOOGLE_CLIENT_ID = '';
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_CLIENT_SECRET = '';
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_CALLBACK_URL = 'http://localhost:3001/auth/google/callback';
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_SUCCESS_REDIRECT_URL = 'http://localhost:3000/auth/google/callback';
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_FAILURE_REDIRECT_URL = 'http://localhost:3000/auth/google/callback';
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_STATE_SECRET?: string;
+
   /** Set to 1 or true behind reverse proxy so req.ip / X-Forwarded-For work for audit. */
   @IsString()
   @IsOptional()
   TRUST_PROXY?: string;
+
+  /** Comma-separated CORS origins. Example: https://app.example.com,https://admin.example.com */
+  @IsString()
+  @IsOptional()
+  CORS_ALLOWED_ORIGINS = 'http://localhost:3000,http://localhost:3001';
+
+  @IsIn(['true', 'false', '1', '0'])
+  @IsOptional()
+  SWAGGER_ENABLED = 'true';
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1000)
+  @IsOptional()
+  THROTTLE_TTL_MS = 60000;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  THROTTLE_LIMIT = 100;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1000)
+  @IsOptional()
+  THROTTLE_AUTH_TTL_MS = 60000;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  THROTTLE_AUTH_LIMIT = 10;
 
   @Transform(({ value }) => Number(value))
   @IsInt()
@@ -223,6 +280,13 @@ export function validateEnv(config: Record<string, unknown>) {
       if (currentValue?.trim() === defaultValue) {
         throw new Error(`${key} cannot use default value in production.`);
       }
+    }
+
+    const hasWildcardCors = validatedConfig.CORS_ALLOWED_ORIGINS.split(',')
+      .map((origin) => origin.trim())
+      .some((origin) => origin === '*');
+    if (hasWildcardCors) {
+      throw new Error('CORS_ALLOWED_ORIGINS cannot contain "*" in production.');
     }
   }
 
