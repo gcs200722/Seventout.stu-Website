@@ -27,8 +27,30 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
-  @Column({ name: 'password_hash', type: 'varchar', length: 255 })
-  passwordHash: string;
+  @Column({
+    name: 'password_hash',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  passwordHash: string | null;
+
+  @Column({
+    name: 'google_id',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    unique: true,
+  })
+  googleId: string | null;
+
+  @Column({
+    name: 'auth_provider',
+    type: 'varchar',
+    length: 20,
+    default: 'local',
+  })
+  authProvider: 'local' | 'google';
 
   @Column({ type: 'varchar', length: 20 })
   phone: string;

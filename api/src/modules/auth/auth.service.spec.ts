@@ -373,4 +373,163 @@ describe('AuthService', () => {
       refresh_token: 'new-refresh',
     });
   });
+
+  it('should_login_google_user_when_google_id_already_linked', async () => {
+    usersRepository.findOne
+      .mockResolvedValueOnce({
+        id: 'user-1',
+        email: 'john@example.com',
+        role: UserRole.USER,
+        permissions: [],
+        googleId: 'google-1',
+        authProvider: 'google',
+      } as unknown as UserEntity)
+      .mockResolvedValueOnce(null);
+
+    refreshTokensRepository.create.mockReturnValue({
+      id: 'token-1',
+      userId: 'user-1',
+      tokenHash: '',
+      expiresAt: new Date(Date.now() + 10000),
+      revokedAt: null,
+    } as RefreshTokenEntity);
+    refreshTokensRepository.save
+      .mockResolvedValueOnce({ id: 'token-1' } as RefreshTokenEntity)
+      .mockResolvedValueOnce({ id: 'token-1' } as RefreshTokenEntity);
+    usersRepository.save.mockResolvedValue({
+      id: 'user-1',
+      email: 'john@example.com',
+      role: UserRole.USER,
+      permissions: [],
+      googleId: 'google-1',
+      authProvider: 'google',
+      firstName: 'John',
+      lastName: 'Doe',
+    } as unknown as UserEntity);
+    jwtService.signAsync
+      .mockResolvedValueOnce('access-token')
+      .mockResolvedValueOnce('refresh-token');
+    (bcrypt.hash as jest.Mock).mockResolvedValue('refresh-hash');
+
+    const result = await service.loginWithGoogle({
+      googleId: 'google-1',
+      email: 'john@example.com',
+      firstName: 'John',
+      lastName: 'Doe',
+    });
+
+    expect(result).toEqual({
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+    });
+    expect(usersRepository.save.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it('should_auto_link_google_when_email_exists', async () => {
+    usersRepository.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 'user-2',
+      email: 'legacy@example.com',
+      role: UserRole.USER,
+      permissions: [],
+      googleId: null,
+      authProvider: 'local',
+      firstName: 'Legacy',
+      lastName: 'User',
+    } as unknown as UserEntity);
+
+    refreshTokensRepository.create.mockReturnValue({
+      id: 'token-2',
+      userId: 'user-2',
+      tokenHash: '',
+      expiresAt: new Date(Date.now() + 10000),
+      revokedAt: null,
+    } as RefreshTokenEntity);
+    refreshTokensRepository.save
+      .mockResolvedValueOnce({ id: 'token-2' } as RefreshTokenEntity)
+      .mockResolvedValueOnce({ id: 'token-2' } as RefreshTokenEntity);
+    usersRepository.save.mockResolvedValue({
+      id: 'user-2',
+      email: 'legacy@example.com',
+      role: UserRole.USER,
+      permissions: [],
+      googleId: 'google-2',
+      authProvider: 'google',
+      firstName: 'Legacy',
+      lastName: 'User',
+    } as unknown as UserEntity);
+    jwtService.signAsync
+      .mockResolvedValueOnce('access-token-2')
+      .mockResolvedValueOnce('refresh-token-2');
+    (bcrypt.hash as jest.Mock).mockResolvedValue('refresh-hash-2');
+
+    await service.loginWithGoogle({
+      googleId: 'google-2',
+      email: 'legacy@example.com',
+      firstName: 'New',
+      lastName: 'Name',
+    });
+
+    expect(usersRepository.save.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'user-2',
+        googleId: 'google-2',
+        authProvider: 'google',
+      }),
+    );
+  });
+
+  it('should_create_new_user_when_google_email_not_found', async () => {
+    usersRepository.findOne.mockResolvedValue(null);
+    usersRepository.create.mockReturnValue({
+      id: 'user-3',
+      email: 'new@example.com',
+      role: UserRole.USER,
+      permissions: [],
+      googleId: null,
+      authProvider: 'local',
+      firstName: 'New',
+      lastName: 'User',
+      phone: '0000000000',
+    } as unknown as UserEntity);
+    usersRepository.save.mockResolvedValueOnce({
+      id: 'user-3',
+      email: 'new@example.com',
+      role: UserRole.USER,
+      permissions: [],
+      googleId: 'google-3',
+      authProvider: 'google',
+      firstName: 'New',
+      lastName: 'User',
+      phone: '0000000000',
+    } as unknown as UserEntity);
+
+    refreshTokensRepository.create.mockReturnValue({
+      id: 'token-3',
+      userId: 'user-3',
+      tokenHash: '',
+      expiresAt: new Date(Date.now() + 10000),
+      revokedAt: null,
+    } as RefreshTokenEntity);
+    refreshTokensRepository.save
+      .mockResolvedValueOnce({ id: 'token-3' } as RefreshTokenEntity)
+      .mockResolvedValueOnce({ id: 'token-3' } as RefreshTokenEntity);
+    jwtService.signAsync
+      .mockResolvedValueOnce('access-token-3')
+      .mockResolvedValueOnce('refresh-token-3');
+    (bcrypt.hash as jest.Mock).mockResolvedValue('refresh-hash-3');
+
+    const result = await service.loginWithGoogle({
+      googleId: 'google-3',
+      email: 'new@example.com',
+      firstName: 'New',
+      lastName: 'User',
+    });
+
+    expect(result.access_token).toBe('access-token-3');
+    expect(usersRepository.create.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        email: 'new@example.com',
+      }),
+    );
+  });
 });
