@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -15,6 +16,7 @@ import { UserEntity } from '../users/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import {
   AccessTokenPayload,
   AuthenticatedUser,
@@ -170,6 +172,67 @@ export class AuthService {
       entityLabel: user.email,
       metadata: {
         source: 'http',
+      },
+      before: null,
+      after: null,
+    });
+  }
+
+  async changePassword(
+    user: AuthenticatedUser,
+    payload: ChangePasswordDto,
+  ): Promise<void> {
+    const foundUser = await this.usersRepository.findOne({
+      where: { id: user.id },
+    });
+    if (!foundUser || !foundUser.passwordHash) {
+      throw new UnauthorizedException(
+        'Không thể đổi mật khẩu cho tài khoản này',
+      );
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(
+      payload.current_password,
+      foundUser.passwordHash,
+    );
+    if (!isCurrentPasswordValid) {
+      throw new UnauthorizedException('Mật khẩu hiện tại không chính xác');
+    }
+
+    const isSameAsCurrent = await bcrypt.compare(
+      payload.new_password,
+      foundUser.passwordHash,
+    );
+    if (isSameAsCurrent) {
+      throw new BadRequestException('Mật khẩu mới phải khác mật khẩu hiện tại');
+    }
+
+    const saltRounds = this.configService.getOrThrow<number>(
+      'PASSWORD_SALT_ROUNDS',
+    );
+    foundUser.passwordHash = await bcrypt.hash(
+      payload.new_password,
+      saltRounds,
+    );
+    await this.usersRepository.save(foundUser);
+
+    await this.refreshTokensRepository
+      .createQueryBuilder()
+      .update(RefreshTokenEntity)
+      .set({ revokedAt: new Date() })
+      .where('user_id = :userId', { userId: user.id })
+      .andWhere('revoked_at IS NULL')
+      .execute();
+
+    await this.auditWriter.log({
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.AUTH,
+      entityId: user.id,
+      actor: user,
+      entityLabel: user.email,
+      metadata: {
+        source: 'http',
+        type: 'change_password',
       },
       before: null,
       after: null,
