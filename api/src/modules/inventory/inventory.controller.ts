@@ -71,8 +71,10 @@ export class InventoryController {
     };
   }
 
-  @Get(':product_id')
-  @ApiOperation({ summary: 'Get inventory by product for all channels' })
+  @Get('by-product/:product_id')
+  @ApiOperation({
+    summary: 'Get inventory by product (all variants × channels)',
+  })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.INVENTORY_READ)
   async getProductInventory(
@@ -84,16 +86,16 @@ export class InventoryController {
     };
   }
 
-  @Patch(':product_id/adjust')
-  @ApiOperation({ summary: 'Adjust inventory manually' })
+  @Patch('variants/:variant_id/adjust')
+  @ApiOperation({ summary: 'Adjust inventory for a product variant' })
   @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
   @RequirePermissions(PermissionCode.INVENTORY_MANAGE)
   async adjustInventory(
     @CurrentUser() actor: AuthenticatedUser,
-    @Param('product_id', ParseUUIDPipe) productId: string,
+    @Param('variant_id', ParseUUIDPipe) variantId: string,
     @Body() payload: AdjustInventoryDto,
   ) {
-    await this.inventoryService.adjustInventory(productId, payload, actor);
+    await this.inventoryService.adjustInventory(variantId, payload, actor);
     return {
       success: true,
       message: 'Inventory adjusted successfully',

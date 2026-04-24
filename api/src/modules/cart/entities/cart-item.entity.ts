@@ -2,8 +2,11 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { ProductVariantEntity } from '../../products/product-variant.entity';
 
 @Entity({ name: 'cart_items' })
 export class CartItemEntity {
@@ -15,6 +18,13 @@ export class CartItemEntity {
 
   @Column({ name: 'product_id', type: 'uuid' })
   productId: string;
+
+  @Column({ name: 'product_variant_id', type: 'uuid' })
+  productVariantId: string;
+
+  @ManyToOne(() => ProductVariantEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'product_variant_id' })
+  productVariant: ProductVariantEntity;
 
   @Column({ type: 'int' })
   quantity: number;

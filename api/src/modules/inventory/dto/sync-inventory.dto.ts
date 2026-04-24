@@ -5,7 +5,7 @@ import { ExternalInventoryChannel, InventoryChannel } from '../inventory.types';
 export class SyncInventoryDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
-  product_id: string;
+  product_variant_id: string;
 
   @ApiProperty({ enum: ExternalInventoryChannel })
   @IsEnum(ExternalInventoryChannel)

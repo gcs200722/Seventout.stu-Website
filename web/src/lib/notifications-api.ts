@@ -2,6 +2,7 @@ import { withAuth } from "@/lib/http-client";
 
 export type NotificationChannel = "SYSTEM" | "EMAIL";
 export type NotificationType =
+  | "REVIEW_SUBMITTED"
   | "ORDER_CREATED"
   | "PAYMENT_SUCCESS"
   | "PAYMENT_FAILED"

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditModule } from '../audit/audit.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { ProductEntity } from '../products/product.entity';
+import { ProductVariantEntity } from '../products/product-variant.entity';
 import { QueueModule } from '../queue/queue.module';
 import { ShopeeInventoryClient } from './channels/shopee/shopee-inventory.client';
 import { TiktokInventoryClient } from './channels/tiktok/tiktok-inventory.client';
@@ -20,6 +21,7 @@ import { InventoryWebhookEventEntity } from './entities/inventory-webhook-event.
   imports: [
     TypeOrmModule.forFeature([
       ProductEntity,
+      ProductVariantEntity,
       InventoryEntity,
       InventoryMovementEntity,
       ProductChannelMappingEntity,

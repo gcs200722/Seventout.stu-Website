@@ -3,16 +3,20 @@ import { Repository } from 'typeorm';
 import { InventoryChannel } from '../inventory/inventory.types';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { ProductEntity } from '../products/product.entity';
+import { ProductVariantEntity } from '../products/product-variant.entity';
 import { CartCachePort } from './cart-cache.port';
 import { CartService } from './cart.service';
 import { CartItemEntity } from './entities/cart-item.entity';
 import { CartEntity, CartStatus } from './entities/cart.entity';
+
+const VARIANT_ID = 'v-1';
 
 describe('CartService', () => {
   let service: CartService;
   let cartsRepository: jest.Mocked<Repository<CartEntity>>;
   let cartItemsRepository: jest.Mocked<Repository<CartItemEntity>>;
   let productsRepository: jest.Mocked<Repository<ProductEntity>>;
+  let variantsRepository: jest.Mocked<Repository<ProductVariantEntity>>;
   let inventoriesRepository: jest.Mocked<Repository<InventoryEntity>>;
   let cartCache: jest.Mocked<CartCachePort>;
 
@@ -33,6 +37,13 @@ describe('CartService', () => {
       findOne: jest.fn(),
       find: jest.fn(),
     } as never;
+    variantsRepository = {
+      findOne: jest.fn().mockResolvedValue({
+        id: VARIANT_ID,
+        productId: 'p-1',
+      } as ProductVariantEntity),
+      find: jest.fn().mockResolvedValue([]),
+    } as never;
     inventoriesRepository = {
       findOne: jest.fn(),
       find: jest.fn(),
@@ -47,6 +58,7 @@ describe('CartService', () => {
       cartsRepository,
       cartItemsRepository,
       productsRepository,
+      variantsRepository,
       inventoriesRepository,
       cartCache,
     );
@@ -65,13 +77,17 @@ describe('CartService', () => {
       deletedAt: null,
     } as ProductEntity);
     inventoriesRepository.findOne.mockResolvedValue({
-      productId: 'p-1',
+      productVariantId: VARIANT_ID,
       channel: InventoryChannel.INTERNAL,
       availableStock: 10,
     } as InventoryEntity);
     cartItemsRepository.findOne.mockResolvedValue(null);
 
-    await service.addItem('u-1', { product_id: 'p-1', quantity: 2 });
+    await service.addItem('u-1', {
+      product_id: 'p-1',
+      product_variant_id: VARIANT_ID,
+      quantity: 2,
+    });
 
     expect((cartItemsRepository.save as jest.Mock).mock.calls.length).toBe(1);
     expect((cartCache.invalidate as jest.Mock).mock.calls[0]).toEqual(['u-1']);
@@ -102,6 +118,7 @@ describe('CartService', () => {
         id: 'i-1',
         cartId: 'c-1',
         productId: 'p-1',
+        productVariantId: VARIANT_ID,
         quantity: 2,
         price: 100,
       } as CartItemEntity,
@@ -114,8 +131,19 @@ describe('CartService', () => {
         deletedAt: null,
       } as ProductEntity,
     ]);
+    variantsRepository.find.mockResolvedValue([
+      {
+        id: VARIANT_ID,
+        productId: 'p-1',
+        color: 'Đen',
+        size: 'M',
+      } as ProductVariantEntity,
+    ]);
     inventoriesRepository.find.mockResolvedValue([
-      { productId: 'p-1', availableStock: 9 } as InventoryEntity,
+      {
+        productVariantId: VARIANT_ID,
+        availableStock: 9,
+      } as InventoryEntity,
     ]);
 
     const result = await service.getCurrentCart('u-1');
@@ -137,7 +165,7 @@ describe('CartService', () => {
       deletedAt: null,
     } as ProductEntity);
     inventoriesRepository.findOne.mockResolvedValue({
-      productId: 'p-1',
+      productVariantId: VARIANT_ID,
       channel: InventoryChannel.INTERNAL,
       availableStock: 10,
     } as InventoryEntity);
@@ -145,11 +173,16 @@ describe('CartService', () => {
       id: 'i-1',
       cartId: 'c-1',
       productId: 'p-1',
+      productVariantId: VARIANT_ID,
       quantity: 2,
       price: 100,
     } as CartItemEntity);
 
-    await service.addItem('u-1', { product_id: 'p-1', quantity: 3 });
+    await service.addItem('u-1', {
+      product_id: 'p-1',
+      product_variant_id: VARIANT_ID,
+      quantity: 3,
+    });
     const saveCalls = (cartItemsRepository.save as jest.Mock).mock
       .calls as unknown[][];
     const saved = saveCalls[0]?.[0] as CartItemEntity;
@@ -170,14 +203,18 @@ describe('CartService', () => {
       deletedAt: null,
     } as ProductEntity);
     inventoriesRepository.findOne.mockResolvedValue({
-      productId: 'p-1',
+      productVariantId: VARIANT_ID,
       channel: InventoryChannel.INTERNAL,
       availableStock: 1,
     } as InventoryEntity);
     cartItemsRepository.findOne.mockResolvedValue(null);
 
     await expect(
-      service.addItem('u-1', { product_id: 'p-1', quantity: 2 }),
+      service.addItem('u-1', {
+        product_id: 'p-1',
+        product_variant_id: VARIANT_ID,
+        quantity: 2,
+      }),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -204,6 +241,7 @@ describe('CartService', () => {
       id: 'i-1',
       cartId: 'c-1',
       productId: 'p-1',
+      productVariantId: VARIANT_ID,
       quantity: 1,
       price: 100,
     } as CartItemEntity);
@@ -224,6 +262,7 @@ describe('CartService', () => {
       id: 'i-1',
       cartId: 'c-1',
       productId: 'p-1',
+      productVariantId: VARIANT_ID,
       quantity: 1,
       price: 100,
     } as CartItemEntity);
@@ -259,6 +298,7 @@ describe('CartService', () => {
         id: 'i-1',
         cartId: 'c-1',
         productId: 'p-1',
+        productVariantId: VARIANT_ID,
         quantity: 3,
         price: 100,
       } as CartItemEntity,
@@ -271,9 +311,17 @@ describe('CartService', () => {
         deletedAt: null,
       } as ProductEntity,
     ]);
+    variantsRepository.find.mockResolvedValue([
+      {
+        id: VARIANT_ID,
+        productId: 'p-1',
+        color: 'x',
+        size: 'y',
+      } as ProductVariantEntity,
+    ]);
     inventoriesRepository.find.mockResolvedValue([
       {
-        productId: 'p-1',
+        productVariantId: VARIANT_ID,
         channel: InventoryChannel.INTERNAL,
         availableStock: 1,
       } as InventoryEntity,
@@ -295,11 +343,13 @@ describe('CartService', () => {
         id: 'i-1',
         cartId: 'c-1',
         productId: 'p-404',
+        productVariantId: 'v-404',
         quantity: 1,
         price: 100,
       } as CartItemEntity,
     ]);
     productsRepository.find.mockResolvedValue([]);
+    variantsRepository.find.mockResolvedValue([]);
     inventoriesRepository.find.mockResolvedValue([]);
 
     const result = await service.validateCart('u-1');

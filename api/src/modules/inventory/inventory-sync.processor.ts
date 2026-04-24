@@ -47,17 +47,20 @@ export class InventorySyncProcessor extends WorkerHost {
   private async processSyncStock(
     job: Job<Record<string, unknown>>,
   ): Promise<void> {
-    const productId = this.readStringField(job.data, 'product_id');
+    const productVariantId = this.readStringField(
+      job.data,
+      'product_variant_id',
+    );
     const channel = this.readInventoryChannel(job.data, 'channel');
     const mapping = await this.mappingsRepository.findOne({
-      where: { productId, channel, isActive: true },
+      where: { productVariantId, channel, isActive: true },
     });
     if (!mapping) {
       throw new Error('Mapping missing for sync');
     }
 
     const inventory = await this.inventoriesRepository.findOne({
-      where: { productId, channel: InventoryChannel.INTERNAL },
+      where: { productVariantId, channel: InventoryChannel.INTERNAL },
     });
     const client = this.clientsMap.get(channel);
     if (!client) {
@@ -82,14 +85,16 @@ export class InventorySyncProcessor extends WorkerHost {
     );
     this.logger.log(`Processed webhook channel=${channel} event=${eventId}`);
 
-    const productId = this.readStringField(payload, 'product_id');
+    const productVariantId = this.readStringField(
+      payload,
+      'product_variant_id',
+    );
     const quantity = Number(payload.quantity ?? 0);
-    if (productId && quantity > 0) {
+    if (productVariantId && quantity > 0) {
       const action = this.readOptionalUppercaseStringField(payload, 'action');
       if (action === InventoryMovementType.RELEASE) {
-        // Inventory movement from external cancel event.
         this.logger.log(
-          `Release event from webhook product=${productId} qty=${quantity}`,
+          `Release event from webhook variant=${productVariantId} qty=${quantity}`,
         );
       }
     }

@@ -127,6 +127,9 @@ describe('OrdersService', () => {
       items: [
         {
           product_id: 'p-1',
+          product_variant_id: 'v-1',
+          variant_color: 'Đen',
+          variant_size: 'M',
           product_name: 'Hoodie',
           price: 1000,
           quantity: 1,
@@ -142,6 +145,9 @@ describe('OrdersService', () => {
       items: [
         {
           product_id: 'p-1',
+          product_variant_id: 'v-1',
+          variant_color: 'Đen',
+          variant_size: 'M',
           product_name: 'Hoodie',
           price: 1000,
           quantity: 1,

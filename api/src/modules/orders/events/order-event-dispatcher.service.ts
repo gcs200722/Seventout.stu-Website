@@ -26,13 +26,13 @@ export class OrderEventDispatcherService {
   async dispatch(event: OrderEventOutboxEntity): Promise<void> {
     const payload = event.payload as {
       order_id: string;
-      items?: Array<{ product_id: string; quantity: number }>;
+      items?: Array<{ product_variant_id: string; quantity: number }>;
     };
 
     if (event.eventType === OrderEventType.ORDER_CREATED) {
       for (const item of payload.items ?? []) {
         await this.inventoryPort.reserveStock(
-          item.product_id,
+          item.product_variant_id,
           item.quantity,
           'Order created: reserve stock',
           payload.order_id,
@@ -47,7 +47,7 @@ export class OrderEventDispatcherService {
     if (event.eventType === OrderEventType.ORDER_CANCELED) {
       for (const item of payload.items ?? []) {
         await this.inventoryPort.releaseStock(
-          item.product_id,
+          item.product_variant_id,
           item.quantity,
           'Order canceled: release stock',
           payload.order_id,
@@ -61,7 +61,7 @@ export class OrderEventDispatcherService {
     if (event.eventType === OrderEventType.ORDER_COMPLETED) {
       for (const item of payload.items ?? []) {
         await this.inventoryPort.commitStockOut(
-          item.product_id,
+          item.product_variant_id,
           item.quantity,
           'Order completed: commit stock out',
           payload.order_id,

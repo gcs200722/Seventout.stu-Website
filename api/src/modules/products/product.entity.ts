@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { CategoryEntity } from '../categories/category.entity';
 import { ProductImageEntity } from './product-image.entity';
+import { ProductVariantEntity } from './product-variant.entity';
 
 @Entity({ name: 'products' })
 export class ProductEntity {
@@ -46,6 +47,9 @@ export class ProductEntity {
     cascade: true,
   })
   images: ProductImageEntity[];
+
+  @OneToMany(() => ProductVariantEntity, (variant) => variant.product)
+  variants: ProductVariantEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

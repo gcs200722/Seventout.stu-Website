@@ -7,13 +7,13 @@ export class OrderInventoryAdapter implements OrderInventoryPort {
   constructor(private readonly inventoryService: InventoryService) {}
 
   async reserveStock(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     reason: string,
     orderId?: string,
   ): Promise<void> {
     await this.inventoryService.reserveFromOrder(
-      productId,
+      productVariantId,
       quantity,
       reason,
       orderId,
@@ -21,13 +21,13 @@ export class OrderInventoryAdapter implements OrderInventoryPort {
   }
 
   async releaseStock(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     reason: string,
     orderId?: string,
   ): Promise<void> {
     await this.inventoryService.releaseFromOrder(
-      productId,
+      productVariantId,
       quantity,
       reason,
       orderId,
@@ -35,13 +35,13 @@ export class OrderInventoryAdapter implements OrderInventoryPort {
   }
 
   async commitStockOut(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     reason: string,
     orderId?: string,
   ): Promise<void> {
     await this.inventoryService.commitOutFromOrder(
-      productId,
+      productVariantId,
       quantity,
       reason,
       orderId,

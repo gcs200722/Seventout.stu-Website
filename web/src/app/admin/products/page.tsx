@@ -4,11 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   createAdminProduct,
+  createAdminProductVariant,
   deleteAdminProduct,
+  deleteAdminProductVariant,
   getAdminProductById,
   getAdminProducts,
   patchAdminProduct,
+  patchAdminProductVariant,
   type AdminProduct,
+  type AdminProductDetail,
 } from "@/lib/admin-api";
 import { listCategoryTreePublic, type CategoryListItem } from "@/lib/categories-api";
 
@@ -31,6 +35,7 @@ export default function AdminProductsPage() {
   const [keyword, setKeyword] = useState("");
   const [sort, setSort] = useState<"newest" | "price_asc" | "price_desc">("newest");
   const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
+  const [selectedProductDetail, setSelectedProductDetail] = useState<AdminProductDetail | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const [createName, setCreateName] = useState("");
@@ -47,6 +52,13 @@ export default function AdminProductsPage() {
   const [editImageList, setEditImageList] = useState<string[]>([]);
   const [editMainImageIndex, setEditMainImageIndex] = useState(0);
   const [editFiles, setEditFiles] = useState<File[]>([]);
+  const [newVariantColor, setNewVariantColor] = useState("");
+  const [newVariantSize, setNewVariantSize] = useState("");
+  const [newVariantSortOrder, setNewVariantSortOrder] = useState("");
+  const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
+  const [editingVariantColor, setEditingVariantColor] = useState("");
+  const [editingVariantSize, setEditingVariantSize] = useState("");
+  const [editingVariantSortOrder, setEditingVariantSortOrder] = useState("");
 
   const loadProducts = useCallback(async () => {
     try {
@@ -98,6 +110,7 @@ export default function AdminProductsPage() {
       setError(null);
       const detail = await getAdminProductById(product.id);
       setSelectedProduct(product);
+      setSelectedProductDetail(detail);
       setEditName(detail.name);
       setEditDescription(detail.description ?? "");
       setEditPrice(String(detail.price));
@@ -110,6 +123,18 @@ export default function AdminProductsPage() {
     } finally {
       setActionLoading(false);
     }
+  }
+
+  async function refreshSelectedProductDetail(productId: string) {
+    const detail = await getAdminProductById(productId);
+    setSelectedProductDetail(detail);
+    setEditName(detail.name);
+    setEditDescription(detail.description ?? "");
+    setEditPrice(String(detail.price));
+    setEditActive(detail.is_active);
+    setEditImageList(detail.images ?? []);
+    setEditMainImageIndex(0);
+    setEditFiles([]);
   }
 
   async function handleCreate(event: React.FormEvent) {
@@ -168,12 +193,93 @@ export default function AdminProductsPage() {
       });
       setSuccessMessage("Đã cập nhật sản phẩm.");
       await loadProducts();
-      const fresh = products.find((item) => item.id === selectedProduct.id);
-      if (fresh) {
-        await openEdit(fresh);
-      }
+      await refreshSelectedProductDetail(selectedProduct.id);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không cập nhật được sản phẩm.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleCreateVariant() {
+    if (!selectedProduct) {
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccessMessage(null);
+      const sortOrder = newVariantSortOrder.trim();
+      const result = await createAdminProductVariant(selectedProduct.id, {
+        color: newVariantColor.trim(),
+        size: newVariantSize.trim(),
+        sort_order: sortOrder.length > 0 ? Number(sortOrder) : undefined,
+      });
+      setNewVariantColor("");
+      setNewVariantSize("");
+      setNewVariantSortOrder("");
+      await refreshSelectedProductDetail(selectedProduct.id);
+      await loadProducts();
+      setSuccessMessage(result.message);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không tạo được biến thể.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function startEditVariant(variant: AdminProductDetail["variants"][number]) {
+    setEditingVariantId(variant.id);
+    setEditingVariantColor(variant.color);
+    setEditingVariantSize(variant.size);
+    setEditingVariantSortOrder(String(variant.sort_order));
+  }
+
+  async function handleSaveVariantEdit() {
+    if (!selectedProduct || !editingVariantId) {
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccessMessage(null);
+      const sortOrder = editingVariantSortOrder.trim();
+      const message = await patchAdminProductVariant(selectedProduct.id, editingVariantId, {
+        color: editingVariantColor.trim(),
+        size: editingVariantSize.trim(),
+        sort_order: sortOrder.length > 0 ? Number(sortOrder) : undefined,
+      });
+      setEditingVariantId(null);
+      await refreshSelectedProductDetail(selectedProduct.id);
+      setSuccessMessage(message);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không cập nhật được biến thể.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleDeleteVariant(variantId: string) {
+    if (!selectedProduct) {
+      return;
+    }
+    const ok = window.confirm("Xóa biến thể này?");
+    if (!ok) {
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccessMessage(null);
+      const message = await deleteAdminProductVariant(selectedProduct.id, variantId);
+      if (editingVariantId === variantId) {
+        setEditingVariantId(null);
+      }
+      await refreshSelectedProductDetail(selectedProduct.id);
+      await loadProducts();
+      setSuccessMessage(message);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không xóa được biến thể.");
     } finally {
       setActionLoading(false);
     }
@@ -191,6 +297,7 @@ export default function AdminProductsPage() {
       await deleteAdminProduct(id);
       if (selectedProduct?.id === id) {
         setSelectedProduct(null);
+        setSelectedProductDetail(null);
       }
       setSuccessMessage("Đã xóa sản phẩm.");
       await loadProducts();
@@ -449,7 +556,10 @@ export default function AdminProductsPage() {
                 <h2 className="text-base font-semibold">Chi tiết / cập nhật</h2>
                 <button
                   type="button"
-                  onClick={() => setSelectedProduct(null)}
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setSelectedProductDetail(null);
+                  }}
                   className="rounded border border-stone-300 px-2 py-1 text-xs text-stone-700 hover:bg-stone-100"
                 >
                   Đóng
@@ -555,6 +665,121 @@ export default function AdminProductsPage() {
                 <p className="text-xs text-stone-500">
                   PATCH hỗ trợ cập nhật thông tin và thay danh sách ảnh (URL + upload file).
                 </p>
+              </div>
+              <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-3">
+                <h3 className="text-sm font-semibold text-stone-900">Biến thể (màu / size)</h3>
+                <div className="grid gap-2 md:grid-cols-3">
+                  <input
+                    value={newVariantColor}
+                    onChange={(event) => setNewVariantColor(event.target.value)}
+                    placeholder="Màu"
+                    className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={newVariantSize}
+                    onChange={(event) => setNewVariantSize(event.target.value)}
+                    placeholder="Size"
+                    className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={newVariantSortOrder}
+                    onChange={(event) => setNewVariantSortOrder(event.target.value)}
+                    type="number"
+                    min={0}
+                    placeholder="sort_order (tùy chọn)"
+                    className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateVariant()}
+                  disabled={actionLoading || !newVariantColor.trim() || !newVariantSize.trim()}
+                  className="rounded-md bg-stone-900 px-3 py-2 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
+                >
+                  Thêm biến thể
+                </button>
+
+                <div className="space-y-2">
+                  {(selectedProductDetail?.variants ?? []).map((variant) => (
+                    <div
+                      key={variant.id}
+                      className="rounded-md border border-stone-200 bg-stone-50 p-2"
+                    >
+                      {editingVariantId === variant.id ? (
+                        <div className="space-y-2">
+                          <div className="grid gap-2 md:grid-cols-3">
+                            <input
+                              value={editingVariantColor}
+                              onChange={(event) => setEditingVariantColor(event.target.value)}
+                              className="rounded-md border border-stone-300 bg-white px-2 py-1.5 text-xs"
+                            />
+                            <input
+                              value={editingVariantSize}
+                              onChange={(event) => setEditingVariantSize(event.target.value)}
+                              className="rounded-md border border-stone-300 bg-white px-2 py-1.5 text-xs"
+                            />
+                            <input
+                              value={editingVariantSortOrder}
+                              onChange={(event) => setEditingVariantSortOrder(event.target.value)}
+                              type="number"
+                              min={0}
+                              className="rounded-md border border-stone-300 bg-white px-2 py-1.5 text-xs"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleSaveVariantEdit()}
+                              disabled={actionLoading}
+                              className="rounded border border-stone-300 px-2 py-1 text-xs hover:bg-stone-100"
+                            >
+                              Lưu
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingVariantId(null)}
+                              className="rounded border border-stone-300 px-2 py-1 text-xs"
+                            >
+                              Hủy
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-medium text-stone-800">
+                              {variant.color} · {variant.size}
+                            </p>
+                            <p className="font-mono text-[10px] text-stone-500">{variant.id}</p>
+                            <p className="text-[10px] text-stone-500">
+                              sort: {variant.sort_order} · tồn nội bộ: {variant.available_stock}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditVariant(variant)}
+                              className="rounded border border-stone-300 px-2 py-1 text-xs hover:bg-stone-100"
+                            >
+                              Sửa
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteVariant(variant.id)}
+                              disabled={actionLoading}
+                              className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50"
+                            >
+                              Xóa
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {(selectedProductDetail?.variants ?? []).length === 0 ? (
+                    <p className="text-xs text-stone-500">Sản phẩm chưa có biến thể.</p>
+                  ) : null}
+                </div>
               </div>
             </aside>
           ) : null}

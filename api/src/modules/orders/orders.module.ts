@@ -9,6 +9,7 @@ import { CartEntity } from '../cart/entities/cart.entity';
 import { InventoryModule } from '../inventory/inventory.module';
 import { PaymentEntity } from '../payments/entities/payment.entity';
 import { ProductEntity } from '../products/product.entity';
+import { ProductVariantEntity } from '../products/product-variant.entity';
 import { AddressEntity } from '../address/entities/address.entity';
 import { OrderCartAdapter } from './adapters/order-cart.adapter';
 import { OrderFulfillmentAdapter } from './adapters/order-fulfillment.adapter';
@@ -44,6 +45,7 @@ import { AuditModule } from '../audit/audit.module';
       CartEntity,
       CartItemEntity,
       ProductEntity,
+      ProductVariantEntity,
       AddressEntity,
       PaymentEntity,
     ]),
