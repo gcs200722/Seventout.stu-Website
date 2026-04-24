@@ -13,6 +13,7 @@ import type { CartCachePort } from '../cart/cart-cache.port';
 import { CartItemEntity } from '../cart/entities/cart-item.entity';
 import { CartEntity, CartStatus } from '../cart/entities/cart.entity';
 import { ProductEntity } from '../products/product.entity';
+import { ProductVariantEntity } from '../products/product-variant.entity';
 import type { CheckoutCartSnapshot } from '../orders/ports/order-cart.port';
 import type { PricedCheckoutSnapshot } from '../orders/ports/order-pricing.port';
 import { CouponEntity } from './entities/coupon.entity';
@@ -44,6 +45,8 @@ export class PromotionsApplicationService {
     private readonly cartItemsRepository: Repository<CartItemEntity>,
     @InjectRepository(ProductEntity)
     private readonly productsRepository: Repository<ProductEntity>,
+    @InjectRepository(ProductVariantEntity)
+    private readonly variantsRepository: Repository<ProductVariantEntity>,
     @InjectRepository(CouponEntity)
     private readonly couponsRepository: Repository<CouponEntity>,
     @InjectRepository(PromotionCampaignEntity)
@@ -573,10 +576,18 @@ export class PromotionsApplicationService {
       where: { id: In(rows.map((r) => r.productId)) },
     });
     const productById = new Map(products.map((p) => [p.id, p]));
+    const variants = await this.variantsRepository.find({
+      where: { id: In(rows.map((r) => r.productVariantId)) },
+    });
+    const variantById = new Map(variants.map((v) => [v.id, v]));
     return rows.map((item) => {
       const product = productById.get(item.productId);
+      const variant = variantById.get(item.productVariantId);
       return {
         product_id: item.productId,
+        product_variant_id: item.productVariantId,
+        variant_color: variant?.color ?? '',
+        variant_size: variant?.size ?? '',
         product_name: product?.name ?? 'Unavailable product',
         price: item.price,
         quantity: item.quantity,

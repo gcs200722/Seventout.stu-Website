@@ -1,6 +1,7 @@
 import type { NotificationType } from "@/lib/notifications-api";
 
 const TYPE_TONE: Record<NotificationType, string> = {
+  REVIEW_SUBMITTED: "bg-amber-50 text-amber-700 border-amber-200",
   ORDER_CREATED: "bg-sky-50 text-sky-700 border-sky-200",
   PAYMENT_SUCCESS: "bg-emerald-50 text-emerald-700 border-emerald-200",
   PAYMENT_FAILED: "bg-rose-50 text-rose-700 border-rose-200",
@@ -9,6 +10,7 @@ const TYPE_TONE: Record<NotificationType, string> = {
 };
 
 const TYPE_LABEL: Record<NotificationType, string> = {
+  REVIEW_SUBMITTED: "Đánh giá mới",
   ORDER_CREATED: "Đơn hàng mới",
   PAYMENT_SUCCESS: "Thanh toán thành công",
   PAYMENT_FAILED: "Thanh toán thất bại",

@@ -44,6 +44,9 @@ export type AdminOrderDetail = {
   };
   items: Array<{
     product_id: string;
+    product_variant_id: string;
+    variant_color: string;
+    variant_size: string;
     product_name: string;
     price: number;
     quantity: number;

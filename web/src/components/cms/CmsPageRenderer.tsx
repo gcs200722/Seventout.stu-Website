@@ -70,6 +70,7 @@ async function loadProductsByIds(ids: string[]): Promise<Map<string, Product>> {
         slug: p.slug,
         price: p.price,
         image,
+        default_variant_id: p.default_variant_id,
         category: {
           slug: p.category.slug,
           parent: p.category.parent ? { slug: p.category.parent.slug } : null,

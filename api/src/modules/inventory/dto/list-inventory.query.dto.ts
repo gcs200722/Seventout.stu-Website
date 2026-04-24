@@ -30,6 +30,11 @@ export class ListInventoryQueryDto {
   @IsUUID()
   product_id?: string;
 
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  product_variant_id?: string;
+
   @ApiPropertyOptional({ enum: InventoryChannel })
   @IsOptional()
   @IsEnum(InventoryChannel)

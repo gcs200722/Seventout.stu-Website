@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { NotificationItem } from "@/lib/notifications-api";
 import NotificationReadBadge from "./NotificationReadBadge";
 import NotificationTypeBadge from "./NotificationTypeBadge";
@@ -14,6 +15,10 @@ export default function NotificationCard({
   disabled = false,
 }: NotificationCardProps) {
   const createdAt = new Date(notification.createdAt).toLocaleString("vi-VN");
+  const actionUrl =
+    typeof notification.metadata?.action_url === "string"
+      ? notification.metadata.action_url
+      : null;
 
   return (
     <article
@@ -52,6 +57,16 @@ export default function NotificationCard({
               >
                 Đánh dấu đã đọc
               </button>
+            </div>
+          ) : null}
+          {actionUrl ? (
+            <div className="mt-2">
+              <Link
+                href={actionUrl}
+                className="inline-flex rounded-full border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-700 transition-colors hover:bg-stone-100"
+              >
+                Xem chi tiết
+              </Link>
             </div>
           ) : null}
         </div>

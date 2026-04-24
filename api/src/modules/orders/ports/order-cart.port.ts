@@ -4,6 +4,9 @@ export const ORDER_CART_PORT = Symbol('ORDER_CART_PORT');
 
 export type CheckoutCartItem = {
   product_id: string;
+  product_variant_id: string;
+  variant_color: string;
+  variant_size: string;
   product_name: string;
   price: number;
   quantity: number;

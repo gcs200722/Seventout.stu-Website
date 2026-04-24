@@ -4,6 +4,7 @@ export enum NotificationChannel {
 }
 
 export enum NotificationType {
+  REVIEW_SUBMITTED = 'REVIEW_SUBMITTED',
   ORDER_CREATED = 'ORDER_CREATED',
   PAYMENT_SUCCESS = 'PAYMENT_SUCCESS',
   PAYMENT_FAILED = 'PAYMENT_FAILED',

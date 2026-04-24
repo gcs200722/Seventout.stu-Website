@@ -162,6 +162,18 @@ export class ReviewsApplicationService {
 
       await this.recomputeProductStats(manager, dto.product_id);
 
+      await outboxRepo.save(
+        outboxRepo.create({
+          reviewId: created.id,
+          eventType: ReviewEventType.REVIEW_SUBMITTED,
+          payload: {
+            review_id: created.id,
+            reviewer_user_id: user.id,
+            product_id: created.productId,
+          },
+        }),
+      );
+
       if (defaultStatus === ReviewStatus.APPROVED) {
         await outboxRepo.save(
           outboxRepo.create({
@@ -539,10 +551,7 @@ export class ReviewsApplicationService {
   }
 
   private getDefaultReviewStatus(): ReviewStatus {
-    const raw = this.configService.getOrThrow<'PENDING' | 'APPROVED'>(
-      'REVIEWS_DEFAULT_STATUS',
-    );
-    return raw === 'PENDING' ? ReviewStatus.PENDING : ReviewStatus.APPROVED;
+    return ReviewStatus.PENDING;
   }
 
   private normalizeMediaUrls(

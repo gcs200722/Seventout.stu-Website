@@ -33,6 +33,8 @@ import { ListProductStocksQueryDto } from './dto/list-product-stocks.query.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { ProductsByIdsDto } from './dto/products-by-ids.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { AddProductVariantDto } from './dto/add-product-variant.dto';
+import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 import { ProductsService } from './products.service';
 
 type UploadedImageFile = {
@@ -94,6 +96,81 @@ export class ProductsController {
     return {
       success: true,
       data,
+    };
+  }
+
+  @Post(':id/variants')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Add a product variant (color / size)' })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  async addProductVariant(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: AddProductVariantDto,
+  ) {
+    const { id: variantId } = await this.productsService.addProductVariant(
+      id,
+      {
+        color: payload.color,
+        size: payload.size,
+        sort_order: payload.sort_order,
+      },
+      actor,
+    );
+    return {
+      success: true,
+      message: 'Variant created successfully',
+      data: { product_variant_id: variantId },
+    };
+  }
+
+  @Patch(':id/variants/:variantId')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Update a product variant (color / size / sort order)',
+  })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  async updateProductVariant(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+    @Body() payload: UpdateProductVariantDto,
+  ) {
+    await this.productsService.updateProductVariant(
+      id,
+      variantId,
+      {
+        color: payload.color,
+        size: payload.size,
+        sort_order: payload.sort_order,
+      },
+      actor,
+    );
+    return {
+      success: true,
+      message: 'Variant updated successfully',
+    };
+  }
+
+  @Delete(':id/variants/:variantId')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Delete a product variant' })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  async deleteProductVariant(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+  ) {
+    await this.productsService.deleteProductVariant(id, variantId, actor);
+    return {
+      success: true,
+      message: 'Variant deleted successfully',
     };
   }
 

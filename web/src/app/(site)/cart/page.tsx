@@ -20,7 +20,7 @@ import { listMyAddresses, type AddressItem } from "@/lib/addresses-api";
 import { createMyOrder } from "@/lib/orders-api";
 import { createMyPayment } from "@/lib/payments-api";
 import type { PaymentMethod } from "@/lib/payments-api";
-import { formatVnd } from "@/lib/products-api";
+import { formatVnd, getProductsByIdsPublic } from "@/lib/products-api";
 
 export default function CartPage() {
   const router = useRouter();
@@ -36,6 +36,9 @@ export default function CartPage() {
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
   const [couponCode, setCouponCode] = useState("");
+  const [variantsByProductId, setVariantsByProductId] = useState<
+    Record<string, Array<{ id: string; color: string; size: string; available_stock: number }>>
+  >({});
 
   const cartRefreshKey = useMemo(() => {
     if (!cart || cart.items.length === 0) {
@@ -50,6 +53,7 @@ export default function CartPage() {
     [loading, isAuthenticated, cart],
   );
   const promotionQuote = useCartPromotionQuote(quoteEnabled, cartRefreshKey);
+  const refreshPromotionQuote = promotionQuote.refresh;
 
   const paymentOptions: Array<{
     value: PaymentMethod;
@@ -94,18 +98,43 @@ export default function CartPage() {
       setSelectedAddressId((current) => current || defaultAddress?.id || addressItems[0]?.id || "");
       await refreshCartCount();
       if (snapshot.items.length > 0) {
-        void promotionQuote.refresh();
+        void refreshPromotionQuote();
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Không tải được giỏ hàng.");
     } finally {
       setPageLoading(false);
     }
-  }, [isAuthenticated, promotionQuote.refresh, refreshCartCount, user?.id]);
+  }, [isAuthenticated, refreshCartCount, refreshPromotionQuote, user?.id]);
 
   useEffect(() => {
     void reloadCart();
   }, [reloadCart]);
+
+  useEffect(() => {
+    async function loadVariantsForCart() {
+      if (!cart || cart.items.length === 0) {
+        setVariantsByProductId({});
+        return;
+      }
+      try {
+        const productDetails = await getProductsByIdsPublic(
+          cart.items.map((item) => item.product_id),
+        );
+        const next: Record<
+          string,
+          Array<{ id: string; color: string; size: string; available_stock: number }>
+        > = {};
+        for (const detail of productDetails) {
+          next[detail.id] = detail.variants ?? [];
+        }
+        setVariantsByProductId(next);
+      } catch {
+        setVariantsByProductId({});
+      }
+    }
+    void loadVariantsForCart();
+  }, [cart]);
 
   const canCheckout = useMemo(() => Boolean(cart && cart.items.length > 0), [cart]);
 
@@ -131,12 +160,16 @@ export default function CartPage() {
     return String((coupon as { code: string }).code);
   }, [promotionQuote.quote]);
 
-  async function handleUpdateItem(itemId: string, quantity: number) {
+  async function handleUpdateItem(
+    itemId: string,
+    quantity: number,
+    productVariantId?: string,
+  ) {
     setPendingId(itemId);
     setError(null);
     setSuccess(null);
     try {
-      await updateCartItem(itemId, quantity);
+      await updateCartItem(itemId, quantity, productVariantId);
       await reloadCart();
       setSuccess("Đã cập nhật số lượng.");
     } catch (actionError) {
@@ -280,11 +313,35 @@ export default function CartPage() {
                   <div>
                     <h2 className="text-sm font-semibold text-stone-900">{item.product_name}</h2>
                     <p className="mt-1 text-xs text-stone-500">
+                      {item.variant_color || item.variant_size
+                        ? `${item.variant_color} · ${item.variant_size}`
+                        : "—"}
+                    </p>
+                    <p className="mt-1 text-xs text-stone-500">
                       Giá: {formatVnd(item.price)} | Tồn kho: {item.available_stock}
                     </p>
                     <p className="mt-1 text-xs text-stone-700">Tạm tính: {formatVnd(item.subtotal)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {variantsByProductId[item.product_id]?.length ? (
+                      <select
+                        value={item.product_variant_id}
+                        disabled={pendingId === item.item_id}
+                        onChange={(event) => {
+                          const variantId = event.target.value;
+                          if (variantId !== item.product_variant_id) {
+                            void handleUpdateItem(item.item_id, item.quantity, variantId);
+                          }
+                        }}
+                        className="rounded-lg border border-stone-300 px-2 py-1.5 text-sm text-stone-900 outline-none focus:border-stone-800"
+                      >
+                        {variantsByProductId[item.product_id].map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.color} · {variant.size}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
                     <input
                       type="number"
                       min={1}
@@ -293,7 +350,11 @@ export default function CartPage() {
                       onBlur={(event) => {
                         const nextQty = Math.max(1, Number(event.target.value) || 1);
                         if (nextQty !== item.quantity) {
-                          void handleUpdateItem(item.item_id, nextQty);
+                          void handleUpdateItem(
+                            item.item_id,
+                            nextQty,
+                            item.product_variant_id,
+                          );
                         }
                       }}
                       className="w-20 rounded-lg border border-stone-300 px-2 py-1.5 text-sm text-stone-900 outline-none focus:border-stone-800"

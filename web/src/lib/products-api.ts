@@ -15,6 +15,10 @@ type ApiEnvelope<T> = {
 export type ProductStock = {
   product_id: string;
   available_stock: number;
+  variants: Array<{
+    product_variant_id: string;
+    available_stock: number;
+  }>;
 };
 
 /** Catalog promotion preview from API (snake_case). */
@@ -43,6 +47,7 @@ export type ProductListItem = {
     parent: { id: string; name: string; slug: string } | null;
   };
   available_stock: number;
+  default_variant_id: string;
   is_active: boolean;
   created_at: string;
   promotion?: ProductPromotionPreview;
@@ -61,6 +66,14 @@ export type ProductDetail = {
     parent: { id: string; name: string; slug: string } | null;
   };
   available_stock: number;
+  default_variant_id: string;
+  variants: Array<{
+    id: string;
+    color: string;
+    size: string;
+    available_stock: number;
+    sort_order: number;
+  }>;
   images: string[];
   is_active: boolean;
   created_at: string;

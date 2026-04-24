@@ -3,6 +3,9 @@ import { withAuth } from "@/lib/http-client";
 export type CartItem = {
   item_id: string;
   product_id: string;
+  product_variant_id: string;
+  variant_color: string;
+  variant_size: string;
   product_name: string;
   price: number;
   quantity: number;
@@ -34,21 +37,29 @@ export async function getMyCart(): Promise<CartSnapshot> {
   return envelope.data;
 }
 
-export async function addToCart(productId: string, quantity: number) {
+export async function addToCart(productId: string, productVariantId: string, quantity: number) {
   const envelope = await withAuth<unknown>("/cart/items", {
     method: "POST",
     body: JSON.stringify({
       product_id: productId,
+      product_variant_id: productVariantId,
       quantity,
     }),
   });
   return envelope.message ?? "Cart item added successfully";
 }
 
-export async function updateCartItem(itemId: string, quantity: number) {
+export async function updateCartItem(
+  itemId: string,
+  quantity: number,
+  productVariantId?: string,
+) {
   const envelope = await withAuth<unknown>(`/cart/items/${itemId}`, {
     method: "PATCH",
-    body: JSON.stringify({ quantity }),
+    body: JSON.stringify({
+      quantity,
+      product_variant_id: productVariantId,
+    }),
   });
   return envelope.message ?? "Cart item updated successfully";
 }

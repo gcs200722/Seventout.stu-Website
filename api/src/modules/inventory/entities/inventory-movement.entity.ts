@@ -2,8 +2,11 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { ProductVariantEntity } from '../../products/product-variant.entity';
 import { InventoryChannel, InventoryMovementType } from '../inventory.types';
 
 @Entity({ name: 'inventory_movements' })
@@ -11,8 +14,12 @@ export class InventoryMovementEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'product_id', type: 'uuid' })
-  productId: string;
+  @Column({ name: 'product_variant_id', type: 'uuid' })
+  productVariantId: string;
+
+  @ManyToOne(() => ProductVariantEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'product_variant_id' })
+  productVariant: ProductVariantEntity;
 
   @Column({ type: 'varchar', length: 20 })
   channel: InventoryChannel;

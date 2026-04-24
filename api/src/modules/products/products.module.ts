@@ -8,6 +8,7 @@ import { AuditModule } from '../audit/audit.module';
 import { StorageModule } from '../storage/storage.module';
 import { ProductImageEntity } from './product-image.entity';
 import { ProductEntity } from './product.entity';
+import { ProductVariantEntity } from './product-variant.entity';
 import { ProductsController } from './products.controller';
 import { ProductsService } from './products.service';
 
@@ -16,6 +17,7 @@ import { ProductsService } from './products.service';
     TypeOrmModule.forFeature([
       ProductEntity,
       ProductImageEntity,
+      ProductVariantEntity,
       CategoryEntity,
       InventoryEntity,
     ]),

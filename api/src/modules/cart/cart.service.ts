@@ -9,6 +9,7 @@ import { In, Repository } from 'typeorm';
 import { InventoryChannel } from '../inventory/inventory.types';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { ProductEntity } from '../products/product.entity';
+import { ProductVariantEntity } from '../products/product-variant.entity';
 import { CART_CACHE_PORT } from './cart-cache.port';
 import type { CartCachePort, CartSnapshot } from './cart-cache.port';
 import { CartIssue, CartIssueCode } from './cart.types';
@@ -20,6 +21,9 @@ import { CartEntity, CartStatus } from './entities/cart.entity';
 type CartItemView = {
   item_id: string;
   product_id: string;
+  product_variant_id: string;
+  variant_color: string;
+  variant_size: string;
   product_name: string;
   price: number;
   quantity: number;
@@ -41,6 +45,8 @@ export class CartService {
     private readonly cartItemsRepository: Repository<CartItemEntity>,
     @InjectRepository(ProductEntity)
     private readonly productsRepository: Repository<ProductEntity>,
+    @InjectRepository(ProductVariantEntity)
+    private readonly variantsRepository: Repository<ProductVariantEntity>,
     @InjectRepository(InventoryEntity)
     private readonly inventoriesRepository: Repository<InventoryEntity>,
     @Inject(CART_CACHE_PORT) private readonly cartCache: CartCachePort,
@@ -60,17 +66,29 @@ export class CartService {
   async addItem(userId: string, payload: AddCartItemDto): Promise<void> {
     const cart = await this.ensureActiveCart(userId);
     const product = await this.getActiveProduct(payload.product_id);
-    const stock = await this.getAvailableStock(product.id);
+    const variant = await this.getVariantForProduct(
+      payload.product_variant_id,
+      product.id,
+    );
+    const stock = await this.getAvailableStock(variant.id);
 
     const existing = await this.cartItemsRepository.findOne({
-      where: { cartId: cart.id, productId: product.id },
+      where: {
+        cartId: cart.id,
+        productId: product.id,
+        productVariantId: variant.id,
+      },
     });
     if (existing) {
       const nextQuantity = existing.quantity + payload.quantity;
       if (stock < nextQuantity) {
         throw new BadRequestException({
           message: 'Not enough stock available',
-          details: { code: 'OUT_OF_STOCK', product_id: product.id },
+          details: {
+            code: 'OUT_OF_STOCK',
+            product_id: product.id,
+            product_variant_id: variant.id,
+          },
         });
       }
       existing.quantity = nextQuantity;
@@ -80,13 +98,18 @@ export class CartService {
       if (stock < payload.quantity) {
         throw new BadRequestException({
           message: 'Not enough stock available',
-          details: { code: 'OUT_OF_STOCK', product_id: product.id },
+          details: {
+            code: 'OUT_OF_STOCK',
+            product_id: product.id,
+            product_variant_id: variant.id,
+          },
         });
       }
       await this.cartItemsRepository.save(
         this.cartItemsRepository.create({
           cartId: cart.id,
           productId: product.id,
+          productVariantId: variant.id,
           quantity: payload.quantity,
           price: product.price,
         }),
@@ -113,17 +136,47 @@ export class CartService {
     }
 
     const product = await this.getActiveProduct(item.productId);
-    const stock = await this.getAvailableStock(product.id);
-    if (stock < payload.quantity) {
+    const targetVariantId =
+      payload.product_variant_id && payload.product_variant_id.trim().length > 0
+        ? payload.product_variant_id.trim()
+        : item.productVariantId;
+    await this.getVariantForProduct(targetVariantId, product.id);
+
+    const existingSameVariant = await this.cartItemsRepository.findOne({
+      where: {
+        cartId: cart.id,
+        productId: product.id,
+        productVariantId: targetVariantId,
+      },
+    });
+    const shouldMerge =
+      existingSameVariant !== null && existingSameVariant.id !== item.id;
+    const requiredQuantity = shouldMerge
+      ? existingSameVariant.quantity + payload.quantity
+      : payload.quantity;
+    const stock = await this.getAvailableStock(targetVariantId);
+    if (stock < requiredQuantity) {
       throw new BadRequestException({
         message: 'Not enough stock available',
-        details: { code: 'OUT_OF_STOCK', product_id: product.id },
+        details: {
+          code: 'OUT_OF_STOCK',
+          product_id: product.id,
+          product_variant_id: targetVariantId,
+        },
       });
     }
 
-    item.quantity = payload.quantity;
-    item.price = product.price;
-    await this.cartItemsRepository.save(item);
+    if (shouldMerge) {
+      existingSameVariant.quantity = requiredQuantity;
+      existingSameVariant.price = product.price;
+      await this.cartItemsRepository.save(existingSameVariant);
+      await this.cartItemsRepository.delete(item.id);
+    } else {
+      item.productVariantId = targetVariantId;
+      item.quantity = payload.quantity;
+      item.price = product.price;
+      await this.cartItemsRepository.save(item);
+    }
     await this.cartCache.invalidate(userId);
   }
 
@@ -181,15 +234,20 @@ export class CartService {
       products.map((product) => [product.id, product]),
     );
 
+    const variants = await this.variantsRepository.find({
+      where: { id: In(items.map((item) => item.productVariantId)) },
+    });
+    const variantById = new Map(variants.map((v) => [v.id, v]));
+
     const inventories = await this.inventoriesRepository.find({
       where: {
-        productId: In(items.map((item) => item.productId)),
+        productVariantId: In(items.map((item) => item.productVariantId)),
         channel: InventoryChannel.INTERNAL,
       },
     });
-    const availableByProductId = new Map(
+    const availableByVariantId = new Map(
       inventories.map((inventory) => [
-        inventory.productId,
+        inventory.productVariantId,
         inventory.availableStock,
       ]),
     );
@@ -197,11 +255,22 @@ export class CartService {
     const issues: CartIssue[] = [];
     for (const item of items) {
       const product = productById.get(item.productId);
+      const variant = variantById.get(item.productVariantId);
       if (!product || !product.isActive || product.deletedAt) {
         issues.push({
           code: CartIssueCode.PRODUCT_UNAVAILABLE,
           product_id: item.productId,
+          product_variant_id: item.productVariantId,
           message: 'Product is unavailable',
+        });
+        continue;
+      }
+      if (!variant || variant.productId !== item.productId) {
+        issues.push({
+          code: CartIssueCode.PRODUCT_UNAVAILABLE,
+          product_id: item.productId,
+          product_variant_id: item.productVariantId,
+          message: 'Product variant is unavailable',
         });
         continue;
       }
@@ -210,15 +279,18 @@ export class CartService {
         issues.push({
           code: CartIssueCode.PRICE_CHANGED,
           product_id: item.productId,
+          product_variant_id: item.productVariantId,
           message: 'Product price changed',
         });
       }
 
-      const availableStock = availableByProductId.get(item.productId) ?? 0;
+      const availableStock =
+        availableByVariantId.get(item.productVariantId) ?? 0;
       if (availableStock < item.quantity) {
         issues.push({
           code: CartIssueCode.OUT_OF_STOCK,
           product_id: item.productId,
+          product_variant_id: item.productVariantId,
           message: 'Product is out of stock',
         });
       }
@@ -247,28 +319,37 @@ export class CartService {
       products.map((product) => [product.id, product]),
     );
 
+    const variants = await this.variantsRepository.find({
+      where: { id: In(items.map((item) => item.productVariantId)) },
+    });
+    const variantById = new Map(variants.map((v) => [v.id, v]));
+
     const inventories = await this.inventoriesRepository.find({
       where: {
-        productId: In(items.map((item) => item.productId)),
+        productVariantId: In(items.map((item) => item.productVariantId)),
         channel: InventoryChannel.INTERNAL,
       },
     });
-    const availableByProductId = new Map(
+    const availableByVariantId = new Map(
       inventories.map((inventory) => [
-        inventory.productId,
+        inventory.productVariantId,
         inventory.availableStock,
       ]),
     );
 
     const dataItems: CartItemView[] = items.map((item) => {
       const product = productById.get(item.productId);
+      const variant = variantById.get(item.productVariantId);
       return {
         item_id: item.id,
         product_id: item.productId,
+        product_variant_id: item.productVariantId,
+        variant_color: variant?.color ?? '',
+        variant_size: variant?.size ?? '',
         product_name: product?.name ?? 'Unavailable product',
         price: item.price,
         quantity: item.quantity,
-        available_stock: availableByProductId.get(item.productId) ?? 0,
+        available_stock: availableByVariantId.get(item.productVariantId) ?? 0,
         subtotal: item.price * item.quantity,
       };
     });
@@ -294,9 +375,29 @@ export class CartService {
     return product;
   }
 
-  private async getAvailableStock(productId: string): Promise<number> {
+  private async getVariantForProduct(
+    variantId: string,
+    productId: string,
+  ): Promise<ProductVariantEntity> {
+    const variant = await this.variantsRepository.findOne({
+      where: { id: variantId, productId },
+    });
+    if (!variant) {
+      throw new BadRequestException({
+        message: 'Invalid product variant',
+        details: {
+          code: 'INVALID_VARIANT',
+          product_id: productId,
+          product_variant_id: variantId,
+        },
+      });
+    }
+    return variant;
+  }
+
+  private async getAvailableStock(productVariantId: string): Promise<number> {
     const inventory = await this.inventoriesRepository.findOne({
-      where: { productId, channel: InventoryChannel.INTERNAL },
+      where: { productVariantId, channel: InventoryChannel.INTERNAL },
     });
     return inventory?.availableStock ?? 0;
   }
