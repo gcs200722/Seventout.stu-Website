@@ -1,7 +1,7 @@
 "use client";
 
-import { useAuth } from "@/components/auth/AuthProvider";
-import { AddressManager } from "@/components/profile/AddressManager";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
+import { AddressManager } from "@/components/tenant/core/profile/AddressManager";
 
 export default function AddressesPage() {
   const { user } = useAuth();

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["localtest.me", "*.localtest.me"],
   images: {
     remotePatterns: [
       {
@@ -24,6 +25,11 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "sevenout-banner-public.s3.us-east-1.amazonaws.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
         pathname: "/**",
       },
     ],

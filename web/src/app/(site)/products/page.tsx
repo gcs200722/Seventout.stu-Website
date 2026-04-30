@@ -1,4 +1,4 @@
-import { ProductsCatalogClient } from "@/components/products/ProductsCatalogClient";
+import { ProductsCatalogClient } from "@/components/tenant/extensions/products/ProductsCatalogClient";
 import { findCategoryBySlug, listCategoriesPublic } from "@/lib/categories-api";
 import { listProductStocksPublic, listProductsPublic, type ProductSort } from "@/lib/products-api";
 

@@ -1,0 +1,307 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { AuthenticatedUser } from '../../core/auth/auth.types';
+import { CurrentUser } from '../../core/auth/current-user.decorator';
+import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
+import {
+  PermissionCode,
+  UserRole,
+} from '../../core/authorization/authorization.types';
+import { RequirePermissions } from '../../core/authorization/decorators/require-permissions.decorator';
+import { RequireRoles } from '../../core/authorization/decorators/require-roles.decorator';
+import { AuthorizationGuard } from '../../core/authorization/guards/authorization.guard';
+import { RequireTenant } from '../../core/context/tenant-context.constants';
+import { TenantGuard } from '../../core/context/tenant.guard';
+import { CreateProductDto } from './dto/create-product.dto';
+import { ListProductStocksQueryDto } from './dto/list-product-stocks.query.dto';
+import { ListProductsQueryDto } from './dto/list-products.query.dto';
+import { ProductsByIdsDto } from './dto/products-by-ids.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { AddProductVariantDto } from './dto/add-product-variant.dto';
+import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
+import { ProductsService } from './products.service';
+
+type UploadedImageFile = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+};
+
+@ApiTags('products')
+@Controller('products')
+export class ProductsController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Get()
+  @RequireTenant()
+  @UseGuards(TenantGuard)
+  @ApiOperation({ summary: 'List products (public, filters + pagination)' })
+  async listProducts(@Query() query: ListProductsQueryDto) {
+    const { items, total } = await this.productsService.listProducts(query);
+    return {
+      success: true,
+      data: items,
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+      },
+    };
+  }
+
+  @Get('stocks')
+  @RequireTenant()
+  @UseGuards(TenantGuard)
+  @ApiOperation({ summary: 'Get stocks for multiple products (public)' })
+  async getProductStocks(@Query() query: ListProductStocksQueryDto) {
+    return {
+      success: true,
+      data: await this.productsService.getProductStocks(query.ids),
+    };
+  }
+
+  @Post('by-ids')
+  @HttpCode(200)
+  @RequireTenant()
+  @UseGuards(TenantGuard)
+  @ApiOperation({ summary: 'Get multiple product details by id (public)' })
+  async getProductsByIds(@Body() body: ProductsByIdsDto) {
+    const data = await this.productsService.getProductsByIdsPublic(body.ids);
+    return { success: true, data };
+  }
+
+  @Get(':id/stock')
+  @RequireTenant()
+  @UseGuards(TenantGuard)
+  @ApiOperation({ summary: 'Get product stock (public)' })
+  async getProductStock(@Param('id', ParseUUIDPipe) id: string) {
+    return {
+      success: true,
+      data: await this.productsService.getProductStockById(id),
+    };
+  }
+
+  @Get('slug/:slug')
+  @RequireTenant()
+  @UseGuards(TenantGuard)
+  @ApiOperation({ summary: 'Get product detail by slug (public)' })
+  async getProductBySlug(@Param('slug') slug: string) {
+    const data = await this.productsService.getProductBySlug(slug);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post(':id/variants')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Add a product variant (color / size)' })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  async addProductVariant(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: AddProductVariantDto,
+  ) {
+    const { id: variantId } = await this.productsService.addProductVariant(
+      id,
+      {
+        color: payload.color,
+        size: payload.size,
+        sort_order: payload.sort_order,
+      },
+      actor,
+    );
+    return {
+      success: true,
+      message: 'Variant created successfully',
+      data: { product_variant_id: variantId },
+    };
+  }
+
+  @Patch(':id/variants/:variantId')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Update a product variant (color / size / sort order)',
+  })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  async updateProductVariant(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+    @Body() payload: UpdateProductVariantDto,
+  ) {
+    await this.productsService.updateProductVariant(
+      id,
+      variantId,
+      {
+        color: payload.color,
+        size: payload.size,
+        sort_order: payload.sort_order,
+      },
+      actor,
+    );
+    return {
+      success: true,
+      message: 'Variant updated successfully',
+    };
+  }
+
+  @Delete(':id/variants/:variantId')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Delete a product variant' })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  async deleteProductVariant(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+  ) {
+    await this.productsService.deleteProductVariant(id, variantId, actor);
+    return {
+      success: true,
+      message: 'Variant deleted successfully',
+    };
+  }
+
+  @Get(':id')
+  @RequireTenant()
+  @UseGuards(TenantGuard)
+  @ApiOperation({ summary: 'Get product detail (public)' })
+  async getProductById(@Param('id', ParseUUIDPipe) id: string) {
+    const data = await this.productsService.getProductById(id);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post()
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Create product' })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  @UseInterceptors(FilesInterceptor('image_files', 10))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        price: { type: 'number' },
+        category_id: { type: 'string', format: 'uuid' },
+        images: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional image URLs',
+        },
+        image_files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+      required: ['name', 'description', 'price', 'category_id'],
+    },
+  })
+  async createProduct(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() payload: CreateProductDto,
+    @UploadedFiles() files: UploadedImageFile[],
+  ) {
+    await this.productsService.createProduct(payload, files ?? [], actor);
+    return {
+      success: true,
+      message: 'Product created successfully',
+    };
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Update product' })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  @UseInterceptors(FilesInterceptor('image_files', 10))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        price: { type: 'number' },
+        is_active: { type: 'boolean' },
+        main_image_index: {
+          type: 'number',
+          description: 'Index of image to use as main thumbnail',
+        },
+        images: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Optional URLs list to replace current images (can combine with uploaded files).',
+        },
+        image_files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  })
+  async updateProduct(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateProductDto,
+    @UploadedFiles() files: UploadedImageFile[],
+  ) {
+    await this.productsService.updateProduct(id, payload, files ?? [], actor);
+    return {
+      success: true,
+      message: 'Product updated successfully',
+    };
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Soft delete product' })
+  @RequireRoles(UserRole.ADMIN, UserRole.STAFF)
+  @RequirePermissions(PermissionCode.PRODUCT_MANAGE)
+  async softDeleteProduct(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.productsService.softDeleteProduct(id, actor);
+    return {
+      success: true,
+      message: 'Product deleted successfully',
+    };
+  }
+}

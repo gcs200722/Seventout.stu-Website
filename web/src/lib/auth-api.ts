@@ -19,6 +19,10 @@ export type AuthTokens = {
   refresh_token: string;
 };
 
+export type SwitchTenantPayload = {
+  tenant_id: string;
+};
+
 export type MeResponse = {
   id: string;
   first_name: string;
@@ -92,5 +96,15 @@ export function logout(accessToken: string) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+  });
+}
+
+export function switchTenant(accessToken: string, payload: SwitchTenantPayload) {
+  return apiRequest<AuthTokens>("/auth/switch-tenant", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
   });
 }

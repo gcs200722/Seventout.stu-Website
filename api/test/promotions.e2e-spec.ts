@@ -3,8 +3,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
-import { PromotionsActiveController } from '../src/modules/promotions/promotions-active.controller';
-import { PromotionsApplicationService } from '../src/modules/promotions/promotions.application.service';
+import { PromotionsActiveController } from '../src/modules/tenant/extensions/promotions/promotions-active.controller';
+import { PromotionsApplicationService } from '../src/modules/tenant/extensions/promotions/promotions.application.service';
 
 describe('PromotionsActiveController (integration)', () => {
   let app: INestApplication<App>;

@@ -2,6 +2,10 @@ export type AccessTokenClaims = {
   user_id?: string;
   role?: string;
   permissions?: string[];
+  platform_permissions?: string[];
+  active_tenant_id?: string | null;
+  role_in_tenant?: string | null;
+  membership_status?: string | null;
 };
 
 function decodeBase64Url(value: string): string {

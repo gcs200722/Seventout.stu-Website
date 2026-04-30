@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
 import {
   auditActionShortLabel,
   auditActorRoleLabel,

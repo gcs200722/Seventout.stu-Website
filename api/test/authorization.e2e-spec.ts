@@ -11,15 +11,15 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
-import { RequireOwnerParam } from '../src/modules/authorization/decorators/require-owner-param.decorator';
-import { RequirePermissions } from '../src/modules/authorization/decorators/require-permissions.decorator';
-import { RequireRoles } from '../src/modules/authorization/decorators/require-roles.decorator';
-import { AuthorizationGuard } from '../src/modules/authorization/guards/authorization.guard';
-import { type AuthenticatedUser } from '../src/modules/auth/auth.types';
+import { RequireOwnerParam } from '../src/modules/tenant/core/authorization/decorators/require-owner-param.decorator';
+import { RequirePermissions } from '../src/modules/tenant/core/authorization/decorators/require-permissions.decorator';
+import { RequireRoles } from '../src/modules/tenant/core/authorization/decorators/require-roles.decorator';
+import { AuthorizationGuard } from '../src/modules/tenant/core/authorization/guards/authorization.guard';
+import { type AuthenticatedUser } from '../src/modules/tenant/core/auth/auth.types';
 import {
   PermissionCode,
   UserRole,
-} from '../src/modules/authorization/authorization.types';
+} from '../src/modules/tenant/core/authorization/authorization.types';
 
 type RequestHeaders = Record<string, string | string[] | undefined>;
 

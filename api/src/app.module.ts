@@ -10,33 +10,23 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ClsMiddleware, ClsModule } from 'nestjs-cls';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
-import { AuthModule } from './modules/auth/auth.module';
-import { AddressModule } from './modules/address/address.module';
-import { CategoriesModule } from './modules/categories/categories.module';
-import { CartModule } from './modules/cart/cart.module';
-import { FulfillmentModule } from './modules/fulfillment/fulfillment.module';
-import { InventoryModule } from './modules/inventory/inventory.module';
-import { NotificationModule } from './modules/notification/notification.module';
-import { OrdersModule } from './modules/orders/orders.module';
-import { PaymentsModule } from './modules/payments/payments.module';
-import { ProductsModule } from './modules/products/products.module';
-import { QueueModule } from './modules/queue/queue.module';
-import { RefundsModule } from './modules/refunds/refunds.module';
-import { ReturnsModule } from './modules/returns/returns.module';
-import { StorageModule } from './modules/storage/storage.module';
-import { UsersModule } from './modules/users/users.module';
-import { CmsModule } from './modules/cms/cms.module';
-import { ReviewsModule } from './modules/reviews/reviews.module';
-import { WishlistModule } from './modules/wishlist/wishlist.module';
-import { AuditHttpContextMiddleware } from './modules/audit/audit-http-context.middleware';
-import { AuditModule } from './modules/audit/audit.module';
-import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AuditHttpContextMiddleware } from './modules/tenant/core/audit/audit-http-context.middleware';
+import { TenantResolverMiddleware } from './modules/tenant/core/context/tenant-resolver.middleware';
+import { TenantContextModule } from './modules/tenant/core/context/tenant-context.module';
+import { PlatformApiModule } from './modules/platform/platform-api.module';
+import { TenantApiModule } from './modules/tenant/tenant-api.module';
 
 @Module({
   imports: [
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: false },
+    }),
+    TenantContextModule,
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
@@ -74,26 +64,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
         },
       ],
     }),
-    AuthModule,
-    AddressModule,
-    CategoriesModule,
-    CartModule,
-    UsersModule,
-    ProductsModule,
-    InventoryModule,
-    NotificationModule,
-    FulfillmentModule,
-    OrdersModule,
-    PaymentsModule,
-    ReturnsModule,
-    RefundsModule,
-    QueueModule,
-    StorageModule,
-    CmsModule,
-    ReviewsModule,
-    WishlistModule,
-    AuditModule,
-    DashboardModule,
+    PlatformApiModule,
+    TenantApiModule,
   ],
   controllers: [AppController],
   providers: [
@@ -106,9 +78,15 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(AuditHttpContextMiddleware).forRoutes({
-      path: '*',
-      method: RequestMethod.ALL,
-    });
+    consumer
+      .apply(
+        ClsMiddleware,
+        TenantResolverMiddleware,
+        AuditHttpContextMiddleware,
+      )
+      .forRoutes({
+        path: '*',
+        method: RequestMethod.ALL,
+      });
   }
 }

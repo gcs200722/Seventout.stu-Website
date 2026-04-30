@@ -1,4 +1,4 @@
-import type { Collection } from "@/components/home/CollectionCard";
+import type { Collection } from "@/components/tenant/extensions/home/CollectionCard";
 
 import { getApiErrorMessage } from "@/lib/api-error";
 import { apiFetch } from "@/lib/api-fetch";

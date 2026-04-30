@@ -12,8 +12,8 @@ module.exports = {
     {
       ...baseProject,
       displayName: 'auth-module',
-      testMatch: ['<rootDir>/modules/auth/**/*.spec.ts'],
-      collectCoverageFrom: ['<rootDir>/modules/auth/**/*.service.ts'],
+      testMatch: ['<rootDir>/modules/tenant/core/auth/**/*.spec.ts'],
+      collectCoverageFrom: ['<rootDir>/modules/tenant/core/auth/**/*.service.ts'],
       coverageDirectory: '../coverage/auth-module',
       coverageThreshold: {
         global: {
@@ -27,8 +27,8 @@ module.exports = {
     {
       ...baseProject,
       displayName: 'users-module',
-      testMatch: ['<rootDir>/modules/users/**/*.spec.ts'],
-      collectCoverageFrom: ['<rootDir>/modules/users/**/*.service.ts'],
+      testMatch: ['<rootDir>/modules/tenant/core/users/**/*.spec.ts'],
+      collectCoverageFrom: ['<rootDir>/modules/tenant/core/users/**/*.service.ts'],
       coverageDirectory: '../coverage/users-module',
       coverageThreshold: {
         global: {
@@ -42,10 +42,10 @@ module.exports = {
     {
       ...baseProject,
       displayName: 'categories-module',
-      testMatch: ['<rootDir>/modules/categories/**/*.spec.ts'],
+      testMatch: ['<rootDir>/modules/tenant/extensions/categories/**/*.spec.ts'],
       collectCoverageFrom: [
-        '<rootDir>/modules/categories/**/*.service.ts',
-        '<rootDir>/modules/categories/**/*.controller.ts',
+        '<rootDir>/modules/tenant/extensions/categories/**/*.service.ts',
+        '<rootDir>/modules/tenant/extensions/categories/**/*.controller.ts',
       ],
       coverageDirectory: '../coverage/categories-module',
       coverageThreshold: {
@@ -60,10 +60,10 @@ module.exports = {
     {
       ...baseProject,
       displayName: 'products-module',
-      testMatch: ['<rootDir>/modules/products/**/*.spec.ts'],
+      testMatch: ['<rootDir>/modules/tenant/extensions/products/**/*.spec.ts'],
       collectCoverageFrom: [
-        '<rootDir>/modules/products/**/*.service.ts',
-        '<rootDir>/modules/products/**/*.controller.ts',
+        '<rootDir>/modules/tenant/extensions/products/**/*.service.ts',
+        '<rootDir>/modules/tenant/extensions/products/**/*.controller.ts',
       ],
       coverageDirectory: '../coverage/products-module',
       coverageThreshold: {
@@ -78,10 +78,10 @@ module.exports = {
     {
       ...baseProject,
       displayName: 'cart-module',
-      testMatch: ['<rootDir>/modules/cart/**/*.spec.ts'],
+      testMatch: ['<rootDir>/modules/tenant/extensions/cart/**/*.spec.ts'],
       collectCoverageFrom: [
-        '<rootDir>/modules/cart/**/*.service.ts',
-        '<rootDir>/modules/cart/**/*.controller.ts',
+        '<rootDir>/modules/tenant/extensions/cart/**/*.service.ts',
+        '<rootDir>/modules/tenant/extensions/cart/**/*.controller.ts',
       ],
       coverageDirectory: '../coverage/cart-module',
       coverageThreshold: {
@@ -96,11 +96,11 @@ module.exports = {
     {
       ...baseProject,
       displayName: 'inventory-module',
-      testMatch: ['<rootDir>/modules/inventory/**/*.spec.ts'],
+      testMatch: ['<rootDir>/modules/tenant/extensions/inventory/**/*.spec.ts'],
       collectCoverageFrom: [
-        '<rootDir>/modules/inventory/**/*.service.ts',
-        '<rootDir>/modules/inventory/**/*.controller.ts',
-        '<rootDir>/modules/inventory/**/*.webhook.service.ts',
+        '<rootDir>/modules/tenant/extensions/inventory/**/*.service.ts',
+        '<rootDir>/modules/tenant/extensions/inventory/**/*.controller.ts',
+        '<rootDir>/modules/tenant/extensions/inventory/**/*.webhook.service.ts',
       ],
       coverageDirectory: '../coverage/inventory-module',
       coverageThreshold: {
@@ -116,11 +116,11 @@ module.exports = {
       ...baseProject,
       displayName: 'other-modules',
       testMatch: [
-        '<rootDir>/modules/storage/**/*.spec.ts',
-        '<rootDir>/modules/queue/**/*.spec.ts',
-        '<rootDir>/modules/authorization/**/*.spec.ts',
+        '<rootDir>/modules/tenant/core/storage/**/*.spec.ts',
+        '<rootDir>/modules/tenant/core/queue/**/*.spec.ts',
+        '<rootDir>/modules/tenant/core/authorization/**/*.spec.ts',
       ],
-      collectCoverageFrom: ['<rootDir>/modules/storage/**/*.service.ts'],
+      collectCoverageFrom: ['<rootDir>/modules/tenant/core/storage/**/*.service.ts'],
       coverageDirectory: '../coverage/other-modules',
       coverageThreshold: {
         global: {

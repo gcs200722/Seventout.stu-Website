@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { useAuth } from "@/components/auth/AuthProvider";
-import { AddressManager } from "@/components/profile/AddressManager";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
+import { AddressManager } from "@/components/tenant/core/profile/AddressManager";
 
 export default function ProfilePage() {
   const { user, isAuthenticated, loading, updateProfile, changePassword } = useAuth();

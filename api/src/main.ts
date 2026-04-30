@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Express } from 'express';
 import helmet from 'helmet';
+import './modules/tenant/core/context/tenant-context.types';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -46,7 +47,14 @@ async function bootstrap() {
     origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-idempotency-key'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-idempotency-key',
+      'x-tenant-id',
+      'x-tenant-slug',
+      'x-tenant-dev-secret',
+    ],
   });
   app.useGlobalPipes(
     new ValidationPipe({

@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import RefundManagementPanel from "@/components/orders/RefundManagementPanel";
-import ReturnManagementPanel from "@/components/orders/ReturnManagementPanel";
-import { useAuth } from "@/components/auth/AuthProvider";
+import RefundManagementPanel from "@/components/tenant/extensions/orders/RefundManagementPanel";
+import ReturnManagementPanel from "@/components/tenant/extensions/orders/ReturnManagementPanel";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
 import { getAdminOrderDetail, type AdminOrderDetail } from "@/lib/admin-orders-api";
 import { adjustAdminInventory } from "@/lib/inventory-api";
 import { formatVnd } from "@/lib/products-api";

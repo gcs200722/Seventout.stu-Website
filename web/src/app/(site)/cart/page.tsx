@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { useAuth } from "@/components/auth/AuthProvider";
-import CartPromotionSection from "@/components/cart/CartPromotionSection";
-import { useCart } from "@/components/cart/CartProvider";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
+import CartPromotionSection from "@/components/tenant/extensions/cart/CartPromotionSection";
+import { useCart } from "@/components/tenant/extensions/cart/CartProvider";
 import { useCartPromotionQuote } from "@/hooks/use-cart-promotion-quote";
 import {
   clearMyCart,

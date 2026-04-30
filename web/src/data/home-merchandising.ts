@@ -1,5 +1,5 @@
-import type { LookbookImage } from "@/components/home/LookbookGrid";
-import type { Product } from "@/components/home/ProductCard";
+import type { LookbookImage } from "@/components/tenant/extensions/home/LookbookGrid";
+import type { Product } from "@/components/tenant/extensions/home/ProductCard";
 
 /** Hero + promotion: nội dung marketing tạm cho đến khi có CMS/API. */
 export const heroContent = {

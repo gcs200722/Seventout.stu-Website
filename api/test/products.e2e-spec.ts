@@ -8,15 +8,15 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
-import { type AuthenticatedUser } from '../src/modules/auth/auth.types';
-import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
+import { type AuthenticatedUser } from '../src/modules/tenant/core/auth/auth.types';
+import { JwtAuthGuard } from '../src/modules/tenant/core/auth/guards/jwt-auth.guard';
 import {
   PermissionCode,
   UserRole,
-} from '../src/modules/authorization/authorization.types';
-import { AuthorizationGuard } from '../src/modules/authorization/guards/authorization.guard';
-import { ProductsController } from '../src/modules/products/products.controller';
-import { ProductsService } from '../src/modules/products/products.service';
+} from '../src/modules/tenant/core/authorization/authorization.types';
+import { AuthorizationGuard } from '../src/modules/tenant/core/authorization/guards/authorization.guard';
+import { ProductsController } from '../src/modules/tenant/extensions/products/products.controller';
+import { ProductsService } from '../src/modules/tenant/extensions/products/products.service';
 
 type RequestHeaders = Record<string, string | string[] | undefined>;
 type RequestWithAuth = {

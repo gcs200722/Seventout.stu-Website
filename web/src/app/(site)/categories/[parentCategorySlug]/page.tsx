@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ProductGridCard } from "@/components/products/ProductGridCard";
+import { ProductGridCard } from "@/components/tenant/extensions/products/ProductGridCard";
 import { findCategoryBySlug, listCategoriesPublic } from "@/lib/categories-api";
 import { listProductStocksPublic, listProductsPublic, type ProductSort } from "@/lib/products-api";
 

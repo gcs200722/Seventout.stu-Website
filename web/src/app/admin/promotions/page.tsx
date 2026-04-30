@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
 import { getAdminProducts, type AdminProduct } from "@/lib/admin-api";
 import { listCategoriesPublic, type CategoryListItem } from "@/lib/categories-api";
 import {

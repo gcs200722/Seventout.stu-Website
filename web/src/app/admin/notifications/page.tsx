@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 
-import { useAuth } from "@/components/auth/AuthProvider";
-import NotificationCard from "@/components/notifications/NotificationCard";
-import { useNotificationsFeed } from "@/components/notifications/useNotificationsFeed";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
+import NotificationCard from "@/components/tenant/core/notifications/NotificationCard";
+import { useNotificationsFeed } from "@/components/tenant/core/notifications/useNotificationsFeed";
 
 const PAGE_LIMIT = 10;
 type ReadFilter = "all" | "unread" | "read";

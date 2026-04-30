@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { useAuth } from "@/components/auth/AuthProvider";
-import { ProductCard } from "@/components/home/ProductCard";
-import { useWishlist } from "@/components/wishlist/WishlistProvider";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
+import { ProductCard } from "@/components/tenant/extensions/home/ProductCard";
+import { useWishlist } from "@/components/tenant/extensions/wishlist/WishlistProvider";
 import { getWishlist, type WishlistListItem } from "@/lib/wishlist-api";
 
 const WISHLIST_FALLBACK_IMAGE =

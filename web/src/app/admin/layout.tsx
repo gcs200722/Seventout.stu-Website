@@ -1,10 +1,6 @@
-import { AdminRouteGuard } from "@/components/admin/AdminRouteGuard";
-import { AdminShell } from "@/components/admin/AdminShell";
+import { redirect } from "next/navigation";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AdminRouteGuard>
-      <AdminShell>{children}</AdminShell>
-    </AdminRouteGuard>
-  );
+  redirect("/platform");
+  return children;
 }

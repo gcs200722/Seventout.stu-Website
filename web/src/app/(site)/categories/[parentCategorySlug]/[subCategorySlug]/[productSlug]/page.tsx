@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ProductPurchasePanel } from "@/components/products/ProductPurchasePanel";
-import { PromotionConditionsHint } from "@/components/promotions/PromotionConditionsHint";
-import { ProductImageGallery } from "@/components/products/ProductImageGallery";
-import { ProductReviewsSection } from "@/components/products/ProductReviewsSection";
+import { ProductPurchasePanel } from "@/components/tenant/extensions/products/ProductPurchasePanel";
+import { PromotionConditionsHint } from "@/components/tenant/extensions/promotions/PromotionConditionsHint";
+import { ProductImageGallery } from "@/components/tenant/extensions/products/ProductImageGallery";
+import { ProductReviewsSection } from "@/components/tenant/extensions/products/ProductReviewsSection";
 import {
   buildProductHref,
   formatVnd,

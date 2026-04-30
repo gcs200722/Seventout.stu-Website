@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { useAuth } from "@/components/auth/AuthProvider";
-import RefundStatusBadge from "@/components/orders/RefundStatusBadge";
-import ReturnStatusBadge from "@/components/orders/ReturnStatusBadge";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
+import RefundStatusBadge from "@/components/tenant/extensions/orders/RefundStatusBadge";
+import ReturnStatusBadge from "@/components/tenant/extensions/orders/ReturnStatusBadge";
 import { listRefunds } from "@/lib/refunds-api";
 import { listReturns, type ReturnStatus } from "@/lib/returns-api";
 import {

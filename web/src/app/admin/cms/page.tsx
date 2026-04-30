@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { BlockDataForm } from "@/components/admin/cms/BlockDataForm";
-import { CmsJsonEditor } from "@/components/admin/cms/CmsJsonEditor";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { BlockDataForm } from "@/components/tenant/core/admin/cms/BlockDataForm";
+import { CmsJsonEditor } from "@/components/tenant/core/admin/cms/CmsJsonEditor";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
 import { defaultBlockData, validateBlockForm } from "@/lib/cms-block-form";
 import {
   addAdminCmsBlock,

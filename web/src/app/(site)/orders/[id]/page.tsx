@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import FulfillmentSummaryCard from "@/components/orders/FulfillmentSummaryCard";
-import RefundSummaryCard from "@/components/orders/RefundSummaryCard";
-import ReturnRequestCard from "@/components/orders/ReturnRequestCard";
-import { DiscountLineItemsBreakdown } from "@/components/promotions/DiscountLineItemsBreakdown";
+import FulfillmentSummaryCard from "@/components/tenant/extensions/orders/FulfillmentSummaryCard";
+import RefundSummaryCard from "@/components/tenant/extensions/orders/RefundSummaryCard";
+import ReturnRequestCard from "@/components/tenant/extensions/orders/ReturnRequestCard";
+import { DiscountLineItemsBreakdown } from "@/components/tenant/extensions/promotions/DiscountLineItemsBreakdown";
 import { getFulfillmentByOrderId, type FulfillmentDetail } from "@/lib/fulfillment-api";
 import { listRefunds } from "@/lib/refunds-api";
 import { createReturn, listReturns } from "@/lib/returns-api";

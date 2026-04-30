@@ -2,9 +2,9 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AuthController } from '../src/modules/auth/auth.controller';
-import { AuthService } from '../src/modules/auth/auth.service';
-import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
+import { AuthController } from '../src/modules/tenant/core/auth/auth.controller';
+import { AuthService } from '../src/modules/tenant/core/auth/auth.service';
+import { JwtAuthGuard } from '../src/modules/tenant/core/auth/guards/jwt-auth.guard';
 
 describe('AuthController (e2e)', () => {
   let app: INestApplication<App>;

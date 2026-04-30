@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import DashboardOverview from "@/components/admin/dashboard/DashboardOverview";
+import DashboardOverview from "@/components/tenant/core/admin/dashboard/DashboardOverview";
 import {
   getAdminDashboardSummary,
   type DashboardComparePreset,

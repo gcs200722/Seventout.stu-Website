@@ -3,6 +3,8 @@
  * Avoids ECONNREFUSED spam when Next starts before the API finishes compiling.
  */
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const WEB_APP_URL = process.env.NEXT_PUBLIC_WEB_APP_URL ?? "http://localhost:3000";
+const API_FETCH_MODE = process.env.NEXT_PUBLIC_API_FETCH_MODE ?? "proxy";
 
 const RETRY_DELAYS_MS =
   process.env.NODE_ENV === "development" ? [0, 200, 500, 1000, 2000] : [0];
@@ -43,7 +45,14 @@ export function toApiUrl(pathOrUrl: string): string {
     return pathOrUrl;
   }
   const path = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
-  return `${API_URL}${path}`;
+  if (API_FETCH_MODE === "direct") {
+    return `${API_URL}${path}`;
+  }
+  const proxyPath = path.startsWith("/api/proxy/") ? path : `/api/proxy${path}`;
+  if (typeof window !== "undefined") {
+    return proxyPath;
+  }
+  return `${WEB_APP_URL}${proxyPath}`;
 }
 
 /** Drop-in `fetch` replacement for calls to {@link API_URL}. */

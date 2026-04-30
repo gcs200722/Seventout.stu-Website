@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { CmsHomePreviewBanner } from "@/app/(site)/CmsHomePreviewBanner";
-import { CmsPageRenderer } from "@/components/cms/CmsPageRenderer";
+import { CmsPageRenderer } from "@/components/tenant/extensions/cms/CmsPageRenderer";
 import { getCmsPreviewPage, getPublishedCmsPageByKey } from "@/lib/cms-api";
 
 type PageSearchParams = { cms_preview_token?: string | string[] };

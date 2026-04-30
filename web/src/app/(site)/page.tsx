@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { CmsHomePreviewBanner } from "@/app/(site)/CmsHomePreviewBanner";
-import { HomepageCmsSections } from "@/components/home/HomepageCmsSections";
-import { HomepageStaticFallback } from "@/components/home/HomepageStaticFallback";
+import { HomepageCmsSections } from "@/components/tenant/extensions/home/HomepageCmsSections";
+import { HomepageStaticFallback } from "@/components/tenant/extensions/home/HomepageStaticFallback";
 import { getCmsPreviewPage, getPublishedCmsPageByKey } from "@/lib/cms-api";
 
 type HomeSearchParams = { cms_preview_token?: string | string[] };

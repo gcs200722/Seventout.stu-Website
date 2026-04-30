@@ -179,6 +179,27 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  DEFAULT_TENANT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  DEFAULT_TENANT_SLUG = 'default';
+
+  @IsString()
+  @IsOptional()
+  PLATFORM_ROOT_DOMAIN = 'localtest.me';
+
+  @IsString()
+  @IsOptional()
+  TENANT_DEV_HEADER_SECRET?: string;
+
+  /** Comma-separated IPs: when set, x-tenant-* headers in production require client IP to match. */
+  @IsString()
+  @IsOptional()
+  TENANT_TRUSTED_HEADER_IPS?: string;
+
+  @IsString()
+  @IsOptional()
   SMTP_HOST?: string;
 
   @Transform(({ value }) => Number(value))

@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import FulfillmentSummaryCard from "@/components/orders/FulfillmentSummaryCard";
-import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
-import PaymentStatusBadge from "@/components/orders/PaymentStatusBadge";
-import { useAuth } from "@/components/auth/AuthProvider";
+import FulfillmentSummaryCard from "@/components/tenant/extensions/orders/FulfillmentSummaryCard";
+import OrderStatusBadge from "@/components/tenant/extensions/orders/OrderStatusBadge";
+import PaymentStatusBadge from "@/components/tenant/extensions/orders/PaymentStatusBadge";
+import { useAuth } from "@/components/tenant/core/auth/AuthProvider";
 import {
   getAdminOrderDetail,
   listAdminOrders,
