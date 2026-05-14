@@ -7,5 +7,6 @@ export enum CartIssueCode {
 export type CartIssue = {
   code: CartIssueCode;
   product_id: string;
+  product_variant_id?: string;
   message: string;
 };

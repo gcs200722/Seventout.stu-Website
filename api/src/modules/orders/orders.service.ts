@@ -143,6 +143,9 @@ export class OrdersService {
         itemRepo.create({
           orderId: order.id,
           productId: item.product_id,
+          productVariantId: item.product_variant_id,
+          variantColor: item.variant_color,
+          variantSize: item.variant_size,
           productName: item.product_name,
           price: item.price,
           quantity: item.quantity,
@@ -167,7 +170,7 @@ export class OrdersService {
             discount_total: priced.discount_total,
             pricing_snapshot: priced.pricing_snapshot,
             items: items.map((item) => ({
-              product_id: item.productId,
+              product_variant_id: item.productVariantId,
               quantity: item.quantity,
             })),
           },
@@ -275,6 +278,9 @@ export class OrdersService {
       shipping_address: order.shippingAddress,
       items: items.map((item) => ({
         product_id: item.productId,
+        product_variant_id: item.productVariantId,
+        variant_color: item.variantColor,
+        variant_size: item.variantSize,
         product_name: item.productName,
         price: item.price,
         quantity: item.quantity,
@@ -309,7 +315,7 @@ export class OrdersService {
           payload: {
             order_id: orderId,
             items: items.map((item) => ({
-              product_id: item.productId,
+              product_variant_id: item.productVariantId,
               quantity: item.quantity,
             })),
           },
@@ -382,7 +388,7 @@ export class OrdersService {
           payload: {
             order_id: orderId,
             items: items.map((item) => ({
-              product_id: item.productId,
+              product_variant_id: item.productVariantId,
               quantity: item.quantity,
             })),
           },
@@ -444,12 +450,12 @@ export class OrdersService {
   }
 
   async reserveStock(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     orderId?: string,
   ): Promise<void> {
     await this.inventoryPort.reserveStock(
-      productId,
+      productVariantId,
       quantity,
       'Order created: reserve stock',
       orderId,
@@ -457,12 +463,12 @@ export class OrdersService {
   }
 
   async releaseStock(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     orderId?: string,
   ): Promise<void> {
     await this.inventoryPort.releaseStock(
-      productId,
+      productVariantId,
       quantity,
       'Order canceled: release stock',
       orderId,
@@ -470,12 +476,12 @@ export class OrdersService {
   }
 
   async completeStockOut(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     orderId?: string,
   ): Promise<void> {
     await this.inventoryPort.commitStockOut(
-      productId,
+      productVariantId,
       quantity,
       'Order completed: commit stock out',
       orderId,

@@ -17,7 +17,11 @@ import {
   type OrderDiscountLineItem,
   type OrderPricingSnapshot,
 } from "@/lib/orders-api";
-import { formatVnd } from "@/lib/products-api";
+import {
+  buildProductHref,
+  formatVnd,
+  getProductsByIdsPublic,
+} from "@/lib/products-api";
 
 function canCancelOrder(status: string) {
   return status === "PENDING" || status === "CONFIRMED";
@@ -77,6 +81,7 @@ export default function OrderDetailPage() {
   const [refundItem, setRefundItem] = useState<Awaited<ReturnType<typeof listRefunds>>["items"][number] | null>(null);
   const [returnReason, setReturnReason] = useState("");
   const [returnNote, setReturnNote] = useState("");
+  const [productHrefById, setProductHrefById] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function loadOrder() {
@@ -111,6 +116,28 @@ export default function OrderDetailPage() {
       void loadReturnAndRefund(orderId);
     }
   }, [orderId]);
+
+  useEffect(() => {
+    async function loadProductHrefs() {
+      if (!order || order.items.length === 0) {
+        setProductHrefById({});
+        return;
+      }
+      try {
+        const details = await getProductsByIdsPublic(
+          order.items.map((item) => item.product_id),
+        );
+        const map: Record<string, string> = {};
+        for (const product of details) {
+          map[product.id] = buildProductHref(product);
+        }
+        setProductHrefById(map);
+      } catch {
+        setProductHrefById({});
+      }
+    }
+    void loadProductHrefs();
+  }, [order]);
 
   async function reloadOrderAndFulfillment(currentOrderId: string) {
     setFulfillmentLoading(true);
@@ -192,6 +219,10 @@ export default function OrderDetailPage() {
   const orderDiscountLines = order ? discountLineItemsFromSnapshot(order.pricing_snapshot) : [];
   const hasOrderDiscountBreakdown =
     orderDiscountLines.length > 0 && (order?.discount_total ?? 0) > 0;
+  const firstReviewHref =
+    order && order.status === "COMPLETED" && order.items.length > 0
+      ? `${productHrefById[order.items[0].product_id] ?? "/products"}?order_id=${encodeURIComponent(order.id)}`
+      : null;
 
   async function handleCreateReturn() {
     if (!order || returnReason.trim().length === 0) return;
@@ -345,27 +376,54 @@ export default function OrderDetailPage() {
 
             <div className="space-y-3">
               <h2 className="text-base font-semibold text-stone-900">Sản phẩm trong đơn</h2>
+              {order.status === "COMPLETED" ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-semibold text-emerald-900">
+                    Giao hàng thành công. Bạn vui lòng đánh giá trải nghiệm sản phẩm để giúp cộng đồng mua sắm tốt hơn.
+                  </p>
+                  {firstReviewHref ? (
+                    <Link
+                      href={firstReviewHref}
+                      className="mt-3 inline-flex rounded-full border border-emerald-700 bg-white px-4 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                    >
+                      Đánh giá sản phẩm ngay
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
               {order.items.map((item) => (
                 <article
-                  key={`${item.product_id}-${item.product_name}`}
+                  key={`${item.product_variant_id}-${item.product_name}`}
                   className="rounded-xl border border-stone-200 bg-white p-4"
                 >
                   <p className="text-sm font-semibold text-stone-900">{item.product_name}</p>
+                  <p className="mt-1 text-xs text-stone-600">
+                    {item.variant_color} · {item.variant_size}
+                  </p>
                   <p className="mt-1 text-xs text-stone-600">Mã SP: {item.product_id}</p>
+                  <p className="mt-1 text-xs text-stone-500">Biến thể: {item.product_variant_id}</p>
                   <p className="mt-1 text-xs text-stone-600">
                     {formatVnd(item.price)} x {item.quantity}
                   </p>
                   <p className="mt-1 text-sm font-medium text-stone-900">
                     Tạm tính: {formatVnd(item.subtotal)}
                   </p>
-                  {order.status === "COMPLETED" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {order.status === "COMPLETED" ? (
+                      <Link
+                        href={`${productHrefById[item.product_id] ?? "/products"}?order_id=${encodeURIComponent(order.id)}`}
+                        className="inline-flex rounded-full border border-stone-900 bg-stone-900 px-4 py-2 text-xs font-semibold text-white hover:bg-stone-700"
+                      >
+                        Đánh giá sản phẩm
+                      </Link>
+                    ) : null}
                     <Link
-                      href={`/products?keyword=${encodeURIComponent(item.product_name)}&page=1`}
-                      className="mt-3 inline-flex rounded-full border border-stone-900 bg-white px-4 py-2 text-xs font-semibold text-stone-900 hover:bg-stone-900 hover:text-white"
+                      href={productHrefById[item.product_id] ?? `/products?keyword=${encodeURIComponent(item.product_name)}&page=1`}
+                      className="inline-flex rounded-full border border-stone-900 bg-white px-4 py-2 text-xs font-semibold text-stone-900 hover:bg-stone-900 hover:text-white"
                     >
                       Tìm lại sản phẩm
                     </Link>
-                  ) : null}
+                  </div>
                 </article>
               ))}
             </div>

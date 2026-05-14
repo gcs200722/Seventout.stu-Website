@@ -9,6 +9,7 @@ import { addToCart } from "@/lib/cart-api";
 
 type AddToCartButtonProps = {
   productId: string;
+  productVariantId?: string;
   /** `compact`: PLP / home cards — add 1 unit, no quantity field. */
   variant?: "default" | "compact";
   /** Extra classes on the compact authenticated submit button. */
@@ -23,6 +24,7 @@ function fullWidthClasses(active: boolean | undefined) {
 
 export function AddToCartButton({
   productId,
+  productVariantId,
   variant = "default",
   compactTriggerClassName,
   compactFullWidth,
@@ -34,14 +36,20 @@ export function AddToCartButton({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const compact = variant === "compact";
+  const resolvedVariantId = (productVariantId ?? "").trim();
+  const variantReady = resolvedVariantId.length > 0;
 
   async function onAddToCart() {
+    if (!variantReady) {
+      setError("Chưa chọn mã hàng (biến thể).");
+      return;
+    }
     setSubmitting(true);
     setMessage(null);
     setError(null);
     try {
       const qty = compact ? 1 : quantity;
-      const successMessage = await addToCart(productId, qty);
+      const successMessage = await addToCart(productId, resolvedVariantId, qty);
       await refreshCartCount();
       setMessage(successMessage);
     } catch (submitError) {
@@ -99,7 +107,7 @@ export function AddToCartButton({
       <div className={`inline-flex max-w-full flex-col gap-1 ${compactFullWidth ? "w-full" : ""}`}>
         <button
           type="button"
-          disabled={submitting}
+          disabled={submitting || !variantReady}
           onClick={() => void onAddToCart()}
           className={triggerClass}
         >
@@ -128,7 +136,7 @@ export function AddToCartButton({
       </div>
       <button
         type="button"
-        disabled={submitting}
+        disabled={submitting || !variantReady}
         onClick={() => void onAddToCart()}
         className="rounded-full bg-stone-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
       >

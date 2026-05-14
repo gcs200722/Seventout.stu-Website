@@ -271,6 +271,13 @@ export type AdminProductDetail = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  variants: Array<{
+    id: string;
+    color: string;
+    size: string;
+    sort_order: number;
+    available_stock: number;
+  }>;
 };
 
 export type ListAdminProductsQuery = {
@@ -372,6 +379,63 @@ export async function deleteAdminProduct(id: string) {
     method: "DELETE",
   });
   return response.message ?? "Product deleted successfully";
+}
+
+export type CreateAdminProductVariantPayload = {
+  color: string;
+  size: string;
+  sort_order?: number;
+};
+
+export type UpdateAdminProductVariantPayload = {
+  color?: string;
+  size?: string;
+  sort_order?: number;
+};
+
+export async function createAdminProductVariant(
+  productId: string,
+  payload: CreateAdminProductVariantPayload,
+) {
+  const response = await withRefresh<{ product_variant_id: string }>(
+    `/products/${productId}/variants`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  return {
+    message: response.message ?? "Variant created successfully",
+    product_variant_id: response.data?.product_variant_id ?? "",
+  };
+}
+
+export async function patchAdminProductVariant(
+  productId: string,
+  variantId: string,
+  payload: UpdateAdminProductVariantPayload,
+) {
+  const response = await withRefresh<unknown>(
+    `/products/${productId}/variants/${variantId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+  return response.message ?? "Variant updated successfully";
+}
+
+export async function deleteAdminProductVariant(
+  productId: string,
+  variantId: string,
+) {
+  const response = await withRefresh<unknown>(
+    `/products/${productId}/variants/${variantId}`,
+    {
+      method: "DELETE",
+    },
+  );
+  return response.message ?? "Variant deleted successfully";
 }
 
 export type AdminCategory = {

@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '../authorization/authorization.types';
 import { AuditWriterService } from '../audit/audit-writer.service';
 import { ProductEntity } from '../products/product.entity';
+import { ProductVariantEntity } from '../products/product-variant.entity';
 import { QueuePort } from '../queue/queue.port';
 import { InventoryService } from './inventory.service';
 import { InventoryEntity } from './entities/inventory.entity';
@@ -18,9 +19,20 @@ const staffActor: AuthenticatedUser = {
   permissions: [],
 };
 
+const VARIANT_ID = 'v-1';
+
+function mockVariant(): ProductVariantEntity {
+  return {
+    id: VARIANT_ID,
+    productId: 'p-1',
+    product: { deletedAt: null, id: 'p-1' } as ProductEntity,
+  } as ProductVariantEntity;
+}
+
 describe('InventoryService', () => {
   let service: InventoryService;
   let productsRepository: jest.Mocked<Repository<ProductEntity>>;
+  let variantsRepository: jest.Mocked<Repository<ProductVariantEntity>>;
   let inventoriesRepository: jest.Mocked<Repository<InventoryEntity>>;
   let movementsRepository: jest.Mocked<Repository<InventoryMovementEntity>>;
   let mappingsRepository: jest.Mocked<Repository<ProductChannelMappingEntity>>;
@@ -31,6 +43,10 @@ describe('InventoryService', () => {
   beforeEach(() => {
     productsRepository = {
       findOne: jest.fn(),
+    } as never;
+    variantsRepository = {
+      findOne: jest.fn().mockResolvedValue(mockVariant()),
+      find: jest.fn().mockResolvedValue([mockVariant()]),
     } as never;
     inventoriesRepository = {
       findOne: jest.fn(),
@@ -55,6 +71,7 @@ describe('InventoryService', () => {
 
     service = new InventoryService(
       productsRepository,
+      variantsRepository,
       inventoriesRepository,
       movementsRepository,
       mappingsRepository,
@@ -70,7 +87,7 @@ describe('InventoryService', () => {
     await expect(
       service.requestSync(
         {
-          product_id: 'cbf6ccf8-b249-4a7c-ad5e-a4bc2f5909a4',
+          product_variant_id: 'cbf6ccf8-b249-4a7c-ad5e-a4bc2f5909a4',
           channel: InventoryChannel.SHOPEE,
         },
         staffActor,
@@ -81,7 +98,7 @@ describe('InventoryService', () => {
   it('enqueues sync with retry options', async () => {
     mappingsRepository.findOne.mockResolvedValue({
       id: 'm-1',
-      productId: 'p-1',
+      productVariantId: VARIANT_ID,
       channel: InventoryChannel.SHOPEE,
       externalProductId: 'ex-p',
       externalSkuId: 'ex-s',
@@ -90,7 +107,7 @@ describe('InventoryService', () => {
 
     await service.requestSync(
       {
-        product_id: 'p-1',
+        product_variant_id: VARIANT_ID,
         channel: InventoryChannel.SHOPEE,
       },
       staffActor,
@@ -98,14 +115,14 @@ describe('InventoryService', () => {
 
     expect(queuePort.enqueue.mock.calls[0]).toEqual([
       'inventory.sync.stock',
-      { product_id: 'p-1', channel: InventoryChannel.SHOPEE },
+      { product_variant_id: VARIANT_ID, channel: InventoryChannel.SHOPEE },
       { attempts: 5, backoffMs: 2000 },
     ]);
   });
 
   it('lists inventory from cache on second call', async () => {
     const qb = {
-      leftJoin: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
@@ -131,9 +148,18 @@ describe('InventoryService', () => {
       id: 'p-1',
       deletedAt: null,
     } as ProductEntity);
+    variantsRepository.find.mockResolvedValue([
+      {
+        id: VARIANT_ID,
+        productId: 'p-1',
+        color: 'Đen',
+        size: 'M',
+        sortOrder: 0,
+      } as ProductVariantEntity,
+    ]);
     inventoriesRepository.find.mockResolvedValue([
       {
-        productId: 'p-1',
+        productVariantId: VARIANT_ID,
         channel: InventoryChannel.INTERNAL,
         availableStock: 5,
         reservedStock: 1,
@@ -143,11 +169,18 @@ describe('InventoryService', () => {
     const result = await service.getInventoryByProductId('p-1');
     expect(result).toEqual({
       product_id: 'p-1',
-      channels: [
+      variants: [
         {
-          channel: InventoryChannel.INTERNAL,
-          available_stock: 5,
-          reserved_stock: 1,
+          product_variant_id: VARIANT_ID,
+          color: 'Đen',
+          size: 'M',
+          channels: [
+            {
+              channel: InventoryChannel.INTERNAL,
+              available_stock: 5,
+              reserved_stock: 1,
+            },
+          ],
         },
       ],
     });
@@ -164,11 +197,6 @@ describe('InventoryService', () => {
   });
 
   it('fails reserve when stock is insufficient', async () => {
-    productsRepository.findOne.mockResolvedValue({
-      id: 'p-1',
-      deletedAt: null,
-    } as ProductEntity);
-
     (dataSource.transaction as jest.Mock).mockImplementation(
       async (cb: (manager: EntityManager) => Promise<unknown>) => {
         const qb = {
@@ -177,7 +205,7 @@ describe('InventoryService', () => {
           andWhere: jest.fn().mockReturnThis(),
           getOne: jest.fn().mockResolvedValue({
             id: 'inv-1',
-            productId: 'p-1',
+            productVariantId: VARIANT_ID,
             channel: InventoryChannel.INTERNAL,
             availableStock: 1,
             reservedStock: 0,
@@ -197,21 +225,16 @@ describe('InventoryService', () => {
     );
 
     await expect(
-      service.reserveFromOrder('p-1', 2, 'Order created: reserve stock'),
+      service.reserveFromOrder(VARIANT_ID, 2, 'Order created: reserve stock'),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('records adjustment movement via transaction', async () => {
-    productsRepository.findOne.mockResolvedValue({
-      id: 'p-1',
-      deletedAt: null,
-    } as ProductEntity);
-
     (dataSource.transaction as jest.Mock).mockImplementation(
       async (cb: (manager: EntityManager) => Promise<unknown>) => {
         const stock = {
           id: 'inv-1',
-          productId: 'p-1',
+          productVariantId: VARIANT_ID,
           channel: InventoryChannel.INTERNAL,
           availableStock: 5,
           reservedStock: 0,
@@ -237,7 +260,7 @@ describe('InventoryService', () => {
     );
 
     await service.adjustInventory(
-      'p-1',
+      VARIANT_ID,
       {
         channel: InventoryChannel.INTERNAL,
         type: InventoryMovementType.IN,
@@ -251,16 +274,11 @@ describe('InventoryService', () => {
   });
 
   it('throws when adjust OUT makes stock negative', async () => {
-    productsRepository.findOne.mockResolvedValue({
-      id: 'p-1',
-      deletedAt: null,
-    } as ProductEntity);
-
     (dataSource.transaction as jest.Mock).mockImplementation(
       async (cb: (manager: EntityManager) => Promise<unknown>) => {
         const stock = {
           id: 'inv-1',
-          productId: 'p-1',
+          productVariantId: VARIANT_ID,
           channel: InventoryChannel.INTERNAL,
           availableStock: 1,
           reservedStock: 0,
@@ -287,7 +305,7 @@ describe('InventoryService', () => {
 
     await expect(
       service.adjustInventory(
-        'p-1',
+        VARIANT_ID,
         {
           channel: InventoryChannel.INTERNAL,
           type: InventoryMovementType.OUT,
@@ -301,6 +319,7 @@ describe('InventoryService', () => {
 
   it('lists inventory movements with query builder', async () => {
     const qb = {
+      innerJoin: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       skip: jest.fn().mockReturnThis(),
@@ -325,16 +344,11 @@ describe('InventoryService', () => {
   });
 
   it('commitOutFromOrder delegates to transaction flow', async () => {
-    productsRepository.findOne.mockResolvedValue({
-      id: 'p-1',
-      deletedAt: null,
-    } as ProductEntity);
-
     (dataSource.transaction as jest.Mock).mockImplementation(
       async (cb: (manager: EntityManager) => Promise<unknown>) => {
         const stock = {
           id: 'inv-1',
-          productId: 'p-1',
+          productVariantId: VARIANT_ID,
           channel: InventoryChannel.INTERNAL,
           availableStock: 5,
           reservedStock: 5,
@@ -360,7 +374,7 @@ describe('InventoryService', () => {
     );
 
     await service.commitOutFromOrder(
-      'p-1',
+      VARIANT_ID,
       2,
       'Order completed: commit stock out',
     );

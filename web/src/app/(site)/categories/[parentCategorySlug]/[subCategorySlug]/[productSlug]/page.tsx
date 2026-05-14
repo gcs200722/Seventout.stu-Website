@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AddToCartButton } from "@/components/cart/AddToCartButton";
-import { ProductDetailWishlist } from "@/components/wishlist/ProductDetailWishlist";
+import { ProductPurchasePanel } from "@/components/products/ProductPurchasePanel";
 import { PromotionConditionsHint } from "@/components/promotions/PromotionConditionsHint";
 import { ProductImageGallery } from "@/components/products/ProductImageGallery";
 import { ProductReviewsSection } from "@/components/products/ProductReviewsSection";
@@ -68,9 +67,28 @@ export default async function ProductDetailCanonicalPage({ params, searchParams 
     notFound();
   }
 
-  const images = product.images.length > 0 ? product.images : [FALLBACK_IMAGE];
+  const images =
+    Array.isArray(product.images) && product.images.length > 0
+      ? product.images
+      : [FALLBACK_IMAGE];
+  const productVariants = Array.isArray(product.variants) ? product.variants : [];
   const freshStock = await getProductStockPublic(product.id).catch(() => null);
   const availableStock = freshStock?.available_stock ?? product.available_stock;
+  const freshStockVariants = Array.isArray(freshStock?.variants)
+    ? freshStock.variants
+    : [];
+  const productForClient = freshStock
+    ? {
+        ...product,
+        available_stock: freshStock.available_stock,
+        variants: productVariants.map((v) => {
+          const live = freshStockVariants.find(
+            (x) => x.product_variant_id === v.id,
+          );
+          return { ...v, available_stock: live?.available_stock ?? v.available_stock };
+        }),
+      }
+    : { ...product, variants: productVariants };
 
   let reviewStats = emptyStats;
   let reviewList: { items: ProductReview[]; pagination: { page: number; limit: number; total: number } } = {
@@ -134,15 +152,14 @@ export default async function ProductDetailCanonicalPage({ params, searchParams 
             className="mt-2 max-w-xl text-xs leading-relaxed text-stone-600"
           />
           <p className="mt-2 text-sm text-stone-600">
-            {availableStock > 0 ? `Tồn kho: ${availableStock}` : "Tạm hết hàng"}
+            {availableStock > 0 ? `Tổng tồn (tất cả mã): ${availableStock}` : "Tạm hết hàng"}
           </p>
           <p className="mt-5 text-sm leading-relaxed text-stone-600">
             {product.description?.trim().length > 0 ? product.description : "Sản phẩm chưa có mô tả chi tiết."}
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <AddToCartButton productId={product.id} />
-            <ProductDetailWishlist productId={product.id} />
+            <ProductPurchasePanel product={productForClient} />
             <Link
               href={`/categories/${encodeURIComponent(parentCategorySlug)}/${encodeURIComponent(subCategorySlug)}`}
               className="rounded-full border border-stone-300 bg-white px-6 py-3 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"

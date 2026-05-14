@@ -11,10 +11,9 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RequirePermissions } from '../authorization/decorators/require-permissions.decorator';
 import { RequireRoles } from '../authorization/decorators/require-roles.decorator';
 import { AuthorizationGuard } from '../authorization/guards/authorization.guard';
-import { PermissionCode, UserRole } from '../authorization/authorization.types';
+import { UserRole } from '../authorization/authorization.types';
 import { ListNotificationsQueryDto } from './dto/list-notifications.query.dto';
 import { NotificationService } from './notification.service';
 
@@ -28,7 +27,6 @@ export class NotificationController {
   @Get()
   @ApiOperation({ summary: 'Get notifications' })
   @RequireRoles(UserRole.USER, UserRole.STAFF, UserRole.ADMIN)
-  @RequirePermissions(PermissionCode.NOTIFICATION_READ)
   async listNotifications(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListNotificationsQueryDto,
@@ -47,7 +45,6 @@ export class NotificationController {
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark notification as read' })
   @RequireRoles(UserRole.USER, UserRole.STAFF, UserRole.ADMIN)
-  @RequirePermissions(PermissionCode.NOTIFICATION_READ)
   async markAsRead(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) notificationId: string,
@@ -59,7 +56,6 @@ export class NotificationController {
   @Patch('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read (current user)' })
   @RequireRoles(UserRole.USER, UserRole.STAFF, UserRole.ADMIN)
-  @RequirePermissions(PermissionCode.NOTIFICATION_READ)
   async markAllAsRead(@CurrentUser() user: AuthenticatedUser) {
     const updated = await this.notificationService.markAllAsRead(user);
     return { success: true, data: { updated } };

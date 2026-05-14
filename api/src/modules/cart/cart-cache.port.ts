@@ -5,6 +5,9 @@ export type CartSnapshot = {
   items: Array<{
     item_id: string;
     product_id: string;
+    product_variant_id: string;
+    variant_color: string;
+    variant_size: string;
     product_name: string;
     price: number;
     quantity: number;

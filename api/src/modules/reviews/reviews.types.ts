@@ -17,6 +17,7 @@ export enum ReviewReportReason {
 }
 
 export enum ReviewEventType {
+  REVIEW_SUBMITTED = 'REVIEW_SUBMITTED',
   REVIEW_APPROVED = 'REVIEW_APPROVED',
   REVIEW_REPORTED = 'REVIEW_REPORTED',
 }

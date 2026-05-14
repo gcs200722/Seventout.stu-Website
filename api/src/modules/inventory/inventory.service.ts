@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import {
   AuditAction,
@@ -15,6 +15,7 @@ import {
 } from '../audit/audit.constants';
 import { AuditWriterService } from '../audit/audit-writer.service';
 import { ProductEntity } from '../products/product.entity';
+import { ProductVariantEntity } from '../products/product-variant.entity';
 import { QUEUE_PORT } from '../queue/queue.constants';
 import type { QueuePort } from '../queue/queue.port';
 import { AdjustInventoryDto } from './dto/adjust-inventory.dto';
@@ -55,6 +56,8 @@ export class InventoryService {
   constructor(
     @InjectRepository(ProductEntity)
     private readonly productsRepository: Repository<ProductEntity>,
+    @InjectRepository(ProductVariantEntity)
+    private readonly variantsRepository: Repository<ProductVariantEntity>,
     @InjectRepository(InventoryEntity)
     private readonly inventoriesRepository: Repository<InventoryEntity>,
     @InjectRepository(InventoryMovementEntity)
@@ -80,12 +83,22 @@ export class InventoryService {
 
     const qb = this.inventoriesRepository
       .createQueryBuilder('inventory')
-      .leftJoin(ProductEntity, 'product', 'product.id = inventory.product_id')
+      .innerJoin(
+        ProductVariantEntity,
+        'variant',
+        'variant.id = inventory.product_variant_id',
+      )
+      .innerJoin(ProductEntity, 'product', 'product.id = variant.product_id')
       .where('product.deleted_at IS NULL');
 
     if (query.product_id) {
-      qb.andWhere('inventory.product_id = :productId', {
+      qb.andWhere('variant.product_id = :productId', {
         productId: query.product_id,
+      });
+    }
+    if (query.product_variant_id) {
+      qb.andWhere('inventory.product_variant_id = :variantId', {
+        variantId: query.product_variant_id,
       });
     }
     if (query.channel) {
@@ -100,8 +113,11 @@ export class InventoryService {
     }
 
     qb.select([
-      'inventory.product_id AS product_id',
+      'variant.product_id AS product_id',
       'product.name AS product_name',
+      'inventory.product_variant_id AS product_variant_id',
+      'variant.color AS variant_color',
+      'variant.size AS variant_size',
       'inventory.channel AS channel',
       'inventory.available_stock AS available_stock',
       'inventory.reserved_stock AS reserved_stock',
@@ -128,33 +144,52 @@ export class InventoryService {
     productId: string,
   ): Promise<Record<string, unknown>> {
     await this.ensureProductExists(productId);
-    const rows = await this.inventoriesRepository.find({
+    const variants = await this.variantsRepository.find({
       where: { productId },
-      order: { channel: 'ASC' },
+      order: { sortOrder: 'ASC', id: 'ASC' },
     });
+    const variantIds = variants.map((v) => v.id);
+    const rows =
+      variantIds.length === 0
+        ? []
+        : await this.inventoriesRepository.find({
+            where: { productVariantId: In(variantIds) },
+            order: { channel: 'ASC' },
+          });
+    const invByVariant = new Map<string, InventoryEntity[]>();
+    for (const row of rows) {
+      const list = invByVariant.get(row.productVariantId) ?? [];
+      list.push(row);
+      invByVariant.set(row.productVariantId, list);
+    }
 
     return {
       product_id: productId,
-      channels: rows.map((item) => ({
-        channel: item.channel,
-        available_stock: item.availableStock,
-        reserved_stock: item.reservedStock,
+      variants: variants.map((v) => ({
+        product_variant_id: v.id,
+        color: v.color,
+        size: v.size,
+        channels: (invByVariant.get(v.id) ?? []).map((item) => ({
+          channel: item.channel,
+          available_stock: item.availableStock,
+          reserved_stock: item.reservedStock,
+        })),
       })),
     };
   }
 
   async adjustInventory(
-    productId: string,
+    productVariantId: string,
     payload: AdjustInventoryDto,
     actor: AuthenticatedUser,
   ): Promise<void> {
-    await this.ensureProductExists(productId);
+    const variant = await this.ensureVariantExists(productVariantId);
     let quantityBefore = 0;
     let quantityAfter = 0;
     await this.dataSource.transaction(async (manager) => {
       const stock = await this.getOrCreateInventoryForUpdate(
         manager.getRepository(InventoryEntity),
-        productId,
+        productVariantId,
         payload.channel,
       );
 
@@ -177,7 +212,7 @@ export class InventoryService {
 
       await manager.save(
         manager.create(InventoryMovementEntity, {
-          productId,
+          productVariantId,
           channel: payload.channel,
           type: payload.type,
           quantity: payload.quantity,
@@ -191,16 +226,17 @@ export class InventoryService {
 
     this.invalidateListCache();
 
-    const entityLabel = await this.resolveProductAuditLabel(productId);
+    const entityLabel = await this.resolveVariantAuditLabel(productVariantId);
     await this.auditWriter.log({
       action: AuditAction.INVENTORY_ADJUST,
       entityType: AuditEntityType.INVENTORY,
-      entityId: productId,
+      entityId: productVariantId,
       actor,
       entityLabel,
       metadata: {
         source: 'http',
-        product_id: productId,
+        product_id: variant.productId,
+        product_variant_id: productVariantId,
         channel: payload.channel,
         quantity_before: quantityBefore,
         quantity_after: quantityAfter,
@@ -216,8 +252,18 @@ export class InventoryService {
     total: number;
   }> {
     const qb = this.movementsRepository.createQueryBuilder('movement');
+    if (query.product_variant_id) {
+      qb.andWhere('movement.product_variant_id = :variantId', {
+        variantId: query.product_variant_id,
+      });
+    }
     if (query.product_id) {
-      qb.andWhere('movement.product_id = :productId', {
+      qb.innerJoin(
+        ProductVariantEntity,
+        'pv',
+        'pv.id = movement.product_variant_id',
+      );
+      qb.andWhere('pv.product_id = :productId', {
         productId: query.product_id,
       });
     }
@@ -250,7 +296,7 @@ export class InventoryService {
   ): Promise<void> {
     const mapping = await this.mappingsRepository.findOne({
       where: {
-        productId: payload.product_id,
+        productVariantId: payload.product_variant_id,
         channel: payload.channel,
         isActive: true,
       },
@@ -268,16 +314,18 @@ export class InventoryService {
       backoffMs: 2000,
     });
 
-    const syncLabel = `${await this.resolveProductAuditLabel(payload.product_id)} · ${payload.channel}`;
+    const variant = await this.ensureVariantExists(payload.product_variant_id);
+    const syncLabel = `${await this.resolveProductAuditLabel(variant.productId)} · ${payload.channel}`;
     await this.auditWriter.log({
       action: AuditAction.INVENTORY_SYNC,
       entityType: AuditEntityType.INVENTORY,
-      entityId: payload.product_id,
+      entityId: payload.product_variant_id,
       actor,
       entityLabel: syncLabel,
       metadata: {
         source: 'http',
-        product_id: payload.product_id,
+        product_id: variant.productId,
+        product_variant_id: payload.product_variant_id,
         channel: payload.channel,
         reason: 'manual' as InventoryAuditReason,
       },
@@ -285,13 +333,13 @@ export class InventoryService {
   }
 
   async reserveFromOrder(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     reason: string,
     orderId?: string,
   ): Promise<void> {
     await this.changeInternalStock(
-      productId,
+      productVariantId,
       InventoryMovementType.RESERVE,
       quantity,
       reason,
@@ -302,13 +350,13 @@ export class InventoryService {
   }
 
   async releaseFromOrder(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     reason: string,
     orderId?: string,
   ): Promise<void> {
     await this.changeInternalStock(
-      productId,
+      productVariantId,
       InventoryMovementType.RELEASE,
       quantity,
       reason,
@@ -319,13 +367,13 @@ export class InventoryService {
   }
 
   async commitOutFromOrder(
-    productId: string,
+    productVariantId: string,
     quantity: number,
     reason: string,
     orderId?: string,
   ): Promise<void> {
     await this.changeInternalStock(
-      productId,
+      productVariantId,
       InventoryMovementType.OUT,
       quantity,
       reason,
@@ -336,7 +384,7 @@ export class InventoryService {
   }
 
   private async changeInternalStock(
-    productId: string,
+    productVariantId: string,
     type: InventoryMovementType,
     quantity: number,
     reason: string,
@@ -344,13 +392,13 @@ export class InventoryService {
     stockReason: InventoryAuditReason = 'order',
     orderId?: string,
   ): Promise<void> {
-    await this.ensureProductExists(productId);
+    const variant = await this.ensureVariantExists(productVariantId);
     let beforeAvailable = 0;
     let afterAvailable = 0;
     await this.dataSource.transaction(async (manager) => {
       const stock = await this.getOrCreateInventoryForUpdate(
         manager.getRepository(InventoryEntity),
-        productId,
+        productVariantId,
         InventoryChannel.INTERNAL,
       );
 
@@ -403,7 +451,7 @@ export class InventoryService {
       afterAvailable = stock.availableStock;
       await manager.save(
         manager.create(InventoryMovementEntity, {
-          productId,
+          productVariantId,
           channel: InventoryChannel.INTERNAL,
           type,
           quantity,
@@ -424,9 +472,10 @@ export class InventoryService {
       action = AuditAction.INVENTORY_RESTOCK;
     }
 
-    const entityLabel = await this.resolveProductAuditLabel(productId);
+    const entityLabel = await this.resolveVariantAuditLabel(productVariantId);
     const metaBase: Record<string, unknown> = {
-      product_id: productId,
+      product_id: variant.productId,
+      product_variant_id: productVariantId,
       channel: InventoryChannel.INTERNAL,
       quantity_before: beforeAvailable,
       quantity_after: afterAvailable,
@@ -441,7 +490,7 @@ export class InventoryService {
     await this.auditWriter.log({
       action,
       entityType: AuditEntityType.INVENTORY,
-      entityId: productId,
+      entityId: productVariantId,
       actor: null,
       entityLabel,
       metadata: metaBase,
@@ -452,19 +501,21 @@ export class InventoryService {
 
   private async getOrCreateInventoryForUpdate(
     repository: Repository<InventoryEntity>,
-    productId: string,
+    productVariantId: string,
     channel: InventoryEntity['channel'],
   ): Promise<InventoryEntity> {
     let inventory = await repository
       .createQueryBuilder('inventory')
       .setLock('pessimistic_write')
-      .where('inventory.product_id = :productId', { productId })
+      .where('inventory.product_variant_id = :variantId', {
+        variantId: productVariantId,
+      })
       .andWhere('inventory.channel = :channel', { channel })
       .getOne();
 
     if (!inventory) {
       inventory = repository.create({
-        productId,
+        productVariantId,
         channel,
         availableStock: 0,
         reservedStock: 0,
@@ -473,7 +524,9 @@ export class InventoryService {
       inventory = await repository
         .createQueryBuilder('inventory')
         .setLock('pessimistic_write')
-        .where('inventory.product_id = :productId', { productId })
+        .where('inventory.product_variant_id = :variantId', {
+          variantId: productVariantId,
+        })
         .andWhere('inventory.channel = :channel', { channel })
         .getOneOrFail();
     }
@@ -509,6 +562,19 @@ export class InventoryService {
     }
   }
 
+  private async ensureVariantExists(
+    productVariantId: string,
+  ): Promise<ProductVariantEntity> {
+    const variant = await this.variantsRepository.findOne({
+      where: { id: productVariantId },
+      relations: { product: true },
+    });
+    if (!variant || variant.product.deletedAt) {
+      throw new NotFoundException('Product variant not found');
+    }
+    return variant;
+  }
+
   private async resolveProductAuditLabel(productId: string): Promise<string> {
     const product = await this.productsRepository.findOne({
       where: { id: productId },
@@ -518,6 +584,19 @@ export class InventoryService {
       return `Sản phẩm #${productId.slice(0, 8)}`;
     }
     return `${product.name} · #${productId.slice(0, 8)}`;
+  }
+
+  private async resolveVariantAuditLabel(
+    productVariantId: string,
+  ): Promise<string> {
+    const variant = await this.variantsRepository.findOne({
+      where: { id: productVariantId },
+      relations: { product: true },
+    });
+    if (!variant || variant.product.deletedAt) {
+      return `Biến thể #${productVariantId.slice(0, 8)}`;
+    }
+    return `${variant.product.name} · ${variant.color} / ${variant.size}`;
   }
 
   private invalidateListCache(): void {

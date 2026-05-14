@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import {
   AuditAction,
@@ -19,6 +19,7 @@ import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { InventoryChannel } from '../inventory/inventory.types';
 import { ProductImageEntity } from './product-image.entity';
 import { ProductEntity } from './product.entity';
+import { ProductVariantEntity } from './product-variant.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import {
   ListProductsQueryDto,
@@ -52,6 +53,7 @@ export interface ProductListItemResponse {
     parent: { id: string; name: string; slug: string } | null;
   };
   available_stock: number;
+  default_variant_id: string;
   is_active: boolean;
   created_at: string;
   promotion?: {
@@ -80,6 +82,14 @@ export interface ProductDetailResponse {
     parent: { id: string; name: string; slug: string } | null;
   };
   available_stock: number;
+  default_variant_id: string;
+  variants: Array<{
+    id: string;
+    color: string;
+    size: string;
+    available_stock: number;
+    sort_order: number;
+  }>;
   images: string[];
   is_active: boolean;
   created_at: string;
@@ -100,6 +110,10 @@ export interface ProductDetailResponse {
 export interface ProductStockResponse {
   product_id: string;
   available_stock: number;
+  variants: Array<{
+    product_variant_id: string;
+    available_stock: number;
+  }>;
 }
 
 @Injectable()
@@ -121,6 +135,8 @@ export class ProductsService {
     private readonly categoriesRepository: Repository<CategoryEntity>,
     @InjectRepository(InventoryEntity)
     private readonly inventoriesRepository: Repository<InventoryEntity>,
+    @InjectRepository(ProductVariantEntity)
+    private readonly variantsRepository: Repository<ProductVariantEntity>,
     @Inject(STORAGE_PORT)
     private readonly storageService: StoragePort,
     private readonly configService: ConfigService,
@@ -215,9 +231,11 @@ export class ProductsService {
     qb.skip((query.page - 1) * query.limit).take(query.limit);
 
     const [rows, total] = await qb.getManyAndCount();
-    const stockByProductId = await this.getInternalStockMap(
-      rows.map((item) => item.id),
-    );
+    const productIds = rows.map((item) => item.id);
+    const { sumByProductId } =
+      await this.getInternalStockAggregates(productIds);
+    const defaultVariantByProduct =
+      await this.resolveDefaultVariantIds(productIds);
 
     const itemsBase = await Promise.all(
       rows.map(async (product) => ({
@@ -238,7 +256,8 @@ export class ProductsService {
               }
             : null,
         },
-        available_stock: stockByProductId[product.id] ?? 0,
+        available_stock: sumByProductId[product.id] ?? 0,
+        default_variant_id: defaultVariantByProduct.get(product.id) ?? '',
         is_active: product.isActive,
         created_at: product.createdAt.toISOString(),
       })),
@@ -303,12 +322,20 @@ export class ProductsService {
     const sortedImages = [...(product.images ?? [])].sort(
       (a, b) => a.sortOrder - b.sortOrder,
     );
-    const internalStock = await this.inventoriesRepository.findOne({
-      where: {
-        productId: product.id,
-        channel: InventoryChannel.INTERNAL,
-      },
+    const variants = await this.variantsRepository.find({
+      where: { productId: product.id },
+      order: { sortOrder: 'ASC', id: 'ASC' },
     });
+    const { sumByProductId, stockByVariantId } =
+      await this.getInternalStockAggregates([product.id]);
+    const variantRows = variants.map((v) => ({
+      id: v.id,
+      color: v.color,
+      size: v.size,
+      available_stock: stockByVariantId[v.id] ?? 0,
+      sort_order: v.sortOrder,
+    }));
+    const defaultVariantId = variantRows[0]?.id ?? '';
 
     const base: ProductDetailResponse = {
       id: product.id,
@@ -328,7 +355,9 @@ export class ProductsService {
             }
           : null,
       },
-      available_stock: internalStock?.availableStock ?? 0,
+      available_stock: sumByProductId[product.id] ?? 0,
+      default_variant_id: defaultVariantId,
+      variants: variantRows,
       images: await Promise.all(
         sortedImages.map((img) => this.resolveImageUrl(img.imageUrl)),
       ),
@@ -397,20 +426,44 @@ export class ProductsService {
   }
 
   async getProductStockById(productId: string): Promise<ProductStockResponse> {
-    const stockByProductId = await this.getInternalStockMap([productId]);
+    const { sumByProductId, stockByVariantId } =
+      await this.getInternalStockAggregates([productId]);
+    const variants = await this.variantsRepository.find({
+      where: { productId },
+      order: { sortOrder: 'ASC', id: 'ASC' },
+    });
     return {
       product_id: productId,
-      available_stock: stockByProductId[productId] ?? 0,
+      available_stock: sumByProductId[productId] ?? 0,
+      variants: variants.map((v) => ({
+        product_variant_id: v.id,
+        available_stock: stockByVariantId[v.id] ?? 0,
+      })),
     };
   }
 
   async getProductStocks(
     productIds: string[],
   ): Promise<ProductStockResponse[]> {
-    const stockByProductId = await this.getInternalStockMap(productIds);
+    const { sumByProductId, stockByVariantId } =
+      await this.getInternalStockAggregates(productIds);
+    const variants = await this.variantsRepository.find({
+      where: { productId: In(productIds) },
+      order: { sortOrder: 'ASC', id: 'ASC' },
+    });
+    const variantsByProduct = new Map<string, ProductVariantEntity[]>();
+    for (const v of variants) {
+      const list = variantsByProduct.get(v.productId) ?? [];
+      list.push(v);
+      variantsByProduct.set(v.productId, list);
+    }
     return productIds.map((productId) => ({
       product_id: productId,
-      available_stock: stockByProductId[productId] ?? 0,
+      available_stock: sumByProductId[productId] ?? 0,
+      variants: (variantsByProduct.get(productId) ?? []).map((v) => ({
+        product_variant_id: v.id,
+        available_stock: stockByVariantId[v.id] ?? 0,
+      })),
     }));
   }
 
@@ -472,6 +525,15 @@ export class ProductsService {
         }),
       );
       await manager.save(imageEntities);
+
+      await manager.save(
+        manager.create(ProductVariantEntity, {
+          productId: saved.id,
+          color: 'Mặc định',
+          size: '-',
+          sortOrder: 0,
+        }),
+      );
     });
 
     this.invalidateListCache();
@@ -776,21 +838,230 @@ export class ProductsService {
     );
   }
 
-  private async getInternalStockMap(
-    productIds: string[],
-  ): Promise<Record<string, number>> {
+  private async getInternalStockAggregates(productIds: string[]): Promise<{
+    sumByProductId: Record<string, number>;
+    stockByVariantId: Record<string, number>;
+  }> {
     if (productIds.length === 0) {
-      return {};
+      return { sumByProductId: {}, stockByVariantId: {} };
     }
-    const rows = await this.inventoriesRepository.find({
-      where: productIds.map((productId) => ({
-        productId,
-        channel: InventoryChannel.INTERNAL,
-      })),
+    const rawRows: unknown = await this.dataSource.query(
+      `SELECT v.product_id AS "productId", v.id AS "variantId",
+              COALESCE(i.available_stock, 0) AS stock
+       FROM inventories i
+       INNER JOIN product_variants v ON v.id = i.product_variant_id
+       WHERE i.channel = $1 AND v.product_id = ANY($2::uuid[])`,
+      [InventoryChannel.INTERNAL, productIds],
+    );
+
+    const sumByProductId: Record<string, number> = {};
+    const stockByVariantId: Record<string, number> = {};
+    const rows = Array.isArray(rawRows) ? rawRows : [];
+    for (const row of rows) {
+      if (!row || typeof row !== 'object') {
+        continue;
+      }
+      const data = row as Record<string, unknown>;
+      const productId = data.productId;
+      const variantId = data.variantId;
+      if (typeof productId !== 'string' || typeof variantId !== 'string') {
+        continue;
+      }
+      const s = Number(data.stock);
+      stockByVariantId[variantId] = s;
+      sumByProductId[productId] = (sumByProductId[productId] ?? 0) + s;
+    }
+    return { sumByProductId, stockByVariantId };
+  }
+
+  private async resolveDefaultVariantIds(
+    productIds: string[],
+  ): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (productIds.length === 0) {
+      return map;
+    }
+    const variants = await this.variantsRepository.find({
+      where: { productId: In(productIds) },
+      order: { sortOrder: 'ASC', id: 'ASC' },
     });
-    return rows.reduce<Record<string, number>>((acc, row) => {
-      acc[row.productId] = row.availableStock;
-      return acc;
-    }, {});
+    for (const v of variants) {
+      if (!map.has(v.productId)) {
+        map.set(v.productId, v.id);
+      }
+    }
+    return map;
+  }
+
+  async addProductVariant(
+    productId: string,
+    payload: { color: string; size: string; sort_order?: number },
+    actor: AuthenticatedUser,
+  ): Promise<{ id: string }> {
+    const product = await this.productsRepository.findOne({
+      where: { id: productId },
+    });
+    if (!product || product.deletedAt) {
+      throw new NotFoundException('Product not found');
+    }
+    const color = payload.color.trim();
+    const size = payload.size.trim();
+    if (!color.length || !size.length) {
+      throw new BadRequestException({
+        message: 'Color and size are required',
+        details: { code: 'INVALID_VARIANT' },
+      });
+    }
+    const maxRow = await this.variantsRepository
+      .createQueryBuilder('v')
+      .select('MAX(v.sort_order)', 'max')
+      .where('v.product_id = :pid', { pid: productId })
+      .getRawOne<{ max: string | null }>();
+    const nextSort = Number(maxRow?.max ?? 0) + 1;
+    const sortOrder =
+      payload.sort_order !== undefined && Number.isFinite(payload.sort_order)
+        ? payload.sort_order
+        : nextSort;
+    try {
+      const row = await this.variantsRepository.save(
+        this.variantsRepository.create({
+          productId,
+          color,
+          size,
+          sortOrder,
+        }),
+      );
+      await this.auditWriter.log({
+        action: AuditAction.UPDATE,
+        entityType: AuditEntityType.PRODUCT,
+        entityId: productId,
+        actor,
+        entityLabel: product.name,
+        metadata: { source: 'http', variant_id: row.id, color, size },
+        before: null,
+        after: { variant_id: row.id },
+      });
+      this.invalidateListCache();
+      return { id: row.id };
+    } catch {
+      throw new BadRequestException({
+        message: 'A variant with this color and size already exists',
+        details: { code: 'DUPLICATE_VARIANT' },
+      });
+    }
+  }
+
+  async updateProductVariant(
+    productId: string,
+    variantId: string,
+    payload: { color?: string; size?: string; sort_order?: number },
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const variant = await this.variantsRepository.findOne({
+      where: { id: variantId, productId },
+      relations: { product: true },
+    });
+    if (!variant || variant.product?.deletedAt) {
+      throw new NotFoundException('Variant not found');
+    }
+    const nextColor =
+      payload.color !== undefined ? payload.color.trim() : variant.color;
+    const nextSize =
+      payload.size !== undefined ? payload.size.trim() : variant.size;
+    if (!nextColor.length || !nextSize.length) {
+      throw new BadRequestException({
+        message: 'Color and size are required',
+        details: { code: 'INVALID_VARIANT' },
+      });
+    }
+    if (
+      payload.sort_order !== undefined &&
+      !Number.isFinite(payload.sort_order)
+    ) {
+      throw new BadRequestException({
+        message: 'sort_order must be a valid number',
+        details: { code: 'INVALID_SORT_ORDER' },
+      });
+    }
+    const before = {
+      color: variant.color,
+      size: variant.size,
+      sort_order: variant.sortOrder,
+    };
+    variant.color = nextColor;
+    variant.size = nextSize;
+    if (payload.sort_order !== undefined) {
+      variant.sortOrder = payload.sort_order;
+    }
+    try {
+      await this.variantsRepository.save(variant);
+      await this.auditWriter.log({
+        action: AuditAction.UPDATE,
+        entityType: AuditEntityType.PRODUCT,
+        entityId: productId,
+        actor,
+        entityLabel: variant.product.name,
+        metadata: { source: 'http', variant_id: variantId },
+        before,
+        after: {
+          color: variant.color,
+          size: variant.size,
+          sort_order: variant.sortOrder,
+        },
+      });
+      this.invalidateListCache();
+    } catch {
+      throw new BadRequestException({
+        message: 'A variant with this color and size already exists',
+        details: { code: 'DUPLICATE_VARIANT' },
+      });
+    }
+  }
+
+  async deleteProductVariant(
+    productId: string,
+    variantId: string,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const variant = await this.variantsRepository.findOne({
+      where: { id: variantId, productId },
+      relations: { product: true },
+    });
+    if (!variant || variant.product?.deletedAt) {
+      throw new NotFoundException('Variant not found');
+    }
+    const variantsCount = await this.variantsRepository.count({
+      where: { productId },
+    });
+    if (variantsCount <= 1) {
+      throw new BadRequestException({
+        message: 'Product must have at least one variant',
+        details: { code: 'MIN_VARIANT_REQUIRED' },
+      });
+    }
+    try {
+      await this.variantsRepository.delete({ id: variantId, productId });
+      await this.auditWriter.log({
+        action: AuditAction.UPDATE,
+        entityType: AuditEntityType.PRODUCT,
+        entityId: productId,
+        actor,
+        entityLabel: variant.product.name,
+        metadata: { source: 'http', variant_id: variantId, removed: true },
+        before: {
+          color: variant.color,
+          size: variant.size,
+          sort_order: variant.sortOrder,
+        },
+        after: null,
+      });
+      this.invalidateListCache();
+    } catch {
+      throw new BadRequestException({
+        message:
+          'Cannot delete variant because it is referenced by inventory/cart/order data',
+        details: { code: 'VARIANT_IN_USE' },
+      });
+    }
   }
 }
