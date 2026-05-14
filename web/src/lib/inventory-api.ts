@@ -7,6 +7,9 @@ export type InventoryMovementType = "IN" | "OUT" | "RESERVE" | "RELEASE";
 export type AdminInventoryRow = {
   product_id: string;
   product_name: string;
+  product_variant_id: string;
+  variant_color: string;
+  variant_size: string;
   channel: InventoryChannel;
   available_stock: number;
   reserved_stock: number;
@@ -15,7 +18,7 @@ export type AdminInventoryRow = {
 
 export type AdminInventoryMovement = {
   id: string;
-  productId: string;
+  productVariantId: string;
   channel: InventoryChannel;
   type: InventoryMovementType;
   quantity: number;
@@ -26,8 +29,10 @@ export type AdminInventoryMovement = {
   createdAt: string;
 };
 
-export type AdminProductInventoryResponse = {
-  product_id: string;
+export type AdminProductInventoryVariant = {
+  product_variant_id: string;
+  color: string;
+  size: string;
   channels: Array<{
     channel: InventoryChannel;
     available_stock: number;
@@ -35,10 +40,16 @@ export type AdminProductInventoryResponse = {
   }>;
 };
 
+export type AdminProductInventoryResponse = {
+  product_id: string;
+  variants: AdminProductInventoryVariant[];
+};
+
 export type ListAdminInventoryQuery = {
   page?: number;
   limit?: number;
   product_id?: string;
+  product_variant_id?: string;
   channel?: InventoryChannel;
   low_stock?: boolean;
 };
@@ -47,6 +58,7 @@ export type ListAdminInventoryMovementsQuery = {
   page?: number;
   limit?: number;
   product_id?: string;
+  product_variant_id?: string;
   channel?: InventoryChannel;
   type?: InventoryMovementType;
   from_date?: string;
@@ -61,7 +73,7 @@ export type AdjustAdminInventoryPayload = {
 };
 
 export type SyncAdminInventoryPayload = {
-  product_id: string;
+  product_variant_id: string;
   channel: "shopee" | "tiktok";
 };
 
@@ -70,6 +82,7 @@ function inventoryListQueryString(params: ListAdminInventoryQuery = {}) {
   if (params.page !== undefined) query.set("page", String(params.page));
   if (params.limit !== undefined) query.set("limit", String(params.limit));
   if (params.product_id) query.set("product_id", params.product_id);
+  if (params.product_variant_id) query.set("product_variant_id", params.product_variant_id);
   if (params.channel) query.set("channel", params.channel);
   if (params.low_stock === true) query.set("low_stock", "true");
   const qs = query.toString();
@@ -81,6 +94,7 @@ function inventoryMovementsQueryString(params: ListAdminInventoryMovementsQuery 
   if (params.page !== undefined) query.set("page", String(params.page));
   if (params.limit !== undefined) query.set("limit", String(params.limit));
   if (params.product_id) query.set("product_id", params.product_id);
+  if (params.product_variant_id) query.set("product_variant_id", params.product_variant_id);
   if (params.channel) query.set("channel", params.channel);
   if (params.type) query.set("type", params.type);
   if (params.from_date) query.set("from_date", params.from_date);
@@ -96,7 +110,9 @@ export async function listAdminInventory(params: ListAdminInventoryQuery = {}) {
 }
 
 export async function getAdminProductInventory(productId: string) {
-  const response = await adminFetchEnvelope<AdminProductInventoryResponse>(`/inventory/${productId}`);
+  const response = await adminFetchEnvelope<AdminProductInventoryResponse>(
+    `/inventory/by-product/${encodeURIComponent(productId)}`,
+  );
   if (!response.data) {
     throw new Error("Unexpected API response format");
   }
@@ -109,7 +125,7 @@ export async function listAdminInventoryMovements(params: ListAdminInventoryMove
   );
 }
 
-export async function adjustAdminInventory(productId: string, payload: AdjustAdminInventoryPayload) {
+export async function adjustAdminInventory(variantId: string, payload: AdjustAdminInventoryPayload) {
   const request: AdminAuthorizedRequest = {
     method: "PATCH",
     body: JSON.stringify({
@@ -119,7 +135,10 @@ export async function adjustAdminInventory(productId: string, payload: AdjustAdm
       reason: payload.reason,
     }),
   };
-  const response = await adminFetchEnvelope<unknown>(`/inventory/${productId}/adjust`, request);
+  const response = await adminFetchEnvelope<unknown>(
+    `/inventory/variants/${encodeURIComponent(variantId)}/adjust`,
+    request,
+  );
   return response.message ?? "Inventory adjusted successfully";
 }
 
@@ -127,7 +146,7 @@ export async function syncAdminInventory(payload: SyncAdminInventoryPayload) {
   const request: AdminAuthorizedRequest = {
     method: "POST",
     body: JSON.stringify({
-      product_id: payload.product_id,
+      product_variant_id: payload.product_variant_id,
       channel: payload.channel,
     }),
   };

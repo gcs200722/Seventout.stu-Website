@@ -5,6 +5,7 @@ import type { EntityManager } from 'typeorm';
 import { CART_CACHE_PORT } from '../../cart/cart-cache.port';
 import type { CartCachePort } from '../../cart/cart-cache.port';
 import { ProductEntity } from '../../products/product.entity';
+import { ProductVariantEntity } from '../../products/product-variant.entity';
 import { CartItemEntity } from '../../cart/entities/cart-item.entity';
 import { CartEntity, CartStatus } from '../../cart/entities/cart.entity';
 import { CheckoutCartSnapshot, OrderCartPort } from '../ports/order-cart.port';
@@ -18,6 +19,8 @@ export class OrderCartAdapter implements OrderCartPort {
     private readonly cartItemsRepository: Repository<CartItemEntity>,
     @InjectRepository(ProductEntity)
     private readonly productsRepository: Repository<ProductEntity>,
+    @InjectRepository(ProductVariantEntity)
+    private readonly variantsRepository: Repository<ProductVariantEntity>,
     @Inject(CART_CACHE_PORT)
     private readonly cartCache: CartCachePort,
   ) {}
@@ -36,6 +39,9 @@ export class OrderCartAdapter implements OrderCartPort {
     const productsRepo = manager
       ? manager.getRepository(ProductEntity)
       : this.productsRepository;
+    const variantsRepo = manager
+      ? manager.getRepository(ProductVariantEntity)
+      : this.variantsRepository;
 
     const cart = await cartsRepo.findOne({
       where: { id: cartId, userId, status: CartStatus.ACTIVE },
@@ -62,10 +68,19 @@ export class OrderCartAdapter implements OrderCartPort {
     const productById = new Map(
       products.map((product) => [product.id, product]),
     );
+    const variants = await variantsRepo.find({
+      where: { id: In(items.map((item) => item.productVariantId)) },
+    });
+    const variantById = new Map(variants.map((v) => [v.id, v]));
+
     const normalizedItems = items.map((item) => {
       const product = productById.get(item.productId);
+      const variant = variantById.get(item.productVariantId);
       return {
         product_id: item.productId,
+        product_variant_id: item.productVariantId,
+        variant_color: variant?.color ?? '',
+        variant_size: variant?.size ?? '',
         product_name: product?.name ?? 'Unavailable product',
         price: item.price,
         quantity: item.quantity,

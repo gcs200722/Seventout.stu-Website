@@ -53,6 +53,11 @@ export function MiniCartPreview({ open, isAuthenticated }: MiniCartPreviewProps)
             {items.map((item) => (
               <li key={item.item_id} className="rounded-lg border border-stone-200 px-3 py-2">
                 <p className="line-clamp-1 text-sm font-medium text-stone-900">{item.product_name}</p>
+                {item.variant_color || item.variant_size ? (
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    {item.variant_color} · {item.variant_size}
+                  </p>
+                ) : null}
                 <p className="mt-0.5 text-xs text-stone-500">
                   Qty {item.quantity} x {formatVnd(item.price)}
                 </p>

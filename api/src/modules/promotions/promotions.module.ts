@@ -7,6 +7,7 @@ import { CartModule } from '../cart/cart.module';
 import { CartItemEntity } from '../cart/entities/cart-item.entity';
 import { CartEntity } from '../cart/entities/cart.entity';
 import { ProductEntity } from '../products/product.entity';
+import { ProductVariantEntity } from '../products/product-variant.entity';
 import { ORDER_PRICING_PORT } from '../orders/ports/order-pricing.port';
 import { PromotionsOrderPricingAdapter } from './adapters/promotions-order-pricing.adapter';
 import { CouponUsageEntity } from './entities/coupon-usage.entity';
@@ -39,6 +40,7 @@ export const PROMOTIONS_REDIS_CLIENT = Symbol('PROMOTIONS_REDIS_CLIENT');
       CartEntity,
       CartItemEntity,
       ProductEntity,
+      ProductVariantEntity,
     ]),
   ],
   controllers: [

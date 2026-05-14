@@ -12,12 +12,13 @@ const PAGE_LIMIT = 10;
 type ReadFilter = "all" | "unread" | "read";
 
 export default function NotificationsPage() {
-  const { loading: authLoading, isAuthenticated, permissions } = useAuth();
+  const { loading: authLoading, isAuthenticated, permissions, role } = useAuth();
   const [page, setPage] = useState(1);
   const [readFilter, setReadFilter] = useState<ReadFilter>("all");
   const [success, setSuccess] = useState<string | null>(null);
 
-  const canRead = permissions.includes("NOTIFICATION_READ");
+  const canRead =
+    role === "ADMIN" || role === "USER" || permissions.includes("NOTIFICATION_READ");
   const { items, total, loading, actionLoading, error, unreadCount, markAsRead, markAllAsRead } =
     useNotificationsFeed({
       enabled: isAuthenticated && canRead,

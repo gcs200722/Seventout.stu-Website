@@ -150,6 +150,47 @@ export class NotificationService {
     );
   }
 
+  async notifyAdminsReviewSubmitted(input: {
+    reviewId: string;
+    reviewerUserId: string;
+    productId: string;
+    eventId: string;
+  }): Promise<void> {
+    const adminRecipients = await this.usersRepository.find({
+      where: {
+        role: UserRole.ADMIN,
+      },
+    });
+    if (adminRecipients.length === 0) {
+      return;
+    }
+    const template: NotificationTemplate = {
+      type: NotificationType.REVIEW_SUBMITTED,
+      title: 'Có đánh giá sản phẩm mới',
+      content:
+        'Một đánh giá mới vừa được gửi và đang chờ duyệt. Vui lòng vào trang quản trị đánh giá để kiểm tra.',
+      channels: [NotificationChannel.SYSTEM],
+    };
+    for (const recipient of adminRecipients) {
+      await this.dispatchTemplate(
+        {
+          userId: recipient.id,
+          email: recipient.email,
+        },
+        template,
+        'review.outbox',
+        `${input.eventId}:admin:${recipient.id}`,
+        {
+          review_id: input.reviewId,
+          reviewer_user_id: input.reviewerUserId,
+          product_id: input.productId,
+          audience: 'ADMIN',
+          action_url: '/admin/reviews',
+        },
+      );
+    }
+  }
+
   async notifyAdminsReviewReported(input: {
     reviewId: string;
     reporterUserId: string;

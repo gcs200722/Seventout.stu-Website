@@ -9,6 +9,7 @@ import { useCart } from "@/components/cart/CartProvider";
 import { MegaMenu } from "@/components/home/header/MegaMenu";
 import { HeaderSearch } from "@/components/home/header/HeaderSearch";
 import { MobileMenuDrawer } from "@/components/home/header/MobileMenuDrawer";
+import { useNotificationsFeed } from "@/components/notifications/useNotificationsFeed";
 import { useWishlist } from "@/components/wishlist/WishlistProvider";
 import type { CategoryNavLink } from "@/lib/categories-api";
 
@@ -60,6 +61,19 @@ function IconUser({ className }: { className?: string }) {
   );
 }
 
+function IconBell({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path
+        d="M6 9a6 6 0 0 1 12 0v4l1.5 2.5H4.5L6 13V9Z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M10 18a2 2 0 0 0 4 0" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 type HeaderProps = {
   categoryLinks?: CategoryNavLink[];
 };
@@ -68,12 +82,21 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
   const { isAuthenticated, loading, logout } = useAuth();
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
+  const { items, unreadCount, markAsRead, markAllAsRead, actionLoading } = useNotificationsFeed({
+    enabled: isAuthenticated,
+    page: 1,
+    limit: 8,
+    readFilter: "all",
+    pollIntervalMs: 5000,
+  });
 
   const [showAuthPanel, setShowAuthPanel] = useState(false);
   const [openSearch, setOpenSearch] = useState(false);
   const [openMobileMenu, setOpenMobileMenu] = useState(false);
   const [openAccountMenu, setOpenAccountMenu] = useState(false);
+  const [openNotificationsMenu, setOpenNotificationsMenu] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const notificationsMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!openAccountMenu) return;
@@ -94,6 +117,26 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [openAccountMenu]);
+
+  useEffect(() => {
+    if (!openNotificationsMenu) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!notificationsMenuRef.current?.contains(event.target as Node)) {
+        setOpenNotificationsMenu(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenNotificationsMenu(false);
+      }
+    }
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [openNotificationsMenu]);
 
   return (
     <>
@@ -163,6 +206,95 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
                 ) : null}
               </Link>
             </div>
+
+            {isAuthenticated ? (
+              <div className="relative" ref={notificationsMenuRef}>
+                <button
+                  type="button"
+                  aria-label={unreadCount > 0 ? `Notifications ${unreadCount} unread` : "Notifications"}
+                  aria-expanded={openNotificationsMenu}
+                  onClick={() => setOpenNotificationsMenu((prev) => !prev)}
+                  className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d9ccb6] text-[#2f2a24] transition-colors hover:bg-[#eadfcd]"
+                >
+                  <IconBell className="h-5 w-5" />
+                  {unreadCount > 0 ? (
+                    <span className="absolute right-0 top-0 min-w-5 translate-x-1/3 -translate-y-1/3 rounded-full bg-[#3d3228] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+                {openNotificationsMenu ? (
+                  <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-80 rounded-xl border border-[#e2d5bf] bg-[#fffdf9] p-2 shadow-xl">
+                    <div className="mb-2 flex items-center justify-between px-2">
+                      <p className="text-sm font-semibold text-[#2f2a24]">Thông báo của bạn</p>
+                      {unreadCount > 0 ? (
+                        <button
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={() => void markAllAsRead()}
+                          className="text-xs font-semibold text-[#7a5d3d] hover:underline disabled:opacity-50"
+                        >
+                          Đọc tất cả
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="max-h-80 space-y-1 overflow-y-auto px-1 pb-1">
+                      {items.length === 0 ? (
+                        <p className="rounded-md px-2 py-3 text-xs text-[#6f665b]">Chưa có thông báo.</p>
+                      ) : (
+                        items.map((notification) => (
+                          <Link
+                            key={notification.id}
+                            href={
+                              typeof notification.metadata?.action_url === "string"
+                                ? notification.metadata.action_url
+                                : "/notifications"
+                            }
+                            onClick={() => {
+                              setOpenNotificationsMenu(false);
+                              if (!notification.isRead) {
+                                void markAsRead(notification.id);
+                              }
+                            }}
+                            className={`rounded-md border px-2 py-2 text-xs ${
+                              notification.isRead
+                                ? "border-[#e8dcc8] bg-white text-[#6f665b]"
+                                : "border-[#d9ccb6] bg-[#f7f2e8] text-[#2f2a24]"
+                            } block transition hover:bg-[#f3eadc]`}
+                          >
+                            <p className="font-semibold">{notification.title}</p>
+                            <p className="mt-1 line-clamp-2">{notification.content}</p>
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <span className="text-[11px] text-[#7c7468]">
+                                {new Date(notification.createdAt).toLocaleString("vi-VN")}
+                              </span>
+                              {typeof notification.metadata?.action_url === "string" ? (
+                                <span className="text-[11px] font-semibold text-[#7a5d3d]">
+                                  Đi tới chi tiết
+                                </span>
+                              ) : !notification.isRead ? (
+                                <span className="text-[11px] font-semibold text-[#7a5d3d]">
+                                  Chưa đọc
+                                </span>
+                              ) : null}
+                            </div>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                    <div className="mt-1 border-t border-[#e8dcc8] px-2 pt-2">
+                      <Link
+                        href="/notifications"
+                        onClick={() => setOpenNotificationsMenu(false)}
+                        className="inline-flex rounded-full border border-[#d9ccb6] px-3 py-1.5 text-xs font-semibold text-[#2f2a24] hover:bg-[#f3eadc]"
+                      >
+                        Xem tất cả thông báo
+                      </Link>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {isAuthenticated ? (
               <Link

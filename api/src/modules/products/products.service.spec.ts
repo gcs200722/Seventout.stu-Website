@@ -9,6 +9,7 @@ import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { StoragePort } from '../storage/storage.port';
 import { PromotionsApplicationService } from '../promotions/promotions.application.service';
 import { ProductEntity } from './product.entity';
+import { ProductVariantEntity } from './product-variant.entity';
 import { ProductsService } from './products.service';
 import { ProductSort } from './dto/list-products.query.dto';
 
@@ -71,6 +72,7 @@ describe('ProductsService', () => {
   let productsRepository: jest.Mocked<Repository<ProductEntity>>;
   let categoriesRepository: jest.Mocked<Repository<CategoryEntity>>;
   let inventoriesRepository: jest.Mocked<Repository<InventoryEntity>>;
+  let variantsRepository: jest.Mocked<Repository<ProductVariantEntity>>;
   let storageService: jest.Mocked<StoragePort>;
   let configService: jest.Mocked<ConfigService>;
   let dataSource: jest.Mocked<DataSource>;
@@ -94,6 +96,16 @@ describe('ProductsService', () => {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<Repository<InventoryEntity>>;
+    variantsRepository = {
+      find: jest.fn().mockResolvedValue([]),
+      save: jest.fn(),
+      create: jest.fn((x: unknown) => x),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ max: '0' }),
+      }),
+    } as unknown as jest.Mocked<Repository<ProductVariantEntity>>;
     storageService = {
       putObject: jest.fn(),
       getSignedDownloadUrl: jest
@@ -107,7 +119,7 @@ describe('ProductsService', () => {
       get: jest.fn((_key: string, defaultValue?: number) => defaultValue),
     } as unknown as jest.Mocked<ConfigService>;
     dataSource = {
-      query: jest.fn(),
+      query: jest.fn().mockResolvedValue([]),
       transaction: jest.fn(),
     } as unknown as jest.Mocked<DataSource>;
     promotionsApplication = {
@@ -118,6 +130,7 @@ describe('ProductsService', () => {
       productsRepository,
       categoriesRepository,
       inventoriesRepository,
+      variantsRepository,
       storageService,
       configService,
       dataSource,
@@ -304,6 +317,18 @@ describe('ProductsService', () => {
         Repository<ProductEntity>['createQueryBuilder']
       >,
     );
+    variantsRepository.find.mockResolvedValue([
+      {
+        id: 'v-def',
+        productId: 'p-1',
+        color: 'Mặc định',
+        size: '-',
+        sortOrder: 0,
+      } as ProductVariantEntity,
+    ]);
+    dataSource.query.mockResolvedValue([
+      { productId: 'p-1', variantId: 'v-def', stock: '5' },
+    ]);
 
     const result = await service.listProducts({
       page: 1,

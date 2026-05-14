@@ -624,10 +624,13 @@ export default function AdminOrdersPage() {
                 <div className="max-h-64 space-y-2 overflow-y-auto border-t border-stone-200 pt-3">
                   {orderDetail.items.map((item) => (
                     <div
-                      key={`${item.product_id}-${item.product_name}`}
+                      key={`${item.product_variant_id}-${item.product_name}`}
                       className="rounded-lg border border-stone-200 bg-white p-2"
                     >
                       <p className="text-xs font-semibold text-stone-900">{item.product_name}</p>
+                      <p className="text-xs text-stone-500">
+                        {item.variant_color} · {item.variant_size}
+                      </p>
                       <p className="text-xs text-stone-600">
                         {formatVnd(item.price)} x {item.quantity} = {formatVnd(item.subtotal)}
                       </p>

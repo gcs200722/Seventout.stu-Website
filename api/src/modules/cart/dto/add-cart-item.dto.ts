@@ -7,6 +7,10 @@ export class AddCartItemDto {
   @IsUUID()
   product_id: string;
 
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  product_variant_id: string;
+
   @ApiProperty({ example: 1, minimum: 1 })
   @Type(() => Number)
   @IsInt()

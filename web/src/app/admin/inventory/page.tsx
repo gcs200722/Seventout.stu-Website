@@ -12,7 +12,6 @@ import {
   syncAdminInventory,
   type AdminInventoryMovement,
   type AdminInventoryRow,
-  type AdminProductInventoryResponse,
   type InventoryChannel,
 } from "@/lib/inventory-api";
 
@@ -48,20 +47,30 @@ export default function AdminInventoryPage() {
   const [listLowStock, setListLowStock] = useState(false);
   const [listProductId, setListProductId] = useState("");
 
-  const [detail, setDetail] = useState<AdminProductInventoryResponse | null>(null);
-
   const [movements, setMovements] = useState<AdminInventoryMovement[]>([]);
   const [movPage, setMovPage] = useState(1);
   const [movTotal, setMovTotal] = useState(0);
   const [movProductId, setMovProductId] = useState("");
+  const [movVariantId, setMovVariantId] = useState("");
+  const [movVariants, setMovVariants] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
 
   const [adjustProductId, setAdjustProductId] = useState("");
+  const [adjustVariantId, setAdjustVariantId] = useState("");
+  const [adjustVariants, setAdjustVariants] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
   const [adjustChannel, setAdjustChannel] = useState<InventoryChannel>("internal");
   const [adjustType, setAdjustType] = useState<"IN" | "OUT">("IN");
   const [adjustQty, setAdjustQty] = useState("1");
   const [adjustReason, setAdjustReason] = useState("");
 
   const [syncProductId, setSyncProductId] = useState("");
+  const [syncVariantId, setSyncVariantId] = useState("");
+  const [syncVariants, setSyncVariants] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
   const [syncChannel, setSyncChannel] = useState<"shopee" | "tiktok">("shopee");
 
   const [loading, setLoading] = useState(true);
@@ -116,6 +125,7 @@ export default function AdminInventoryPage() {
         page: movPage,
         limit: PAGE_LIMIT,
         product_id: movProductId.trim() || undefined,
+        product_variant_id: movVariantId.trim() || undefined,
       });
       setMovements(data);
       setMovTotal(pagination.total);
@@ -124,7 +134,7 @@ export default function AdminInventoryPage() {
     } finally {
       setMovLoading(false);
     }
-  }, [readAllowed, movPage, movProductId]);
+  }, [readAllowed, movPage, movProductId, movVariantId]);
 
   useEffect(() => {
     async function loadProducts() {
@@ -156,8 +166,71 @@ export default function AdminInventoryPage() {
     void loadMovements();
   }, [loadMovements]);
 
+  useEffect(() => {
+    async function loadMovementVariants() {
+      if (!movProductId.trim()) {
+        setMovVariants([]);
+        setMovVariantId("");
+        return;
+      }
+      try {
+        const response = await getAdminProductInventory(movProductId.trim());
+        const options = response.variants.map((variant) => ({
+          id: variant.product_variant_id,
+          label: `${variant.color} · ${variant.size}`,
+        }));
+        setMovVariants(options);
+      } catch {
+        setMovVariants([]);
+      }
+    }
+    void loadMovementVariants();
+  }, [movProductId]);
+
+  useEffect(() => {
+    async function loadAdjustVariants() {
+      if (!adjustProductId.trim()) {
+        setAdjustVariants([]);
+        setAdjustVariantId("");
+        return;
+      }
+      try {
+        const response = await getAdminProductInventory(adjustProductId.trim());
+        const options = response.variants.map((variant) => ({
+          id: variant.product_variant_id,
+          label: `${variant.color} · ${variant.size}`,
+        }));
+        setAdjustVariants(options);
+      } catch {
+        setAdjustVariants([]);
+      }
+    }
+    void loadAdjustVariants();
+  }, [adjustProductId]);
+
+  useEffect(() => {
+    async function loadSyncVariants() {
+      if (!syncProductId.trim()) {
+        setSyncVariants([]);
+        setSyncVariantId("");
+        return;
+      }
+      try {
+        const response = await getAdminProductInventory(syncProductId.trim());
+        const options = response.variants.map((variant) => ({
+          id: variant.product_variant_id,
+          label: `${variant.color} · ${variant.size}`,
+        }));
+        setSyncVariants(options);
+      } catch {
+        setSyncVariants([]);
+      }
+    }
+    void loadSyncVariants();
+  }, [syncProductId]);
+
   async function handleAdjust() {
-    if (!manageAllowed || !adjustProductId.trim()) {
+    if (!manageAllowed || !adjustVariantId.trim()) {
       return;
     }
     const qty = Number.parseInt(adjustQty, 10);
@@ -169,7 +242,7 @@ export default function AdminInventoryPage() {
       setActionLoading(true);
       setError(null);
       setSuccessMessage(null);
-      const message = await adjustAdminInventory(adjustProductId.trim(), {
+      const message = await adjustAdminInventory(adjustVariantId.trim(), {
         channel: adjustChannel,
         type: adjustType,
         quantity: qty,
@@ -178,10 +251,6 @@ export default function AdminInventoryPage() {
       setSuccessMessage(message);
       await loadList();
       await loadMovements();
-      if (detail?.product_id === adjustProductId.trim()) {
-        const refreshed = await getAdminProductInventory(adjustProductId.trim());
-        setDetail(refreshed);
-      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Điều chỉnh thất bại.");
     } finally {
@@ -190,7 +259,7 @@ export default function AdminInventoryPage() {
   }
 
   async function handleSync() {
-    if (!manageAllowed || !syncProductId.trim()) {
+    if (!manageAllowed || !syncVariantId.trim()) {
       return;
     }
     try {
@@ -198,7 +267,7 @@ export default function AdminInventoryPage() {
       setError(null);
       setSuccessMessage(null);
       const message = await syncAdminInventory({
-        product_id: syncProductId.trim(),
+        product_variant_id: syncVariantId.trim(),
         channel: syncChannel,
       });
       setSuccessMessage(message);
@@ -311,6 +380,8 @@ export default function AdminInventoryPage() {
               <thead className="border-b border-stone-200 bg-stone-50 text-xs uppercase text-stone-600">
                 <tr>
                   <th className="px-3 py-2">Sản phẩm</th>
+                  <th className="px-3 py-2">Màu / cỡ</th>
+                  <th className="px-3 py-2">Biến thể</th>
                   <th className="px-3 py-2">Kênh</th>
                   <th className="px-3 py-2">Có sẵn</th>
                   <th className="px-3 py-2">Đã giữ</th>
@@ -320,17 +391,24 @@ export default function AdminInventoryPage() {
               <tbody>
                 {listRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-stone-500">
+                    <td colSpan={7} className="px-3 py-6 text-center text-stone-500">
                       Không có bản ghi.
                     </td>
                   </tr>
                 ) : (
                   listRows.map((row) => (
-                    <tr key={`${row.product_id}-${row.channel}`} className="border-b border-stone-100">
+                    <tr
+                      key={`${row.product_variant_id}-${row.channel}`}
+                      className="border-b border-stone-100"
+                    >
                       <td className="px-3 py-2">
                         <div className="font-medium text-stone-900">{row.product_name}</div>
                         <div className="text-xs text-stone-500">{row.product_id}</div>
                       </td>
+                      <td className="px-3 py-2 text-sm text-stone-800">
+                        {row.variant_color} · {row.variant_size}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-stone-600">{row.product_variant_id}</td>
                       <td className="px-3 py-2">{row.channel}</td>
                       <td className="px-3 py-2">{row.available_stock}</td>
                       <td className="px-3 py-2">{row.reserved_stock}</td>
@@ -372,13 +450,50 @@ export default function AdminInventoryPage() {
       <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-4 sm:p-6">
         <h2 className="text-lg font-semibold text-stone-900">Lịch sử biến động</h2>
         <div className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-stone-600">
-            product_id (tùy chọn)
-            <input
+          <label className="flex min-w-[220px] flex-col gap-1 text-xs font-medium text-stone-600">
+            Sản phẩm
+            <select
               value={movProductId}
               onChange={(e) => {
                 setMovPage(1);
                 setMovProductId(e.target.value);
+                setMovVariantId("");
+              }}
+              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Tất cả sản phẩm</option>
+              {productOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-stone-600">
+            product_variant_id (tùy chọn)
+            <select
+              value={movVariantId}
+              onChange={(e) => {
+                setMovPage(1);
+                setMovVariantId(e.target.value);
+              }}
+              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Tất cả biến thể</option>
+              {movVariants.map((variant) => (
+                <option key={variant.id} value={variant.id}>
+                  {variant.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[260px] flex-col gap-1 text-xs font-medium text-stone-600">
+            Hoặc nhập trực tiếp product_variant_id
+            <input
+              value={movVariantId}
+              onChange={(e) => {
+                setMovPage(1);
+                setMovVariantId(e.target.value);
               }}
               className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
             />
@@ -398,6 +513,7 @@ export default function AdminInventoryPage() {
               <thead className="border-b border-stone-200 bg-stone-50 text-xs uppercase text-stone-600">
                 <tr>
                   <th className="px-3 py-2">Thời điểm</th>
+                  <th className="px-3 py-2">Biến thể</th>
                   <th className="px-3 py-2">Loại</th>
                   <th className="px-3 py-2">Kênh</th>
                   <th className="px-3 py-2">SL</th>
@@ -408,7 +524,7 @@ export default function AdminInventoryPage() {
               <tbody>
                 {movements.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-stone-500">
+                    <td colSpan={7} className="px-3 py-6 text-center text-stone-500">
                       Chưa có biến động.
                     </td>
                   </tr>
@@ -416,6 +532,7 @@ export default function AdminInventoryPage() {
                   movements.map((m) => (
                     <tr key={m.id} className="border-b border-stone-100">
                       <td className="px-3 py-2 text-xs">{formatDate(m.createdAt)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-stone-600">{m.productVariantId}</td>
                       <td className="px-3 py-2">{m.type}</td>
                       <td className="px-3 py-2">{m.channel}</td>
                       <td className="px-3 py-2">{m.quantity}</td>
@@ -459,21 +576,51 @@ export default function AdminInventoryPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-stone-900">Điều chỉnh tồn kho</h2>
+            <p className="mt-1 text-xs text-stone-500">
+              Chọn sản phẩm để lấy nhanh danh sách biến thể hoặc nhập UUID thủ công.
+            </p>
             <div className="mt-4 space-y-3">
               <label className="flex flex-col gap-1 text-xs font-medium text-stone-600">
                 Sản phẩm
                 <select
                   value={adjustProductId}
-                  onChange={(e) => setAdjustProductId(e.target.value)}
+                  onChange={(e) => {
+                    setAdjustProductId(e.target.value);
+                    setAdjustVariantId("");
+                  }}
                   className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
                 >
-                  <option value="">— Chọn —</option>
-                  {productOptions.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
+                  <option value="">Chọn sản phẩm</option>
+                  {productOptions.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-stone-600">
+                Biến thể
+                <select
+                  value={adjustVariantId}
+                  onChange={(e) => setAdjustVariantId(e.target.value)}
+                  className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Chọn biến thể</option>
+                  {adjustVariants.map((variant) => (
+                    <option key={variant.id} value={variant.id}>
+                      {variant.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-stone-600">
+                Hoặc nhập product_variant_id
+                <input
+                  value={adjustVariantId}
+                  onChange={(e) => setAdjustVariantId(e.target.value)}
+                  placeholder="UUID biến thể"
+                  className="rounded-lg border border-stone-300 px-3 py-2 font-mono text-sm"
+                />
               </label>
               <label className="flex flex-col gap-1 text-xs font-medium text-stone-600">
                 Kênh
@@ -518,7 +665,7 @@ export default function AdminInventoryPage() {
               </label>
               <button
                 type="button"
-                disabled={actionLoading || !adjustProductId}
+                disabled={actionLoading || !adjustVariantId.trim()}
                 onClick={() => void handleAdjust()}
                 className="w-full rounded-lg bg-stone-900 py-2.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-40"
               >
@@ -530,23 +677,50 @@ export default function AdminInventoryPage() {
           <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-stone-900">Đồng bộ lên kênh</h2>
             <p className="mt-1 text-xs text-stone-500">
-              API yêu cầu mapping sản phẩm–kênh; job được xếp hàng trên server.
+              Mapping theo biến thể + kênh; job được xếp hàng trên server.
             </p>
             <div className="mt-4 space-y-3">
               <label className="flex flex-col gap-1 text-xs font-medium text-stone-600">
                 Sản phẩm
                 <select
                   value={syncProductId}
-                  onChange={(e) => setSyncProductId(e.target.value)}
+                  onChange={(e) => {
+                    setSyncProductId(e.target.value);
+                    setSyncVariantId("");
+                  }}
                   className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
                 >
-                  <option value="">— Chọn —</option>
-                  {productOptions.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
+                  <option value="">Chọn sản phẩm</option>
+                  {productOptions.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-stone-600">
+                Biến thể
+                <select
+                  value={syncVariantId}
+                  onChange={(e) => setSyncVariantId(e.target.value)}
+                  className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Chọn biến thể</option>
+                  {syncVariants.map((variant) => (
+                    <option key={variant.id} value={variant.id}>
+                      {variant.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-stone-600">
+                Hoặc nhập product_variant_id
+                <input
+                  value={syncVariantId}
+                  onChange={(e) => setSyncVariantId(e.target.value)}
+                  placeholder="UUID biến thể"
+                  className="rounded-lg border border-stone-300 px-3 py-2 font-mono text-sm"
+                />
               </label>
               <label className="flex flex-col gap-1 text-xs font-medium text-stone-600">
                 Kênh đích
@@ -561,7 +735,7 @@ export default function AdminInventoryPage() {
               </label>
               <button
                 type="button"
-                disabled={actionLoading || !syncProductId}
+                disabled={actionLoading || !syncVariantId.trim()}
                 onClick={() => void handleSync()}
                 className="w-full rounded-lg border border-stone-800 py-2.5 text-sm font-medium text-stone-900 hover:bg-stone-50 disabled:opacity-40"
               >
