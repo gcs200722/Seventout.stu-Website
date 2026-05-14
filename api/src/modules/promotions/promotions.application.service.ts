@@ -96,7 +96,7 @@ export class PromotionsApplicationService {
 
     cart.appliedCouponId = coupon!.id;
     await this.cartsRepository.save(cart);
-    await this.cartCache.invalidate(userId);
+    await this.cartCache.invalidate({ kind: 'user', userId });
 
     const snapshot = await this.buildCheckoutSnapshotForCart(cart.id, userId);
     const priced = await this.priceCheckoutSnapshot(
@@ -118,7 +118,7 @@ export class PromotionsApplicationService {
     const cart = await this.requireActiveCart(userId);
     cart.appliedCouponId = null;
     await this.cartsRepository.save(cart);
-    await this.cartCache.invalidate(userId);
+    await this.cartCache.invalidate({ kind: 'user', userId });
   }
 
   async getQuoteForActiveCart(userId: string): Promise<unknown> {
@@ -262,7 +262,7 @@ export class PromotionsApplicationService {
   }
 
   async priceCheckoutSnapshot(
-    userId: string,
+    userId: string | null,
     _cartId: string,
     snapshot: CheckoutCartSnapshot,
     manager?: EntityManager,
@@ -273,6 +273,12 @@ export class PromotionsApplicationService {
 
     let appliedCoupon: CouponEntity | null = null;
     if (snapshot.applied_coupon_id) {
+      if (!userId) {
+        throw new BadRequestException({
+          message: 'Coupons are not supported for guest checkout',
+          details: { code: 'COUPON_NOT_ALLOWED_GUEST' },
+        });
+      }
       const repo = manager
         ? manager.getRepository(CouponEntity)
         : this.couponsRepository;
@@ -361,13 +367,19 @@ export class PromotionsApplicationService {
   }
 
   async finalizeCouponAfterOrder(
-    userId: string,
+    userId: string | null,
     orderId: string,
     priced: PricedCheckoutSnapshot,
     manager: EntityManager,
   ): Promise<void> {
     if (!priced.record_coupon_usage || !priced.applied_coupon_id) {
       return;
+    }
+    if (!userId) {
+      throw new BadRequestException({
+        message: 'Guest orders cannot finalize coupon usage',
+        details: { code: 'COUPON_FINALIZE_GUEST' },
+      });
     }
     const coupon = await this.promotionsRepository.lockCouponById(
       manager,

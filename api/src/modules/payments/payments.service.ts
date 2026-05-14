@@ -106,6 +106,61 @@ export class PaymentsService {
     };
   }
 
+  async createGuestCodPayment(orderId: string): Promise<{
+    payment_id: string;
+    status: PaymentStatus;
+    method: PaymentMethod;
+  }> {
+    const order = await this.ordersRepository.findOne({
+      where: { id: orderId },
+    });
+    if (!order) {
+      throw new NotFoundException({
+        message: 'Order not found',
+        details: { code: 'ORDER_NOT_FOUND' },
+      });
+    }
+    if (order.userId !== null) {
+      throw new BadRequestException({
+        message: 'Order is not a guest order',
+        details: { code: 'ORDER_NOT_GUEST' },
+      });
+    }
+    if (order.paymentStatus === OrderPaymentStatus.PAID) {
+      throw new BadRequestException({
+        message: 'Order has already been paid',
+        details: { code: 'ORDER_ALREADY_PAID' },
+      });
+    }
+
+    const activePayment = await this.paymentsRepository.findOne({
+      where: [{ orderId, status: PaymentStatus.PENDING }],
+    });
+    if (activePayment) {
+      return {
+        payment_id: activePayment.id,
+        status: activePayment.status,
+        method: activePayment.method,
+      };
+    }
+
+    const payment = await this.paymentsRepository.save(
+      this.paymentsRepository.create({
+        orderId,
+        method: PaymentMethod.COD,
+        status: PaymentStatus.PENDING,
+        amount: order.totalAmount,
+        idempotencyKey: null,
+      }),
+    );
+
+    return {
+      payment_id: payment.id,
+      status: payment.status,
+      method: payment.method,
+    };
+  }
+
   async getPaymentById(
     user: AuthenticatedUser,
     paymentId: string,

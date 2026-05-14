@@ -12,7 +12,7 @@ import {
   type CreateAddressPayload,
 } from "@/lib/addresses-api";
 
-type AddressFormState = CreateAddressPayload;
+type AddressFormState = Omit<CreateAddressPayload, "district">;
 
 const initialFormState: AddressFormState = {
   full_name: "",
@@ -90,7 +90,7 @@ export function AddressManager({ userId }: AddressManagerProps) {
     try {
       const payload: CreateAddressPayload = {
         ...form,
-        district: form.ward.trim(),
+        district: "",
       };
       if (editingAddressId) {
         await updateMyAddress(editingAddressId, payload);
@@ -183,7 +183,10 @@ export function AddressManager({ userId }: AddressManagerProps) {
                     ) : null}
                   </p>
                   <p className="mt-1">
-                    {address.address_line}, {address.ward}, {address.city}, {address.country}
+                    {[address.address_line, address.ward, address.district, address.city, address.country]
+                      .map((p) => (typeof p === "string" ? p.trim() : ""))
+                      .filter(Boolean)
+                      .join(", ")}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
@@ -241,7 +244,7 @@ export function AddressManager({ userId }: AddressManagerProps) {
                 value={form.address_line}
                 onChange={(event) => updateForm("address_line", event.target.value)}
                 required
-                placeholder="Số nhà, tên đường"
+                placeholder="Số nhà và tên đường"
                   className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
               />
               <div className="grid gap-3 sm:grid-cols-2">
@@ -249,22 +252,22 @@ export function AddressManager({ userId }: AddressManagerProps) {
                   value={form.ward}
                   onChange={(event) => updateForm("ward", event.target.value)}
                   required
-                  placeholder="Xã/Phường"
-                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
+                  placeholder="Phường / xã"
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
                 />
                 <input
                   value={form.city}
                   onChange={(event) => updateForm("city", event.target.value)}
                   required
-                  placeholder="Tỉnh/Thành phố"
-                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
+                  placeholder="Tỉnh / thành phố"
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
                 />
                 <input
                   value={form.country}
                   onChange={(event) => updateForm("country", event.target.value)}
                   required
                   placeholder="Quốc gia"
-                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800"
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 placeholder:text-stone-500 outline-none focus:border-stone-800 sm:col-span-2"
                 />
               </div>
               <label className="flex items-center gap-2 text-xs text-stone-700">

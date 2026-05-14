@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { InventoryChannel } from '../inventory/inventory.types';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { ProductEntity } from '../products/product.entity';
@@ -19,8 +19,25 @@ describe('CartService', () => {
   let variantsRepository: jest.Mocked<Repository<ProductVariantEntity>>;
   let inventoriesRepository: jest.Mocked<Repository<InventoryEntity>>;
   let cartCache: jest.Mocked<CartCachePort>;
+  let dataSource: DataSource;
 
   beforeEach(() => {
+    const manager = {
+      getRepository: (entity: unknown) => {
+        if (entity === CartEntity) return cartsRepository;
+        if (entity === CartItemEntity) return cartItemsRepository;
+        if (entity === ProductEntity) return productsRepository;
+        if (entity === ProductVariantEntity) return variantsRepository;
+        if (entity === InventoryEntity) return inventoriesRepository;
+        return cartItemsRepository;
+      },
+    };
+    dataSource = {
+      transaction: jest.fn((fn: (m: EntityManager) => Promise<unknown>) =>
+        fn(manager as unknown as EntityManager),
+      ),
+      manager: manager as never,
+    } as unknown as DataSource;
     cartsRepository = {
       findOne: jest.fn(),
       create: jest.fn((payload: unknown) => payload as CartEntity),
@@ -61,6 +78,7 @@ describe('CartService', () => {
       variantsRepository,
       inventoriesRepository,
       cartCache,
+      dataSource,
     );
   });
 
@@ -90,7 +108,9 @@ describe('CartService', () => {
     });
 
     expect((cartItemsRepository.save as jest.Mock).mock.calls.length).toBe(1);
-    expect((cartCache.invalidate as jest.Mock).mock.calls[0]).toEqual(['u-1']);
+    expect((cartCache.invalidate as jest.Mock).mock.calls[0]).toEqual([
+      { kind: 'user', userId: 'u-1' },
+    ]);
   });
 
   it('returns cached cart snapshot when available', async () => {
@@ -271,7 +291,9 @@ describe('CartService', () => {
     expect((cartItemsRepository.delete as jest.Mock).mock.calls[0]).toEqual([
       'i-1',
     ]);
-    expect((cartCache.invalidate as jest.Mock).mock.calls[0]).toEqual(['u-1']);
+    expect((cartCache.invalidate as jest.Mock).mock.calls[0]).toEqual([
+      { kind: 'user', userId: 'u-1' },
+    ]);
   });
 
   it('clears cart items and invalidates cache', async () => {

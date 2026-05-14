@@ -1,4 +1,5 @@
 import { withAuth } from "@/lib/http-client";
+import { clearGuestSessionId } from "@/lib/guest-session-client";
 
 export type CartItem = {
   item_id: string;
@@ -84,4 +85,9 @@ export async function validateMyCart(): Promise<CartValidationResult> {
     throw new Error("Unexpected API response format");
   }
   return envelope.data;
+}
+
+export async function mergeGuestCartAfterLogin(): Promise<void> {
+  await withAuth<unknown>("/cart/merge-guest", { method: "POST" });
+  clearGuestSessionId();
 }

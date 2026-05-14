@@ -322,8 +322,16 @@ export default function OrderDetailPage() {
               </p>
               <p className="mt-1">
                 <span className="font-semibold text-stone-900">Địa chỉ:</span>{" "}
-                {order.shipping_address.address_line}, {order.shipping_address.ward}, {order.shipping_address.city},{" "}
-                {order.shipping_address.country}
+                {[
+                  order.shipping_address.address_line,
+                  order.shipping_address.ward,
+                  order.shipping_address.district,
+                  order.shipping_address.city,
+                  order.shipping_address.country,
+                ]
+                  .map((p) => (typeof p === "string" ? p.trim() : ""))
+                  .filter(Boolean)
+                  .join(", ")}
               </p>
               <p className="mt-1">
                 <span className="font-semibold text-stone-900">Thời gian tạo:</span>{" "}

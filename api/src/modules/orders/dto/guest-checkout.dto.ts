@@ -1,54 +1,59 @@
-import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
-  IsBoolean,
+  IsEmail,
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
+  IsUUID,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
 
-export class AddressBaseDto {
-  @ApiProperty({ example: 'Nguyen Van A' })
+export class GuestShippingDto {
+  @ApiProperty()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(200)
-  full_name: string;
+  @MaxLength(120)
+  full_name!: string;
 
-  @ApiProperty({ example: '0901234567' })
+  @ApiProperty()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @IsNotEmpty()
-  @Matches(/^(0|\+84)[0-9]{9}$/)
-  phone: string;
+  @MaxLength(40)
+  phone!: string;
 
-  @ApiProperty({ example: '123 Le Loi' })
+  @ApiProperty()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail()
+  @MaxLength(320)
+  email!: string;
+
+  @ApiProperty()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
-  address_line: string;
+  @MaxLength(500)
+  address_line!: string;
 
-  @ApiProperty({ example: 'Phường Bến Nghé' })
+  @ApiProperty({ description: 'Phường / xã' })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
-  ward: string;
+  ward!: string;
 
   @ApiPropertyOptional({
-    example: '',
-    description: 'Không còn thu thập quận/huyện; để trống hoặc bỏ qua.',
+    description: 'Không dùng (bỏ quận/huyện); có thể bỏ qua hoặc để trống.',
   })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
@@ -58,26 +63,39 @@ export class AddressBaseDto {
   @MaxLength(120)
   district?: string;
 
-  @ApiProperty({ example: 'Ho Chi Minh' })
+  @ApiProperty()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  city: string;
+  city!: string;
 
-  @ApiProperty({ example: 'Vietnam' })
+  @ApiProperty({ example: 'VN' })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  country: string;
+  country!: string;
+}
 
-  @ApiPropertyOptional({ default: false })
+export class GuestCheckoutDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  cart_id!: string;
+
+  @ApiProperty({ type: GuestShippingDto })
+  @ValidateNested()
+  @Type(() => GuestShippingDto)
+  shipping!: GuestShippingDto;
+
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsBoolean()
-  is_default?: boolean;
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }

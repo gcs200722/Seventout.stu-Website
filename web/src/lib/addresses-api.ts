@@ -34,9 +34,9 @@ export type CreateAddressPayload = {
   phone: string;
   address_line: string;
   ward: string;
-  district?: string;
   city: string;
   country: string;
+  district?: string;
   is_default?: boolean;
 };
 

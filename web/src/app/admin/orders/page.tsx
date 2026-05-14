@@ -110,6 +110,7 @@ export default function AdminOrdersPage() {
             shippingAddress: [
               item.shippingAddress.address_line,
               item.shippingAddress.ward,
+              item.shippingAddress.district,
               item.shippingAddress.city,
               item.shippingAddress.country,
             ]

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCart } from "@/components/cart/CartProvider";
 import { addToCart } from "@/lib/cart-api";
+import { addGuestCartItem } from "@/lib/guest-cart-api";
 
 type AddToCartButtonProps = {
   productId: string;
@@ -49,7 +50,9 @@ export function AddToCartButton({
     setError(null);
     try {
       const qty = compact ? 1 : quantity;
-      const successMessage = await addToCart(productId, resolvedVariantId, qty);
+      const successMessage = isAuthenticated
+        ? await addToCart(productId, resolvedVariantId, qty)
+        : await addGuestCartItem(productId, resolvedVariantId, qty);
       await refreshCartCount();
       setMessage(successMessage);
     } catch (submitError) {
@@ -71,31 +74,6 @@ export function AddToCartButton({
       );
     }
     return <p className="text-xs text-stone-500">Đang kiểm tra tài khoản...</p>;
-  }
-
-  if (!isAuthenticated) {
-    if (compact) {
-      const fw = fullWidthClasses(compactFullWidth);
-      return (
-        <Link
-          href="/"
-          className={`inline-flex rounded-full border border-stone-300 px-4 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100 ${fw}`}
-        >
-          Đăng nhập
-        </Link>
-      );
-    }
-    return (
-      <div className="space-y-2">
-        <p className="text-xs text-stone-600">Vui lòng đăng nhập để thêm sản phẩm vào giỏ.</p>
-        <Link
-          href="/"
-          className="inline-flex rounded-full border border-stone-300 px-4 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100"
-        >
-          Đăng nhập
-        </Link>
-      </div>
-    );
   }
 
   if (compact) {
@@ -121,6 +99,11 @@ export function AddToCartButton({
 
   return (
     <div className="space-y-3">
+      {!isAuthenticated ? (
+        <p className="text-xs text-stone-600">
+          Bạn có thể thêm vào giỏ mà không cần đăng nhập. Đăng nhập sau để đồng bộ giỏ giữa các thiết bị.
+        </p>
+      ) : null}
       <div className="flex items-center gap-3">
         <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500" htmlFor="quantity">
           Số lượng
@@ -144,6 +127,14 @@ export function AddToCartButton({
       </button>
       {message ? <p className="text-xs text-emerald-600">{message}</p> : null}
       {error ? <p className="whitespace-pre-line text-xs text-rose-600">{error}</p> : null}
+      {!isAuthenticated ? (
+        <p className="text-xs text-stone-500">
+          Đã có tài khoản?{" "}
+          <Link href="/" className="font-semibold text-stone-800 underline-offset-2 hover:underline">
+            Đăng nhập
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }

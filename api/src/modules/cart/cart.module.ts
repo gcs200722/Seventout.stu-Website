@@ -9,6 +9,9 @@ import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 import { CartItemEntity } from './entities/cart-item.entity';
 import { CartEntity } from './entities/cart.entity';
+import { GuestCartController } from './guest-cart.controller';
+import { GuestSessionGuard } from './guards/guest-session.guard';
+import { GuestSessionCookieInterceptor } from './interceptors/guest-session-cookie.interceptor';
 
 @Module({
   imports: [
@@ -21,14 +24,16 @@ import { CartEntity } from './entities/cart.entity';
     ]),
     AuthorizationModule,
   ],
-  controllers: [CartController],
+  controllers: [CartController, GuestCartController],
   providers: [
     CartService,
+    GuestSessionGuard,
+    GuestSessionCookieInterceptor,
     {
       provide: CART_CACHE_PORT,
       useClass: InMemoryCartCacheAdapter,
     },
   ],
-  exports: [CART_CACHE_PORT],
+  exports: [CART_CACHE_PORT, CartService],
 })
 export class CartModule {}

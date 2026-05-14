@@ -29,6 +29,7 @@ async function requestWithToken<T>(
 ): Promise<ApiEnvelope<T>> {
   const response = await apiFetch(path, {
     method: request.method ?? "GET",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,

@@ -16,11 +16,29 @@ import {
   validateMyCart,
   type CartSnapshot,
 } from "@/lib/cart-api";
+import {
+  clearGuestCart,
+  getGuestCart,
+  removeGuestCartItem,
+  updateGuestCartItem,
+  validateGuestCart,
+} from "@/lib/guest-cart-api";
 import { listMyAddresses, type AddressItem } from "@/lib/addresses-api";
 import { createMyOrder } from "@/lib/orders-api";
+import { guestCheckout } from "@/lib/orders-guest-api";
 import { createMyPayment } from "@/lib/payments-api";
 import type { PaymentMethod } from "@/lib/payments-api";
 import { formatVnd, getProductsByIdsPublic } from "@/lib/products-api";
+
+const defaultGuestShipping = {
+  full_name: "",
+  phone: "",
+  email: "",
+  address_line: "",
+  ward: "",
+  city: "",
+  country: "VN",
+};
 
 export default function CartPage() {
   const router = useRouter();
@@ -36,6 +54,7 @@ export default function CartPage() {
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
   const [couponCode, setCouponCode] = useState("");
+  const [guestShipping, setGuestShipping] = useState(defaultGuestShipping);
   const [variantsByProductId, setVariantsByProductId] = useState<
     Record<string, Array<{ id: string; color: string; size: string; available_stock: number }>>
   >({});
@@ -82,30 +101,36 @@ export default function CartPage() {
   ];
 
   const reloadCart = useCallback(async () => {
-    if (!isAuthenticated) {
-      setCart(null);
-      setPageLoading(false);
+    if (loading) {
       return;
     }
     setPageLoading(true);
     setError(null);
     try {
-      const snapshot = await getMyCart();
-      setCart(snapshot);
-      const addressItems = await listMyAddresses(user?.id);
-      setAddresses(addressItems);
-      const defaultAddress = addressItems.find((item) => item.is_default);
-      setSelectedAddressId((current) => current || defaultAddress?.id || addressItems[0]?.id || "");
-      await refreshCartCount();
-      if (snapshot.items.length > 0) {
-        void refreshPromotionQuote();
+      if (isAuthenticated) {
+        const snapshot = await getMyCart();
+        setCart(snapshot);
+        const addressItems = await listMyAddresses(user?.id);
+        setAddresses(addressItems);
+        const defaultAddress = addressItems.find((item) => item.is_default);
+        setSelectedAddressId((current) => current || defaultAddress?.id || addressItems[0]?.id || "");
+        await refreshCartCount();
+        if (snapshot.items.length > 0) {
+          void refreshPromotionQuote();
+        }
+      } else {
+        const snapshot = await getGuestCart();
+        setCart(snapshot);
+        setAddresses([]);
+        setSelectedAddressId("");
+        await refreshCartCount();
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Không tải được giỏ hàng.");
     } finally {
       setPageLoading(false);
     }
-  }, [isAuthenticated, refreshCartCount, refreshPromotionQuote, user?.id]);
+  }, [isAuthenticated, loading, refreshCartCount, refreshPromotionQuote, user?.id]);
 
   useEffect(() => {
     void reloadCart();
@@ -142,11 +167,11 @@ export default function CartPage() {
     if (!cart) {
       return 0;
     }
-    if (promotionQuote.quote && !promotionQuote.loading) {
+    if (isAuthenticated && promotionQuote.quote && !promotionQuote.loading) {
       return promotionQuote.quote.final_total;
     }
     return cart.total_amount;
-  }, [cart, promotionQuote.quote, promotionQuote.loading]);
+  }, [cart, isAuthenticated, promotionQuote.quote, promotionQuote.loading]);
 
   const appliedCouponCode = useMemo(() => {
     const snap = promotionQuote.quote?.pricing_snapshot;
@@ -169,7 +194,11 @@ export default function CartPage() {
     setError(null);
     setSuccess(null);
     try {
-      await updateCartItem(itemId, quantity, productVariantId);
+      if (isAuthenticated) {
+        await updateCartItem(itemId, quantity, productVariantId);
+      } else {
+        await updateGuestCartItem(itemId, quantity, productVariantId);
+      }
       await reloadCart();
       setSuccess("Đã cập nhật số lượng.");
     } catch (actionError) {
@@ -184,7 +213,11 @@ export default function CartPage() {
     setError(null);
     setSuccess(null);
     try {
-      await removeCartItem(itemId);
+      if (isAuthenticated) {
+        await removeCartItem(itemId);
+      } else {
+        await removeGuestCartItem(itemId);
+      }
       await reloadCart();
       setSuccess("Đã xóa sản phẩm khỏi giỏ.");
     } catch (actionError) {
@@ -199,7 +232,11 @@ export default function CartPage() {
     setError(null);
     setSuccess(null);
     try {
-      await clearMyCart();
+      if (isAuthenticated) {
+        await clearMyCart();
+      } else {
+        await clearGuestCart();
+      }
       await reloadCart();
       setSuccess("Đã xóa toàn bộ giỏ hàng.");
     } catch (actionError) {
@@ -214,7 +251,7 @@ export default function CartPage() {
     setError(null);
     setSuccess(null);
     try {
-      const result = await validateMyCart();
+      const result = isAuthenticated ? await validateMyCart() : await validateGuestCart();
       if (result.valid) {
         setSuccess("Giỏ hàng hợp lệ, sẵn sàng checkout.");
       } else {
@@ -228,6 +265,18 @@ export default function CartPage() {
     }
   }
 
+  function validateGuestShipping(): string | null {
+    const s = guestShipping;
+    if (!s.full_name.trim()) return "Vui lòng nhập họ tên.";
+    if (!s.phone.trim()) return "Vui lòng nhập số điện thoại.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email.trim())) return "Email không hợp lệ.";
+    if (!s.address_line.trim()) return "Vui lòng nhập số nhà và tên đường.";
+    if (!s.ward.trim()) return "Vui lòng nhập phường/xã.";
+    if (!s.city.trim()) return "Vui lòng nhập tỉnh/thành phố.";
+    if (!s.country.trim()) return "Vui lòng nhập quốc gia.";
+    return null;
+  }
+
   async function handleCheckout() {
     setPendingId("checkout");
     setError(null);
@@ -236,27 +285,75 @@ export default function CartPage() {
       setPendingId(null);
       return;
     }
-    if (!selectedAddressId) {
-      setError("Vui lòng chọn địa chỉ giao hàng trước khi checkout.");
+    if (isAuthenticated) {
+      if (!selectedAddressId) {
+        setError("Vui lòng chọn địa chỉ giao hàng trước khi checkout.");
+        setPendingId(null);
+        return;
+      }
+      try {
+        const idempotencyKey = `web-${Date.now()}`;
+        const orderResult = await createMyOrder(
+          {
+            cart_id: cart.cart_id,
+            address_id: selectedAddressId,
+            note: note.trim() || undefined,
+          },
+          idempotencyKey,
+        );
+        const paymentResult = await createMyPayment(
+          {
+            order_id: orderResult.order_id,
+            payment_method: paymentMethod,
+          },
+          `${idempotencyKey}-payment`,
+        );
+        setCart({
+          cart_id: cart.cart_id,
+          items: [],
+          total_amount: 0,
+          total_items: 0,
+        });
+        await refreshCartCount();
+        setSuccess(`Tạo đơn hàng và khởi tạo thanh toán ${paymentMethod} thành công.`);
+        router.push(`/orders/${orderResult.order_id}?payment_status=${paymentResult.status}`);
+      } catch (actionError) {
+        setError(actionError instanceof Error ? actionError.message : "Checkout thất bại.");
+      } finally {
+        setPendingId(null);
+      }
+      return;
+    }
+
+    const guestErr = validateGuestShipping();
+    if (guestErr) {
+      setError(guestErr);
+      setPendingId(null);
+      return;
+    }
+    if (paymentMethod !== "COD") {
+      setError("Khách vãng lai hiện chỉ hỗ trợ COD.");
       setPendingId(null);
       return;
     }
     try {
-      const idempotencyKey = `web-${Date.now()}`;
-      const orderResult = await createMyOrder(
+      const idempotencyKey = `web-guest-${Date.now()}`;
+      const result = await guestCheckout(
         {
           cart_id: cart.cart_id,
-          address_id: selectedAddressId,
           note: note.trim() || undefined,
+          shipping: {
+            full_name: guestShipping.full_name.trim(),
+            phone: guestShipping.phone.trim(),
+            email: guestShipping.email.trim(),
+            address_line: guestShipping.address_line.trim(),
+            ward: guestShipping.ward.trim(),
+            district: "",
+            city: guestShipping.city.trim(),
+            country: guestShipping.country.trim(),
+          },
         },
         idempotencyKey,
-      );
-      const paymentResult = await createMyPayment(
-        {
-          order_id: orderResult.order_id,
-          payment_method: paymentMethod,
-        },
-        `${idempotencyKey}-payment`,
       );
       setCart({
         cart_id: cart.cart_id,
@@ -265,14 +362,22 @@ export default function CartPage() {
         total_items: 0,
       });
       await refreshCartCount();
-      setSuccess(`Tạo đơn hàng và khởi tạo thanh toán ${paymentMethod} thành công.`);
-      router.push(`/orders/${orderResult.order_id}?payment_status=${paymentResult.status}`);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("guest_order_lookup_secret", result.lookup_secret);
+      }
+      const q = new URLSearchParams({
+        order_number: result.order_number,
+        email: guestShipping.email.trim(),
+      });
+      router.push(`/orders/track?${q.toString()}`);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Checkout thất bại.");
     } finally {
       setPendingId(null);
     }
   }
+
+  const showCartLines = Boolean(!loading && cart && cart.items.length > 0);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -283,28 +388,24 @@ export default function CartPage() {
         {loading || pageLoading ? <p className="mt-4 text-sm text-stone-500">Đang tải giỏ hàng...</p> : null}
 
         {!loading && !isAuthenticated ? (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-            Vui lòng đăng nhập để xem giỏ hàng.
-            <div className="mt-3">
-              <Link
-                href="/"
-                className="inline-flex rounded-full border border-amber-300 px-3 py-1.5 text-xs font-semibold hover:bg-amber-100"
-              >
-                Về trang chủ để đăng nhập
-              </Link>
-            </div>
-          </div>
+          <p className="mt-3 text-xs text-stone-600">
+            Bạn đang xem giỏ khách — có thể checkout không cần đăng nhập.{" "}
+            <Link href="/" className="font-semibold text-stone-900 underline-offset-2 hover:underline">
+              Đăng nhập
+            </Link>{" "}
+            để đồng bộ giỏ và dùng địa chỉ đã lưu.
+          </p>
         ) : null}
 
-        {!loading && isAuthenticated && cart && cart.items.length === 0 ? (
+        {!loading && cart && cart.items.length === 0 ? (
           <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
-            Giỏ hàng của bạn đang trống.
+            Giỏ hàng đang trống.
           </div>
         ) : null}
 
-        {!loading && isAuthenticated && cart && cart.items.length > 0 ? (
+        {showCartLines ? (
           <div className="mt-5 space-y-3">
-            {cart.items.map((item) => (
+            {cart!.items.map((item) => (
               <article
                 key={item.item_id}
                 className="rounded-xl border border-stone-200 bg-stone-50 p-4"
@@ -372,29 +473,31 @@ export default function CartPage() {
               </article>
             ))}
 
-            <CartPromotionSection
-              code={couponCode}
-              onCodeChange={setCouponCode}
-              onApply={() => {
-                void (async () => {
-                  await promotionQuote.apply(couponCode.trim());
-                  setCouponCode("");
-                })();
-              }}
-              onRemove={() => void promotionQuote.remove()}
-              busy={promotionQuote.actionPending || pendingId !== null}
-              loadingQuote={promotionQuote.loading}
-              error={promotionQuote.error}
-              subtotalAmount={promotionQuote.quote?.subtotal_amount ?? cart.total_amount}
-              discountAmount={promotionQuote.quote?.discount ?? 0}
-              finalTotal={promotionQuote.quote?.final_total ?? cart.total_amount}
-              appliedCouponCode={appliedCouponCode}
-              pricingSnapshot={promotionQuote.quote?.pricing_snapshot ?? null}
-            />
+            {isAuthenticated ? (
+              <CartPromotionSection
+                code={couponCode}
+                onCodeChange={setCouponCode}
+                onApply={() => {
+                  void (async () => {
+                    await promotionQuote.apply(couponCode.trim());
+                    setCouponCode("");
+                  })();
+                }}
+                onRemove={() => void promotionQuote.remove()}
+                busy={promotionQuote.actionPending || pendingId !== null}
+                loadingQuote={promotionQuote.loading}
+                error={promotionQuote.error}
+                subtotalAmount={promotionQuote.quote?.subtotal_amount ?? cart!.total_amount}
+                discountAmount={promotionQuote.quote?.discount ?? 0}
+                finalTotal={promotionQuote.quote?.final_total ?? cart!.total_amount}
+                appliedCouponCode={appliedCouponCode}
+                pricingSnapshot={promotionQuote.quote?.pricing_snapshot ?? null}
+              />
+            ) : null}
 
             <div className="rounded-xl border border-stone-200 bg-white p-4">
               <p className="text-sm text-stone-700">
-                Tổng số lượng món trong giỏ: <span className="font-semibold">{cart.total_items}</span>
+                Tổng số lượng món trong giỏ: <span className="font-semibold">{cart!.total_items}</span>
               </p>
               <p className="mt-0.5 text-xs text-stone-500">
                 Là cộng dồn số lượng từng dòng (cùng một sản phẩm nhiều món vẫn tính dồn), không phải số loại sản phẩm khác nhau.
@@ -402,68 +505,145 @@ export default function CartPage() {
               <p className="mt-1 text-lg font-semibold text-stone-900">
                 Tổng tiền (ước tính): {formatVnd(displayTotalAmount)}
               </p>
-              {promotionQuote.quote && !promotionQuote.loading && promotionQuote.quote.discount > 0 ? (
+              {isAuthenticated && promotionQuote.quote && !promotionQuote.loading && promotionQuote.quote.discount > 0 ? (
                 <p className="mt-1 text-xs text-stone-500">
                   Đã gồm khuyến mãi theo báo giá hiện tại; số tiền cuối khi tạo đơn do hệ thống xác nhận.
                 </p>
               ) : null}
               <div className="mt-4 space-y-3">
-                <fieldset className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-                  <legend className="px-1 text-xs font-semibold text-stone-800">Địa chỉ giao hàng</legend>
-                  {addresses.length === 0 ? (
-                    <div className="space-y-2 text-xs text-stone-600">
-                      <p>Bạn chưa có địa chỉ nào để checkout.</p>
-                      <Link
-                        href="/profile"
-                        className="inline-flex rounded-full border border-stone-300 px-3 py-1.5 font-semibold text-stone-700 hover:bg-stone-100"
-                      >
-                        Đi đến quản lý địa chỉ
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="mt-2 space-y-2">
-                      {addresses.map((address) => (
-                        <label
-                          key={address.id}
-                          className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 ${
-                            selectedAddressId === address.id
-                              ? "border-stone-900 bg-white"
-                              : "border-stone-200 bg-white hover:border-stone-400"
-                          }`}
+                {isAuthenticated ? (
+                  <fieldset className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                    <legend className="px-1 text-xs font-semibold text-stone-800">Địa chỉ giao hàng</legend>
+                    {addresses.length === 0 ? (
+                      <div className="space-y-2 text-xs text-stone-600">
+                        <p>Bạn chưa có địa chỉ nào để checkout.</p>
+                        <Link
+                          href="/profile"
+                          className="inline-flex rounded-full border border-stone-300 px-3 py-1.5 font-semibold text-stone-700 hover:bg-stone-100"
                         >
-                          <input
-                            type="radio"
-                            name="shipping_address_id"
-                            value={address.id}
-                            checked={selectedAddressId === address.id}
-                            disabled={pendingId !== null}
-                            onChange={() => setSelectedAddressId(address.id)}
-                            className="mt-0.5 h-4 w-4 accent-stone-900"
-                          />
-                          <span className="text-xs text-stone-700">
-                            <span className="block font-semibold text-stone-900">
-                              {address.full_name} ({address.phone}){" "}
-                              {address.is_default ? (
-                                <span className="rounded-full border border-stone-300 px-2 py-0.5 text-[10px] font-semibold">
-                                  Mặc định
-                                </span>
-                              ) : null}
+                          Đi đến quản lý địa chỉ
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {addresses.map((address) => (
+                          <label
+                            key={address.id}
+                            className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 ${
+                              selectedAddressId === address.id
+                                ? "border-stone-900 bg-white"
+                                : "border-stone-200 bg-white hover:border-stone-400"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="shipping_address_id"
+                              value={address.id}
+                              checked={selectedAddressId === address.id}
+                              disabled={pendingId !== null}
+                              onChange={() => setSelectedAddressId(address.id)}
+                              className="mt-0.5 h-4 w-4 accent-stone-900"
+                            />
+                            <span className="text-xs text-stone-700">
+                              <span className="block font-semibold text-stone-900">
+                                {address.full_name} ({address.phone}){" "}
+                                {address.is_default ? (
+                                  <span className="rounded-full border border-stone-300 px-2 py-0.5 text-[10px] font-semibold">
+                                    Mặc định
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="block">
+                                {[address.address_line, address.ward, address.district, address.city, address.country]
+                                  .map((p) => (typeof p === "string" ? p.trim() : ""))
+                                  .filter(Boolean)
+                                  .join(", ")}
+                              </span>
                             </span>
-                            <span className="block">
-                              {address.address_line}, {address.ward}, {address.city}, {address.country}
-                            </span>
-                          </span>
-                        </label>
-                      ))}
-                      <Link
-                        href="/profile"
-                        className="inline-flex rounded-full border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100"
-                      >
-                        Quản lý địa chỉ
-                      </Link>
+                          </label>
+                        ))}
+                        <Link
+                          href="/profile"
+                          className="inline-flex rounded-full border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100"
+                        >
+                          Quản lý địa chỉ
+                        </Link>
+                      </div>
+                    )}
+                  </fieldset>
+                ) : (
+                  <fieldset className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                    <legend className="px-1 text-xs font-semibold text-stone-800">Thông tin nhận hàng</legend>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <label className="block text-xs text-stone-700">
+                        Họ tên *
+                        <input
+                          required
+                          value={guestShipping.full_name}
+                          onChange={(e) => setGuestShipping((s) => ({ ...s, full_name: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block text-xs text-stone-700">
+                        Số điện thoại *
+                        <input
+                          required
+                          value={guestShipping.phone}
+                          onChange={(e) => setGuestShipping((s) => ({ ...s, phone: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block text-xs text-stone-700 sm:col-span-2">
+                        Email *
+                        <input
+                          type="email"
+                          required
+                          value={guestShipping.email}
+                          onChange={(e) => setGuestShipping((s) => ({ ...s, email: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block text-xs text-stone-700 sm:col-span-2">
+                        Số nhà và tên đường *
+                        <input
+                          required
+                          value={guestShipping.address_line}
+                          onChange={(e) => setGuestShipping((s) => ({ ...s, address_line: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                          placeholder="Ví dụ: 123, Nguyễn Huệ"
+                        />
+                      </label>
+                      <label className="block text-xs text-stone-700">
+                        Phường / xã *
+                        <input
+                          required
+                          value={guestShipping.ward}
+                          onChange={(e) => setGuestShipping((s) => ({ ...s, ward: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                          placeholder="Ví dụ: Phường Bến Nghé"
+                        />
+                      </label>
+                      <label className="block text-xs text-stone-700">
+                        Tỉnh / thành phố *
+                        <input
+                          required
+                          value={guestShipping.city}
+                          onChange={(e) => setGuestShipping((s) => ({ ...s, city: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block text-xs text-stone-700">
+                        Quốc gia *
+                        <input
+                          required
+                          value={guestShipping.country}
+                          onChange={(e) => setGuestShipping((s) => ({ ...s, country: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                        />
+                      </label>
                     </div>
-                  )}
-                </fieldset>
+                  </fieldset>
+                )}
                 <label className="block text-xs font-medium text-stone-700">
                   Ghi chú (tuỳ chọn)
                   <input
@@ -526,7 +706,12 @@ export default function CartPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={!canCheckout || pendingId !== null || !selectedAddressId}
+                  disabled={
+                    !canCheckout ||
+                    pendingId !== null ||
+                    (isAuthenticated && !selectedAddressId) ||
+                    (!isAuthenticated && paymentMethod !== "COD")
+                  }
                   onClick={() => void handleCheckout()}
                   className="rounded-full bg-stone-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >

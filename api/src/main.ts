@@ -46,7 +46,13 @@ async function bootstrap() {
     origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-idempotency-key'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-idempotency-key',
+      'x-guest-session-id',
+    ],
+    exposedHeaders: ['x-guest-session-id'],
   });
   app.useGlobalPipes(
     new ValidationPipe({

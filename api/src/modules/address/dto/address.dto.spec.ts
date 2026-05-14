@@ -22,6 +22,20 @@ describe('Address DTO validation', () => {
     expect(dto.address_line).toBe('123 Le Loi');
   });
 
+  it('accepts create address without district (quận/huyện không dùng)', async () => {
+    const dto = plainToInstance(CreateAddressDto, {
+      full_name: 'Nguyen Van A',
+      phone: '0901234567',
+      address_line: '123 Le Loi',
+      ward: 'Ben Nghe',
+      city: 'Ho Chi Minh',
+      country: 'Vietnam',
+    });
+
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
   it('rejects invalid vietnam phone format', async () => {
     const dto = plainToInstance(CreateAddressDto, {
       full_name: 'Nguyen Van A',

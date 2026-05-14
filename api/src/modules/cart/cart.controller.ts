@@ -7,9 +7,13 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import type { Request } from 'express';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,6 +24,10 @@ import { AuthorizationGuard } from '../authorization/guards/authorization.guard'
 import { CartService } from './cart.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
+import {
+  GUEST_SESSION_COOKIE_NAME,
+  readGuestSessionIdFromRequest,
+} from './guest-session.constants';
 
 @ApiTags('cart')
 @Controller('cart')
@@ -90,5 +98,37 @@ export class CartController {
   async validate(@CurrentUser() user: AuthenticatedUser) {
     const data = await this.cartService.validateCart(user.id);
     return { success: true, data };
+  }
+
+  @Post('merge-guest')
+  @ApiOperation({
+    summary: 'Merge guest cart (cookie / x-guest-session-id) into user cart',
+  })
+  @RequireRoles(UserRole.USER, UserRole.ADMIN)
+  @RequirePermissions(PermissionCode.CART_MANAGE)
+  async mergeGuestCart(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const sessionId = readGuestSessionIdFromRequest(
+      req.headers.cookie,
+      req.headers['x-guest-session-id'],
+    );
+    if (!sessionId) {
+      return { success: true, message: 'No guest session to merge' };
+    }
+    await this.cartService.mergeGuestCartIntoUser(user.id, sessionId);
+    const secure =
+      process.env.NODE_ENV === 'production' ||
+      process.env.GUEST_SESSION_COOKIE_SECURE === '1' ||
+      process.env.GUEST_SESSION_COOKIE_SECURE === 'true';
+    res.clearCookie(GUEST_SESSION_COOKIE_NAME, {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure,
+    });
+    return { success: true, message: 'Guest cart merged successfully' };
   }
 }

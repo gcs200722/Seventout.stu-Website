@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { getMyCart, type CartSnapshot } from "@/lib/cart-api";
+import { getGuestCart } from "@/lib/guest-cart-api";
 import { formatVnd } from "@/lib/products-api";
 
 type MiniCartPreviewProps = {
@@ -16,8 +17,9 @@ export function MiniCartPreview({ open, isAuthenticated }: MiniCartPreviewProps)
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || !isAuthenticated) return;
-    void getMyCart()
+    if (!open) return;
+    const load = isAuthenticated ? getMyCart() : getGuestCart();
+    void load
       .then((snapshot) => setCart(snapshot))
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : "Cannot load cart.");
@@ -26,7 +28,7 @@ export function MiniCartPreview({ open, isAuthenticated }: MiniCartPreviewProps)
   }, [isAuthenticated, open]);
 
   const items = useMemo(() => (cart ? cart.items.slice(0, 3) : []), [cart]);
-  const loading = open && isAuthenticated && !cart && !error;
+  const loading = open && !cart && !error;
 
   if (!open) return null;
 
@@ -39,9 +41,7 @@ export function MiniCartPreview({ open, isAuthenticated }: MiniCartPreviewProps)
         </Link>
       </div>
 
-      {!isAuthenticated ? (
-        <p className="mt-3 text-sm text-stone-600">Sign in to preview your cart items.</p>
-      ) : loading ? (
+      {loading ? (
         <p className="mt-3 text-sm text-stone-600">Loading cart...</p>
       ) : error ? (
         <p className="mt-3 text-sm text-rose-600">{error}</p>
@@ -49,6 +49,9 @@ export function MiniCartPreview({ open, isAuthenticated }: MiniCartPreviewProps)
         <p className="mt-3 text-sm text-stone-600">Your cart is empty.</p>
       ) : (
         <>
+          {!isAuthenticated ? (
+            <p className="mt-2 text-xs text-stone-500">Guest cart — sign in to sync across devices.</p>
+          ) : null}
           <ul className="mt-3 space-y-2">
             {items.map((item) => (
               <li key={item.item_id} className="rounded-lg border border-stone-200 px-3 py-2">

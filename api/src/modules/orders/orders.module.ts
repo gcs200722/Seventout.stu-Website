@@ -15,7 +15,10 @@ import { OrderCartAdapter } from './adapters/order-cart.adapter';
 import { OrderFulfillmentAdapter } from './adapters/order-fulfillment.adapter';
 import { OrderInventoryAdapter } from './adapters/order-inventory.adapter';
 import { OrderNotificationAdapter } from './adapters/order-notification.adapter';
+import { PaymentsModule } from '../payments/payments.module';
 import { OrdersController } from './orders.controller';
+import { GuestCheckoutController } from './guest-checkout.controller';
+import { PublicOrdersController } from './public-orders.controller';
 import { OrderEventOutboxEntity } from './entities/order-event-outbox.entity';
 import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEntity } from './entities/order.entity';
@@ -55,8 +58,13 @@ import { AuditModule } from '../audit/audit.module';
     InventoryModule,
     NotificationModule,
     PromotionsModule,
+    PaymentsModule,
   ],
-  controllers: [OrdersController],
+  controllers: [
+    OrdersController,
+    GuestCheckoutController,
+    PublicOrdersController,
+  ],
   providers: [
     OrdersService,
     OrderEventDispatcherService,

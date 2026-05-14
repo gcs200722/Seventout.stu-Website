@@ -18,26 +18,34 @@ export type CartSnapshot = {
   total_items: number;
 };
 
+export type CartCacheOwner =
+  | { kind: 'user'; userId: string }
+  | { kind: 'guest'; sessionId: string };
+
+export function cartCacheStorageKey(owner: CartCacheOwner): string {
+  return owner.kind === 'user' ? owner.userId : `guest:${owner.sessionId}`;
+}
+
 export interface CartCachePort {
-  get(userId: string): Promise<CartSnapshot | null>;
-  set(userId: string, payload: CartSnapshot): Promise<void>;
-  invalidate(userId: string): Promise<void>;
+  get(owner: CartCacheOwner): Promise<CartSnapshot | null>;
+  set(owner: CartCacheOwner, payload: CartSnapshot): Promise<void>;
+  invalidate(owner: CartCacheOwner): Promise<void>;
 }
 
 export class InMemoryCartCacheAdapter implements CartCachePort {
   private readonly store = new Map<string, CartSnapshot>();
 
-  get(userId: string): Promise<CartSnapshot | null> {
-    return Promise.resolve(this.store.get(userId) ?? null);
+  get(owner: CartCacheOwner): Promise<CartSnapshot | null> {
+    return Promise.resolve(this.store.get(cartCacheStorageKey(owner)) ?? null);
   }
 
-  set(userId: string, payload: CartSnapshot): Promise<void> {
-    this.store.set(userId, payload);
+  set(owner: CartCacheOwner, payload: CartSnapshot): Promise<void> {
+    this.store.set(cartCacheStorageKey(owner), payload);
     return Promise.resolve();
   }
 
-  invalidate(userId: string): Promise<void> {
-    this.store.delete(userId);
+  invalidate(owner: CartCacheOwner): Promise<void> {
+    this.store.delete(cartCacheStorageKey(owner));
     return Promise.resolve();
   }
 }

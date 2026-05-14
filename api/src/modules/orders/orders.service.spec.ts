@@ -19,6 +19,7 @@ import { OrderPricingPort } from './ports/order-pricing.port';
 import { OrderFulfillmentPort } from './ports/order-fulfillment.port';
 import { OrderInventoryPort } from './ports/order-inventory.port';
 import type { AuditWriterService } from '../audit/audit-writer.service';
+import { PaymentsService } from '../payments/payments.service';
 import { OrdersService } from './orders.service';
 import { OrderEventType, OrderStatus, PaymentStatus } from './orders.types';
 
@@ -37,6 +38,9 @@ describe('OrdersService', () => {
   let statusPolicy: jest.Mocked<OrderStatusPolicy>;
   let orderQueryService: jest.Mocked<OrderQueryService>;
   let auditWriter: jest.Mocked<Pick<AuditWriterService, 'log'>>;
+  let paymentsService: jest.Mocked<
+    Pick<PaymentsService, 'createGuestCodPayment'>
+  >;
 
   const user: AuthenticatedUser = {
     id: 'u-1',
@@ -100,6 +104,10 @@ describe('OrdersService', () => {
       log: jest.fn().mockResolvedValue(undefined),
     };
 
+    paymentsService = {
+      createGuestCodPayment: jest.fn(),
+    };
+
     service = new OrdersService(
       ordersRepository,
       orderItemsRepository,
@@ -114,6 +122,7 @@ describe('OrdersService', () => {
       statusPolicy,
       orderQueryService,
       auditWriter as unknown as AuditWriterService,
+      paymentsService as unknown as PaymentsService,
     );
   });
 
@@ -219,7 +228,7 @@ describe('OrdersService', () => {
     expect(result.order_id).toBe('o-1');
     expect(
       (cartPort.clearCartAfterCheckout as jest.Mock).mock.calls[0],
-    ).toEqual(['u-1', 'c-1']);
+    ).toEqual([{ type: 'user', userId: 'u-1' }, 'c-1']);
   });
 
   it('returns duplicated order on same idempotency key', async () => {

@@ -40,7 +40,10 @@ export class ReturnsService {
         details: { code: 'ORDER_NOT_FOUND' },
       });
     }
-    if (user.role === UserRole.USER && order.userId !== user.id) {
+    if (
+      user.role === UserRole.USER &&
+      (order.userId === null || order.userId !== user.id)
+    ) {
       throw new ForbiddenException({
         message: 'You cannot create return for this order',
         details: { code: 'RETURN_FORBIDDEN' },
@@ -60,6 +63,13 @@ export class ReturnsService {
       throw new BadRequestException({
         message: 'Return window has expired',
         details: { code: 'RETURN_WINDOW_EXPIRED' },
+      });
+    }
+
+    if (!order.userId) {
+      throw new BadRequestException({
+        message: 'Returns are not supported for guest orders',
+        details: { code: 'RETURN_GUEST_NOT_SUPPORTED' },
       });
     }
 

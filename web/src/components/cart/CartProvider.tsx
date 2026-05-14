@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getMyCart } from "@/lib/cart-api";
+import { getGuestCart } from "@/lib/guest-cart-api";
 
 type CartContextValue = {
   cartCount: number;
@@ -17,8 +18,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cartCount, setCartCount] = useState(0);
 
   const refreshCartCount = useCallback(async () => {
+    if (loading) {
+      return;
+    }
     if (!isAuthenticated) {
-      setCartCount(0);
+      try {
+        const cart = await getGuestCart();
+        setCartCount(cart.total_items);
+      } catch {
+        setCartCount(0);
+      }
       return;
     }
     try {
@@ -27,15 +36,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } catch {
       setCartCount(0);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loading]);
 
   useEffect(() => {
-    if (loading || !isAuthenticated) {
+    if (loading) {
       return;
     }
 
     let active = true;
-    void getMyCart()
+    const load = isAuthenticated ? getMyCart() : getGuestCart();
+    void load
       .then((cart) => {
         if (active) {
           setCartCount(cart.total_items);

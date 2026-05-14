@@ -429,6 +429,9 @@ export class NotificationService {
     if (!order) {
       return null;
     }
+    if (!order.userId) {
+      return null;
+    }
     const user = await this.usersRepository.findOne({
       where: { id: order.userId },
     });

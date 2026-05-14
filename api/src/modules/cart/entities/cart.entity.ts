@@ -16,8 +16,11 @@ export class CartEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'user_id', type: 'uuid' })
-  userId: string;
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId: string | null;
+
+  @Column({ name: 'guest_session_id', type: 'uuid', nullable: true })
+  guestSessionId: string | null;
 
   @Column({ type: 'varchar', length: 20, default: CartStatus.ACTIVE })
   status: CartStatus;

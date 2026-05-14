@@ -5,13 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 import { InventoryChannel } from '../inventory/inventory.types';
 import { InventoryEntity } from '../inventory/entities/inventory.entity';
 import { ProductEntity } from '../products/product.entity';
 import { ProductVariantEntity } from '../products/product-variant.entity';
 import { CART_CACHE_PORT } from './cart-cache.port';
-import type { CartCachePort, CartSnapshot } from './cart-cache.port';
+import type {
+  CartCacheOwner,
+  CartCachePort,
+  CartSnapshot,
+} from './cart-cache.port';
 import { CartIssue, CartIssueCode } from './cart.types';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
@@ -50,37 +54,318 @@ export class CartService {
     @InjectRepository(InventoryEntity)
     private readonly inventoriesRepository: Repository<InventoryEntity>,
     @Inject(CART_CACHE_PORT) private readonly cartCache: CartCachePort,
+    private readonly dataSource: DataSource,
   ) {}
 
+  private userOwner(userId: string): CartCacheOwner {
+    return { kind: 'user', userId };
+  }
+
+  private guestOwner(sessionId: string): CartCacheOwner {
+    return { kind: 'guest', sessionId };
+  }
+
   async getCurrentCart(userId: string): Promise<CartSnapshot> {
-    const cached = await this.cartCache.get(userId);
+    const owner = this.userOwner(userId);
+    const cached = await this.cartCache.get(owner);
     if (cached) {
       return cached;
     }
     const cart = await this.ensureActiveCart(userId);
     const payload = await this.buildSnapshot(cart.id);
-    await this.cartCache.set(userId, payload);
+    await this.cartCache.set(owner, payload);
+    return payload;
+  }
+
+  async getCurrentCartGuest(sessionId: string): Promise<CartSnapshot> {
+    const owner = this.guestOwner(sessionId);
+    const cached = await this.cartCache.get(owner);
+    if (cached) {
+      return cached;
+    }
+    const cart = await this.ensureActiveGuestCart(sessionId);
+    const payload = await this.buildSnapshot(cart.id);
+    await this.cartCache.set(owner, payload);
     return payload;
   }
 
   async addItem(userId: string, payload: AddCartItemDto): Promise<void> {
     const cart = await this.ensureActiveCart(userId);
-    const product = await this.getActiveProduct(payload.product_id);
-    const variant = await this.getVariantForProduct(
+    await this.addOrIncrementLine(
+      cart.id,
+      payload.product_id,
       payload.product_variant_id,
-      product.id,
+      payload.quantity,
     );
-    const stock = await this.getAvailableStock(variant.id);
+    await this.cartCache.invalidate(this.userOwner(userId));
+  }
 
-    const existing = await this.cartItemsRepository.findOne({
+  async addItemGuest(
+    sessionId: string,
+    payload: AddCartItemDto,
+  ): Promise<void> {
+    const cart = await this.ensureActiveGuestCart(sessionId);
+    await this.addOrIncrementLine(
+      cart.id,
+      payload.product_id,
+      payload.product_variant_id,
+      payload.quantity,
+    );
+    await this.cartCache.invalidate(this.guestOwner(sessionId));
+  }
+
+  async updateItem(
+    userId: string,
+    itemId: string,
+    payload: UpdateCartItemDto,
+  ): Promise<void> {
+    const cart = await this.ensureActiveCart(userId);
+    await this.updateItemOnCart(cart.id, itemId, payload);
+    await this.cartCache.invalidate(this.userOwner(userId));
+  }
+
+  async updateItemGuest(
+    sessionId: string,
+    itemId: string,
+    payload: UpdateCartItemDto,
+  ): Promise<void> {
+    const cart = await this.ensureActiveGuestCart(sessionId);
+    await this.updateItemOnCart(cart.id, itemId, payload);
+    await this.cartCache.invalidate(this.guestOwner(sessionId));
+  }
+
+  async removeItem(userId: string, itemId: string): Promise<void> {
+    const cart = await this.ensureActiveCart(userId);
+    const item = await this.cartItemsRepository.findOne({
+      where: { id: itemId, cartId: cart.id },
+    });
+    if (!item) {
+      throw new NotFoundException({
+        message: 'Cart item not found',
+        details: { code: 'CART_ITEM_NOT_FOUND' },
+      });
+    }
+    await this.cartItemsRepository.delete(item.id);
+    await this.cartCache.invalidate(this.userOwner(userId));
+  }
+
+  async removeItemGuest(sessionId: string, itemId: string): Promise<void> {
+    const cart = await this.ensureActiveGuestCart(sessionId);
+    const item = await this.cartItemsRepository.findOne({
+      where: { id: itemId, cartId: cart.id },
+    });
+    if (!item) {
+      throw new NotFoundException({
+        message: 'Cart item not found',
+        details: { code: 'CART_ITEM_NOT_FOUND' },
+      });
+    }
+    await this.cartItemsRepository.delete(item.id);
+    await this.cartCache.invalidate(this.guestOwner(sessionId));
+  }
+
+  async clearCart(userId: string): Promise<void> {
+    const cart = await this.ensureActiveCart(userId);
+    await this.cartItemsRepository.delete({ cartId: cart.id });
+    await this.cartCache.invalidate(this.userOwner(userId));
+  }
+
+  async clearCartGuest(sessionId: string): Promise<void> {
+    const cart = await this.ensureActiveGuestCart(sessionId);
+    await this.cartItemsRepository.delete({ cartId: cart.id });
+    await this.cartCache.invalidate(this.guestOwner(sessionId));
+  }
+
+  async validateCart(userId: string): Promise<ValidateCartResult> {
+    const cart = await this.ensureActiveCart(userId);
+    return this.validateCartById(cart.id);
+  }
+
+  async validateCartGuest(sessionId: string): Promise<ValidateCartResult> {
+    const cart = await this.ensureActiveGuestCart(sessionId);
+    return this.validateCartById(cart.id);
+  }
+
+  /**
+   * Merges guest cart lines into the user's active cart, then closes the guest cart.
+   */
+  async mergeGuestCartIntoUser(
+    userId: string,
+    guestSessionId: string,
+  ): Promise<void> {
+    const guestCart = await this.cartsRepository.findOne({
       where: {
-        cartId: cart.id,
+        guestSessionId,
+        userId: IsNull(),
+        status: CartStatus.ACTIVE,
+      },
+    });
+    if (!guestCart) {
+      await this.cartCache.invalidate(this.guestOwner(guestSessionId));
+      return;
+    }
+
+    const guestItems = await this.cartItemsRepository.find({
+      where: { cartId: guestCart.id },
+    });
+    if (guestItems.length === 0) {
+      guestCart.status = CartStatus.CHECKED_OUT;
+      guestCart.appliedCouponId = null;
+      await this.cartsRepository.save(guestCart);
+      await this.cartCache.invalidate(this.guestOwner(guestSessionId));
+      return;
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const userCart = await this.ensureActiveCartInManager(manager, userId);
+      const itemRepo = manager.getRepository(CartItemEntity);
+      for (const gi of guestItems) {
+        await this.addOrIncrementLineInManager(
+          manager,
+          userCart.id,
+          gi.productId,
+          gi.productVariantId,
+          gi.quantity,
+        );
+      }
+      await itemRepo.delete({ cartId: guestCart.id });
+      guestCart.status = CartStatus.CHECKED_OUT;
+      guestCart.appliedCouponId = null;
+      await manager.getRepository(CartEntity).save(guestCart);
+    });
+
+    await this.cartCache.invalidate(this.userOwner(userId));
+    await this.cartCache.invalidate(this.guestOwner(guestSessionId));
+  }
+
+  private async ensureActiveCart(userId: string): Promise<CartEntity> {
+    let cart = await this.cartsRepository.findOne({
+      where: {
+        userId,
+        guestSessionId: IsNull(),
+        status: CartStatus.ACTIVE,
+      },
+    });
+    if (!cart) {
+      cart = await this.cartsRepository.save(
+        this.cartsRepository.create({
+          userId,
+          guestSessionId: null,
+          status: CartStatus.ACTIVE,
+        }),
+      );
+    }
+    return cart;
+  }
+
+  private async ensureActiveGuestCart(sessionId: string): Promise<CartEntity> {
+    let cart = await this.cartsRepository.findOne({
+      where: {
+        guestSessionId: sessionId,
+        userId: IsNull(),
+        status: CartStatus.ACTIVE,
+      },
+    });
+    if (!cart) {
+      cart = await this.cartsRepository.save(
+        this.cartsRepository.create({
+          userId: null,
+          guestSessionId: sessionId,
+          status: CartStatus.ACTIVE,
+        }),
+      );
+    }
+    return cart;
+  }
+
+  private async ensureActiveCartInManager(
+    manager: import('typeorm').EntityManager,
+    userId: string,
+  ): Promise<CartEntity> {
+    const repo = manager.getRepository(CartEntity);
+    let cart = await repo.findOne({
+      where: {
+        userId,
+        guestSessionId: IsNull(),
+        status: CartStatus.ACTIVE,
+      },
+    });
+    if (!cart) {
+      cart = await repo.save(
+        repo.create({
+          userId,
+          guestSessionId: null,
+          status: CartStatus.ACTIVE,
+        }),
+      );
+    }
+    return cart;
+  }
+
+  private async addOrIncrementLine(
+    cartId: string,
+    productId: string,
+    productVariantId: string,
+    quantity: number,
+  ): Promise<void> {
+    await this.addOrIncrementLineInManager(
+      this.dataSource.manager,
+      cartId,
+      productId,
+      productVariantId,
+      quantity,
+    );
+  }
+
+  private async addOrIncrementLineInManager(
+    manager: import('typeorm').EntityManager,
+    cartId: string,
+    productId: string,
+    productVariantId: string,
+    quantity: number,
+  ): Promise<void> {
+    const itemRepo = manager.getRepository(CartItemEntity);
+    const productRepo = manager.getRepository(ProductEntity);
+    const variantRepo = manager.getRepository(ProductVariantEntity);
+    const invRepo = manager.getRepository(InventoryEntity);
+
+    const product = await productRepo.findOne({ where: { id: productId } });
+    if (!product || product.deletedAt || !product.isActive) {
+      throw new NotFoundException({
+        message: 'Product not found',
+        details: { code: 'PRODUCT_UNAVAILABLE', product_id: productId },
+      });
+    }
+    const variant = await variantRepo.findOne({
+      where: { id: productVariantId, productId },
+    });
+    if (!variant) {
+      throw new BadRequestException({
+        message: 'Invalid product variant',
+        details: {
+          code: 'INVALID_VARIANT',
+          product_id: productId,
+          product_variant_id: productVariantId,
+        },
+      });
+    }
+    const inventory = await invRepo.findOne({
+      where: {
+        productVariantId: variant.id,
+        channel: InventoryChannel.INTERNAL,
+      },
+    });
+    const stock = inventory?.availableStock ?? 0;
+
+    const existing = await itemRepo.findOne({
+      where: {
+        cartId,
         productId: product.id,
         productVariantId: variant.id,
       },
     });
     if (existing) {
-      const nextQuantity = existing.quantity + payload.quantity;
+      const nextQuantity = existing.quantity + quantity;
       if (stock < nextQuantity) {
         throw new BadRequestException({
           message: 'Not enough stock available',
@@ -93,9 +378,9 @@ export class CartService {
       }
       existing.quantity = nextQuantity;
       existing.price = product.price;
-      await this.cartItemsRepository.save(existing);
+      await itemRepo.save(existing);
     } else {
-      if (stock < payload.quantity) {
+      if (stock < quantity) {
         throw new BadRequestException({
           message: 'Not enough stock available',
           details: {
@@ -105,28 +390,25 @@ export class CartService {
           },
         });
       }
-      await this.cartItemsRepository.save(
-        this.cartItemsRepository.create({
-          cartId: cart.id,
+      await itemRepo.save(
+        itemRepo.create({
+          cartId,
           productId: product.id,
           productVariantId: variant.id,
-          quantity: payload.quantity,
+          quantity,
           price: product.price,
         }),
       );
     }
-
-    await this.cartCache.invalidate(userId);
   }
 
-  async updateItem(
-    userId: string,
+  private async updateItemOnCart(
+    cartId: string,
     itemId: string,
     payload: UpdateCartItemDto,
   ): Promise<void> {
-    const cart = await this.ensureActiveCart(userId);
     const item = await this.cartItemsRepository.findOne({
-      where: { id: itemId, cartId: cart.id },
+      where: { id: itemId, cartId },
     });
     if (!item) {
       throw new NotFoundException({
@@ -144,7 +426,7 @@ export class CartService {
 
     const existingSameVariant = await this.cartItemsRepository.findOne({
       where: {
-        cartId: cart.id,
+        cartId,
         productId: product.id,
         productVariantId: targetVariantId,
       },
@@ -177,48 +459,6 @@ export class CartService {
       item.price = product.price;
       await this.cartItemsRepository.save(item);
     }
-    await this.cartCache.invalidate(userId);
-  }
-
-  async removeItem(userId: string, itemId: string): Promise<void> {
-    const cart = await this.ensureActiveCart(userId);
-    const item = await this.cartItemsRepository.findOne({
-      where: { id: itemId, cartId: cart.id },
-    });
-    if (!item) {
-      throw new NotFoundException({
-        message: 'Cart item not found',
-        details: { code: 'CART_ITEM_NOT_FOUND' },
-      });
-    }
-    await this.cartItemsRepository.delete(item.id);
-    await this.cartCache.invalidate(userId);
-  }
-
-  async clearCart(userId: string): Promise<void> {
-    const cart = await this.ensureActiveCart(userId);
-    await this.cartItemsRepository.delete({ cartId: cart.id });
-    await this.cartCache.invalidate(userId);
-  }
-
-  async validateCart(userId: string): Promise<ValidateCartResult> {
-    const cart = await this.ensureActiveCart(userId);
-    return this.validateCartById(cart.id);
-  }
-
-  private async ensureActiveCart(userId: string): Promise<CartEntity> {
-    let cart = await this.cartsRepository.findOne({
-      where: { userId, status: CartStatus.ACTIVE },
-    });
-    if (!cart) {
-      cart = await this.cartsRepository.save(
-        this.cartsRepository.create({
-          userId,
-          status: CartStatus.ACTIVE,
-        }),
-      );
-    }
-    return cart;
   }
 
   private async validateCartById(cartId: string): Promise<ValidateCartResult> {
