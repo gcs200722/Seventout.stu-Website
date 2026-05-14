@@ -49,6 +49,8 @@ export class AddressService {
         addressesRepo.create({
           userId: user.id,
           ...this.toEntityPayload(payload),
+          ward: payload.ward ?? '',
+          district: payload.district ?? '',
           isDefault: payload.is_default ?? false,
         }),
       );

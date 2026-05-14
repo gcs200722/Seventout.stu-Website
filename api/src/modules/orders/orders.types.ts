@@ -31,8 +31,11 @@ export enum OrderEventType {
 export type ShippingAddressSnapshot = {
   full_name: string;
   phone: string;
+  /** Present for guest checkout and newer orders; optional for legacy snapshots. */
+  email?: string;
   address_line: string;
   ward: string;
+  /** Thường để trống (không thu thập quận/huyện). */
   district: string;
   city: string;
   country: string;

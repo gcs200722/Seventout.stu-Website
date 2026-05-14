@@ -4,8 +4,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { AddressEntity } from '../address/entities/address.entity';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -20,13 +23,16 @@ import { OrderEventDispatcherService } from './events/order-event-dispatcher.ser
 import { OrderQueryService } from './order-query.service';
 import { OrderStatusPolicy } from './order-status.policy';
 import { ORDER_CART_PORT } from './ports/order-cart.port';
-import type { OrderCartPort } from './ports/order-cart.port';
+import type { OrderCartOwner, OrderCartPort } from './ports/order-cart.port';
 import { ORDER_PRICING_PORT } from './ports/order-pricing.port';
 import type { OrderPricingPort } from './ports/order-pricing.port';
 import { ORDER_INVENTORY_PORT } from './ports/order-inventory.port';
 import type { OrderInventoryPort } from './ports/order-inventory.port';
 import { ORDER_FULFILLMENT_PORT } from './ports/order-fulfillment.port';
 import type { OrderFulfillmentPort } from './ports/order-fulfillment.port';
+import { PaymentsService } from '../payments/payments.service';
+import type { GuestCheckoutDto } from './dto/guest-checkout.dto';
+import type { PublicOrderLookupDto } from './dto/public-order-lookup.dto';
 import {
   FulfillmentStatus,
   OrderEventType,
@@ -59,6 +65,7 @@ export class OrdersService {
     private readonly statusPolicy: OrderStatusPolicy,
     private readonly orderQueryService: OrderQueryService,
     private readonly auditWriter: AuditWriterService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   async createOrder(
@@ -112,7 +119,7 @@ export class OrdersService {
       const outboxRepo = manager.getRepository(OrderEventOutboxEntity);
 
       const cartSnapshot = await this.cartPort.getCheckoutCart(
-        user.id,
+        { type: 'user', userId: user.id },
         payload.cart_id,
         manager,
       );
@@ -179,7 +186,10 @@ export class OrdersService {
       return order;
     });
 
-    await this.cartPort.clearCartAfterCheckout(user.id, payload.cart_id);
+    await this.cartPort.clearCartAfterCheckout(
+      { type: 'user', userId: user.id },
+      payload.cart_id,
+    );
 
     await this.auditWriter.log({
       action: AuditAction.CREATE,
@@ -253,7 +263,10 @@ export class OrdersService {
         details: { code: 'ORDER_NOT_FOUND' },
       });
     }
-    if (user.role === UserRole.USER && order.userId !== user.id) {
+    if (
+      user.role === UserRole.USER &&
+      (order.userId === null || order.userId !== user.id)
+    ) {
       throw new ForbiddenException({
         message: 'You cannot access this order',
         details: { code: 'ORDER_FORBIDDEN' },
@@ -508,13 +521,235 @@ export class OrdersService {
         details: { code: 'ORDER_NOT_FOUND' },
       });
     }
-    if (user.role === UserRole.USER && order.userId !== user.id) {
+    if (
+      user.role === UserRole.USER &&
+      (order.userId === null || order.userId !== user.id)
+    ) {
       throw new ForbiddenException({
         message: 'You cannot access this order',
         details: { code: 'ORDER_FORBIDDEN' },
       });
     }
     return order;
+  }
+
+  async createGuestOrder(
+    guestSessionId: string,
+    payload: GuestCheckoutDto,
+    idempotencyKey?: string,
+  ): Promise<{
+    order_id: string;
+    order_number: string;
+    lookup_secret: string;
+    status: OrderStatus;
+    payment_status: PaymentStatus;
+    total_amount: number;
+    payment_id: string;
+    guest_payment_status: string;
+  }> {
+    const normalizedKey = (
+      idempotencyKey?.trim() || `${guestSessionId}:${payload.cart_id}`
+    ).trim();
+
+    const duplicatedGuestOrder = await this.ordersRepository.findOne({
+      where: { userId: IsNull(), idempotencyKey: normalizedKey },
+    });
+    if (duplicatedGuestOrder) {
+      throw new BadRequestException({
+        message: 'Duplicate checkout request',
+        details: {
+          code: 'CHECKOUT_DUPLICATE',
+          order_id: duplicatedGuestOrder.id,
+        },
+      });
+    }
+
+    const cartOwner: OrderCartOwner = {
+      type: 'guest',
+      sessionId: guestSessionId,
+    };
+
+    const lookupSecretPlain = randomBytes(18).toString('base64url');
+    const lookupSecretHash = await bcrypt.hash(lookupSecretPlain, 10);
+
+    const created = await this.dataSource.transaction(async (manager) => {
+      const orderRepo = manager.getRepository(OrderEntity);
+      const itemRepo = manager.getRepository(OrderItemEntity);
+      const outboxRepo = manager.getRepository(OrderEventOutboxEntity);
+
+      const cartSnapshot = await this.cartPort.getCheckoutCart(
+        cartOwner,
+        payload.cart_id,
+        manager,
+      );
+      const priced = await this.pricingPort.priceCheckoutSnapshot(
+        null,
+        payload.cart_id,
+        cartSnapshot,
+        manager,
+      );
+
+      const orderNumber = await this.allocateUniqueOrderNumber(manager);
+
+      const shippingAddressSnapshot: ShippingAddressSnapshot = {
+        full_name: payload.shipping.full_name.trim(),
+        phone: payload.shipping.phone.trim(),
+        email: payload.shipping.email.trim().toLowerCase(),
+        address_line: payload.shipping.address_line.trim(),
+        ward: (payload.shipping.ward ?? '').trim(),
+        district: (payload.shipping.district ?? '').trim(),
+        city: payload.shipping.city.trim(),
+        country: payload.shipping.country.trim(),
+      };
+
+      const order = await orderRepo.save(
+        orderRepo.create({
+          userId: null,
+          addressId: null,
+          customerEmail: shippingAddressSnapshot.email,
+          orderNumber,
+          guestLookupSecretHash: lookupSecretHash,
+          status: OrderStatus.PENDING,
+          paymentStatus: PaymentStatus.UNPAID,
+          fulfillmentStatus: FulfillmentStatus.UNFULFILLED,
+          totalAmount: priced.total_amount,
+          discountTotal: priced.discount_total,
+          pricingSnapshot: priced.pricing_snapshot,
+          shippingAddress: shippingAddressSnapshot,
+          note: this.buildIdempotencyNote(payload.note, normalizedKey),
+          idempotencyKey: normalizedKey,
+        }),
+      );
+
+      const items = priced.items.map((item) =>
+        itemRepo.create({
+          orderId: order.id,
+          productId: item.product_id,
+          productVariantId: item.product_variant_id,
+          variantColor: item.variant_color,
+          variantSize: item.variant_size,
+          productName: item.product_name,
+          price: item.price,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+        }),
+      );
+      await itemRepo.save(items);
+
+      await this.pricingPort.finalizeCouponAfterOrder(
+        null,
+        order.id,
+        priced,
+        manager,
+      );
+
+      await outboxRepo.save(
+        outboxRepo.create({
+          orderId: order.id,
+          eventType: OrderEventType.ORDER_CREATED,
+          payload: {
+            order_id: order.id,
+            discount_total: priced.discount_total,
+            pricing_snapshot: priced.pricing_snapshot,
+            items: items.map((item) => ({
+              product_variant_id: item.productVariantId,
+              quantity: item.quantity,
+            })),
+          },
+        }),
+      );
+
+      return { order, items };
+    });
+
+    await this.cartPort.clearCartAfterCheckout(cartOwner, payload.cart_id);
+
+    const payment = await this.paymentsService.createGuestCodPayment(
+      created.order.id,
+    );
+
+    return {
+      order_id: created.order.id,
+      order_number: created.order.orderNumber,
+      lookup_secret: lookupSecretPlain,
+      status: created.order.status,
+      payment_status: created.order.paymentStatus,
+      total_amount: created.order.totalAmount,
+      payment_id: payment.payment_id,
+      guest_payment_status: payment.status,
+    };
+  }
+
+  async lookupPublicOrder(payload: PublicOrderLookupDto): Promise<{
+    order_number: string;
+    status: OrderStatus;
+    payment_status: PaymentStatus;
+    total_amount: number;
+    created_at: Date;
+    items: Array<{
+      product_name: string;
+      quantity: number;
+      subtotal: number;
+    }>;
+  }> {
+    const order = await this.ordersRepository.findOne({
+      where: {
+        orderNumber: payload.order_number.trim(),
+        customerEmail: payload.email.trim().toLowerCase(),
+      },
+    });
+    if (!order || !order.guestLookupSecretHash) {
+      throw new UnauthorizedException({
+        message: 'Order not found',
+        details: { code: 'ORDER_LOOKUP_FAILED' },
+      });
+    }
+    const ok = await bcrypt.compare(
+      payload.lookup_secret.trim(),
+      order.guestLookupSecretHash,
+    );
+    if (!ok) {
+      throw new UnauthorizedException({
+        message: 'Order not found',
+        details: { code: 'ORDER_LOOKUP_FAILED' },
+      });
+    }
+    const items = await this.orderItemsRepository.find({
+      where: { orderId: order.id },
+      order: { createdAt: 'ASC' },
+    });
+    return {
+      order_number: order.orderNumber,
+      status: order.status,
+      payment_status: order.paymentStatus,
+      total_amount: order.totalAmount,
+      created_at: order.createdAt,
+      items: items.map((row) => ({
+        product_name: row.productName,
+        quantity: row.quantity,
+        subtotal: row.subtotal,
+      })),
+    };
+  }
+
+  private async allocateUniqueOrderNumber(
+    manager: import('typeorm').EntityManager,
+  ): Promise<string> {
+    const orderRepo = manager.getRepository(OrderEntity);
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      const suffix = randomBytes(4).toString('hex').toUpperCase();
+      const candidate = `ORD-${new Date().getFullYear()}-${suffix}`;
+      const exists = await orderRepo.exist({
+        where: { orderNumber: candidate },
+      });
+      if (!exists) {
+        return candidate;
+      }
+    }
+    throw new BadRequestException({
+      message: 'Could not allocate order number',
+      details: { code: 'ORDER_NUMBER_ALLOCATION_FAILED' },
+    });
   }
 
   private buildIdempotencyNote(note: string | undefined, key: string): string {

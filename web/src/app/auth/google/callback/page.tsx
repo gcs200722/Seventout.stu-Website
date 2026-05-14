@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { clearStoredTokens, setStoredTokens } from "@/lib/auth-storage";
+import { clearStoredTokens, setStoredTokens, AUTH_TOKENS_CHANGED_EVENT } from "@/lib/auth-storage";
+import { mergeGuestCartAfterLogin } from "@/lib/cart-api";
 
 const errorMessages: Record<string, string> = {
   oauth_failed: "Đăng nhập Google thất bại. Vui lòng thử lại.",
@@ -36,7 +37,15 @@ function GoogleCallbackContent() {
       access_token: accessToken,
       refresh_token: refreshToken,
     });
-    router.replace("/");
+    window.dispatchEvent(new Event(AUTH_TOKENS_CHANGED_EVENT));
+    void (async () => {
+      try {
+        await mergeGuestCartAfterLogin();
+      } catch {
+        /* ignore */
+      }
+      router.replace("/");
+    })();
   }, [router, searchParams]);
 
   return (

@@ -1,14 +1,18 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import { CART_CACHE_PORT } from '../../cart/cart-cache.port';
-import type { CartCachePort } from '../../cart/cart-cache.port';
+import type { CartCacheOwner, CartCachePort } from '../../cart/cart-cache.port';
 import { ProductEntity } from '../../products/product.entity';
 import { ProductVariantEntity } from '../../products/product-variant.entity';
 import { CartItemEntity } from '../../cart/entities/cart-item.entity';
 import { CartEntity, CartStatus } from '../../cart/entities/cart.entity';
-import { CheckoutCartSnapshot, OrderCartPort } from '../ports/order-cart.port';
+import {
+  CheckoutCartSnapshot,
+  OrderCartOwner,
+  OrderCartPort,
+} from '../ports/order-cart.port';
 
 @Injectable()
 export class OrderCartAdapter implements OrderCartPort {
@@ -25,8 +29,14 @@ export class OrderCartAdapter implements OrderCartPort {
     private readonly cartCache: CartCachePort,
   ) {}
 
+  private cacheOwnerFromOrderOwner(owner: OrderCartOwner): CartCacheOwner {
+    return owner.type === 'user'
+      ? { kind: 'user', userId: owner.userId }
+      : { kind: 'guest', sessionId: owner.sessionId };
+  }
+
   async getCheckoutCart(
-    userId: string,
+    owner: OrderCartOwner,
     cartId: string,
     manager?: EntityManager,
   ): Promise<CheckoutCartSnapshot> {
@@ -43,9 +53,22 @@ export class OrderCartAdapter implements OrderCartPort {
       ? manager.getRepository(ProductVariantEntity)
       : this.variantsRepository;
 
-    const cart = await cartsRepo.findOne({
-      where: { id: cartId, userId, status: CartStatus.ACTIVE },
-    });
+    const where =
+      owner.type === 'user'
+        ? {
+            id: cartId,
+            userId: owner.userId,
+            guestSessionId: IsNull(),
+            status: CartStatus.ACTIVE,
+          }
+        : {
+            id: cartId,
+            guestSessionId: owner.sessionId,
+            userId: IsNull(),
+            status: CartStatus.ACTIVE,
+          };
+
+    const cart = await cartsRepo.findOne({ where });
     if (!cart) {
       throw new BadRequestException({
         message: 'Cart is invalid for checkout',
@@ -100,21 +123,52 @@ export class OrderCartAdapter implements OrderCartPort {
     };
   }
 
-  async clearCartAfterCheckout(userId: string, cartId: string): Promise<void> {
+  async clearCartAfterCheckout(
+    owner: OrderCartOwner,
+    cartId: string,
+  ): Promise<void> {
     await this.cartItemsRepository.delete({ cartId });
-    const cart = await this.cartsRepository.findOne({
-      where: { id: cartId, userId, status: CartStatus.ACTIVE },
-    });
+    const where =
+      owner.type === 'user'
+        ? {
+            id: cartId,
+            userId: owner.userId,
+            guestSessionId: IsNull(),
+            status: CartStatus.ACTIVE,
+          }
+        : {
+            id: cartId,
+            guestSessionId: owner.sessionId,
+            userId: IsNull(),
+            status: CartStatus.ACTIVE,
+          };
+
+    const cart = await this.cartsRepository.findOne({ where });
+    const cacheOwner = this.cacheOwnerFromOrderOwner(owner);
     if (!cart) {
-      await this.cartCache.invalidate(userId);
+      await this.cartCache.invalidate(cacheOwner);
       return;
     }
     cart.status = CartStatus.CHECKED_OUT;
     cart.appliedCouponId = null;
     await this.cartsRepository.save(cart);
-    await this.cartsRepository.save(
-      this.cartsRepository.create({ userId, status: CartStatus.ACTIVE }),
-    );
-    await this.cartCache.invalidate(userId);
+    if (owner.type === 'user') {
+      await this.cartsRepository.save(
+        this.cartsRepository.create({
+          userId: owner.userId,
+          guestSessionId: null,
+          status: CartStatus.ACTIVE,
+        }),
+      );
+    } else {
+      await this.cartsRepository.save(
+        this.cartsRepository.create({
+          userId: null,
+          guestSessionId: owner.sessionId,
+          status: CartStatus.ACTIVE,
+        }),
+      );
+    }
+    await this.cartCache.invalidate(cacheOwner);
   }
 }

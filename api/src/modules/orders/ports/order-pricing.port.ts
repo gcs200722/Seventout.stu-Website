@@ -14,14 +14,14 @@ export type PricedCheckoutSnapshot = CheckoutCartSnapshot & {
 
 export interface OrderPricingPort {
   priceCheckoutSnapshot(
-    userId: string,
+    userId: string | null,
     cartId: string,
     snapshot: CheckoutCartSnapshot,
     manager?: EntityManager,
   ): Promise<PricedCheckoutSnapshot>;
 
   finalizeCouponAfterOrder(
-    userId: string,
+    userId: string | null,
     orderId: string,
     priced: PricedCheckoutSnapshot,
     manager: EntityManager,

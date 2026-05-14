@@ -14,8 +14,27 @@ export class OrderEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'user_id', type: 'uuid' })
-  userId: string;
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId: string | null;
+
+  @Column({
+    name: 'customer_email',
+    type: 'varchar',
+    length: 320,
+    nullable: true,
+  })
+  customerEmail: string | null;
+
+  @Column({ name: 'order_number', type: 'varchar', length: 40 })
+  orderNumber: string;
+
+  @Column({
+    name: 'guest_lookup_secret_hash',
+    type: 'varchar',
+    length: 128,
+    nullable: true,
+  })
+  guestLookupSecretHash: string | null;
 
   @Column({ name: 'address_id', type: 'uuid', nullable: true })
   addressId: string | null;

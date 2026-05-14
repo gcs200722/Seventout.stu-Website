@@ -14,7 +14,7 @@ export class PromotionsOrderPricingAdapter implements OrderPricingPort {
   ) {}
 
   priceCheckoutSnapshot(
-    userId: string,
+    userId: string | null,
     cartId: string,
     snapshot: CheckoutCartSnapshot,
     manager?: EntityManager,
@@ -28,7 +28,7 @@ export class PromotionsOrderPricingAdapter implements OrderPricingPort {
   }
 
   finalizeCouponAfterOrder(
-    userId: string,
+    userId: string | null,
     orderId: string,
     priced: PricedCheckoutSnapshot,
     manager: EntityManager,

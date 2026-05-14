@@ -199,7 +199,7 @@ export function Header({ categoryLinks = [] }: HeaderProps) {
                 className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-transparent text-[#2f2a24] transition-colors hover:bg-[#eadfcd]"
               >
                 <IconCart className="h-5 w-5" />
-                {isAuthenticated && cartCount > 0 ? (
+                {cartCount > 0 ? (
                   <span className="absolute right-0 top-0 min-w-5 translate-x-1/3 -translate-y-1/3 rounded-full bg-[#3d3228] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
                     {cartCount}
                   </span>

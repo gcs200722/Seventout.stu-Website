@@ -2,6 +2,10 @@ import type { EntityManager } from 'typeorm';
 
 export const ORDER_CART_PORT = Symbol('ORDER_CART_PORT');
 
+export type OrderCartOwner =
+  | { type: 'user'; userId: string }
+  | { type: 'guest'; sessionId: string };
+
 export type CheckoutCartItem = {
   product_id: string;
   product_variant_id: string;
@@ -25,9 +29,9 @@ export type CheckoutCartSnapshot = {
 
 export interface OrderCartPort {
   getCheckoutCart(
-    userId: string,
+    owner: OrderCartOwner,
     cartId: string,
     manager?: EntityManager,
   ): Promise<CheckoutCartSnapshot>;
-  clearCartAfterCheckout(userId: string, cartId: string): Promise<void>;
+  clearCartAfterCheckout(owner: OrderCartOwner, cartId: string): Promise<void>;
 }

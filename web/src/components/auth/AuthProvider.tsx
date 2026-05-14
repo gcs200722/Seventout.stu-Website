@@ -20,6 +20,7 @@ import {
   type MeResponse,
   type RegisterPayload,
 } from "@/lib/auth-api";
+import { mergeGuestCartAfterLogin } from "@/lib/cart-api";
 import { changeMyPassword, patchMyProfile } from "@/lib/users-api";
 import {
   AUTH_TOKENS_CHANGED_EVENT,
@@ -145,6 +146,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyTokenClaims(tokens.access_token);
     const me = await getMe(tokens.access_token);
     setUser(me);
+    try {
+      await mergeGuestCartAfterLogin();
+    } catch {
+      /* guest merge is best-effort */
+    }
   }, [applyTokenClaims]);
 
   const register = useCallback(async (payload: RegisterPayload) => {
@@ -157,6 +163,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyTokenClaims(tokens.access_token);
     const me = await getMe(tokens.access_token);
     setUser(me);
+    try {
+      await mergeGuestCartAfterLogin();
+    } catch {
+      /* guest merge is best-effort */
+    }
   }, [applyTokenClaims]);
 
   const logout = useCallback(async () => {
